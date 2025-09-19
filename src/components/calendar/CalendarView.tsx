@@ -18,25 +18,47 @@ interface ScheduledContent {
   status: 'scheduled' | 'published';
 }
 
+interface ContentNode {
+  id: string;
+  title: string;
+  type: 'post' | 'image' | 'story';
+  status: 'draft' | 'scheduled' | 'published';
+  scheduledDate?: Date;
+  content: string;
+  imageUrl?: string;
+  connections: string[];
+  position: { x: number; y: number };
+}
+
 interface CalendarViewProps {
+  scheduledNodes?: ContentNode[];
   onClose: () => void;
 }
 
-export const CalendarView: React.FC<CalendarViewProps> = ({ onClose }) => {
+export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [], onClose }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  // Convert scheduled nodes to calendar format
+  const scheduledContent: Record<string, ScheduledContent[]> = {};
   
-  const scheduledContent: Record<string, ScheduledContent[]> = {
-    '2024-01-15': [
-      { id: '1', title: 'Product Launch Post', type: 'post', time: '09:00', status: 'scheduled' },
-      { id: '2', title: 'Feature Highlight', type: 'image', time: '15:30', status: 'scheduled' }
-    ],
-    '2024-01-16': [
-      { id: '3', title: 'Behind Scenes Story', type: 'story', time: '12:00', status: 'scheduled' }
-    ],
-    '2024-01-12': [
-      { id: '4', title: 'Welcome Post', type: 'post', time: '10:00', status: 'published' }
-    ]
-  };
+  scheduledNodes.forEach(node => {
+    if (node.scheduledDate) {
+      const dateKey = formatDateKey(
+        node.scheduledDate.getFullYear(),
+        node.scheduledDate.getMonth(),
+        node.scheduledDate.getDate()
+      );
+      if (!scheduledContent[dateKey]) {
+        scheduledContent[dateKey] = [];
+      }
+      scheduledContent[dateKey].push({
+        id: node.id,
+        title: node.title,
+        type: node.type,
+        time: node.scheduledDate.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+        status: node.status as 'scheduled' | 'published'
+      });
+    }
+  });
 
   const getDaysInMonth = (date: Date) => {
     const year = date.getFullYear();

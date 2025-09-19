@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -29,6 +30,7 @@ interface ContentNode {
 }
 
 export const PlanningPanel: React.FC = () => {
+  const navigate = useNavigate();
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -79,6 +81,21 @@ export const PlanningPanel: React.FC = () => {
       connections: []
     };
     setNodes([...nodes, newNode]);
+  };
+
+  const handleDeleteNode = (nodeId: string) => {
+    const updatedNodes = nodes.filter(node => node.id !== nodeId)
+      .map(node => ({
+        ...node,
+        connections: node.connections.filter(id => id !== nodeId)
+      }));
+    setNodes(updatedNodes);
+  };
+
+  const handleScheduleAll = () => {
+    // Navigate to calendar page with scheduled nodes
+    const scheduledNodes = nodes.filter(node => node.scheduledDate);
+    navigate('/calendar', { state: { nodes: scheduledNodes } });
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -153,6 +170,7 @@ export const PlanningPanel: React.FC = () => {
           onNodeClick={handleNodeClick}
           onNodeUpdate={handleNodeUpdate}
           onAddNode={() => setShowAddModal(true)}
+          onDeleteNode={handleDeleteNode}
         />
       </div>
 
@@ -163,7 +181,12 @@ export const PlanningPanel: React.FC = () => {
             <Calendar className="w-3 h-3 mr-2" />
             Calendar View
           </Button>
-          <Button variant="outline" size="sm" className="flex-1 border-primary/20 hover:border-primary/40">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1 border-primary/20 hover:border-primary/40"
+            onClick={handleScheduleAll}
+          >
             <Clock className="w-3 h-3 mr-2" />
             Schedule All
           </Button>

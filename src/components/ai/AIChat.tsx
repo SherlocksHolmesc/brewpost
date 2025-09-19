@@ -18,12 +18,46 @@ export const AIChat: React.FC = () => {
     {
       id: '1',
       type: 'ai',
-      content: 'Welcome to BrewPost! I can help you create amazing content. What would you like to generate today?',
+      content: 'Welcome to BrewPost! 🎯 I can help you plan and create amazing content. Try asking me to "plan content structure" or "connect content pieces" to get strategic suggestions for your content flow!',
       timestamp: new Date(),
     }
   ]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+
+  const generatePlanningResponse = (userInput: string) => {
+    const lowerInput = userInput.toLowerCase();
+    
+    if (lowerInput.includes('plan') || lowerInput.includes('structure') || lowerInput.includes('organize')) {
+      return `I can help you plan your content structure! Here are some suggestions:
+
+**Content Flow Strategy:**
+• Start with a main announcement post
+• Follow with behind-the-scenes content
+• Create supporting visual content
+• End with user engagement posts
+
+**Node Connections:**
+• Link related content pieces
+• Create content series with sequential flow
+• Connect different formats (post → story → image)
+
+Would you like me to suggest specific content nodes for your "${userInput}" campaign?`;
+    }
+    
+    if (lowerInput.includes('connect') || lowerInput.includes('link')) {
+      return `Great! I can help you connect your content nodes strategically:
+
+**Connection Strategies:**
+• Sequential: A → B → C (story progression)
+• Hub: Main post connected to supporting content
+• Campaign: All nodes linked for unified messaging
+
+Click the link icon on any node to start connecting them. What type of content flow are you planning?`;
+    }
+    
+    return `I'll help you create content based on: "${userInput}". I can also help you plan the structure and connections between your content pieces. Would you like me to suggest a content planning strategy?`;
+  };
 
   const handleSend = async () => {
     if (!input.trim() || isGenerating) return;
@@ -36,15 +70,16 @@ export const AIChat: React.FC = () => {
     };
 
     setMessages(prev => [...prev, userMessage]);
+    const currentInput = input;
     setInput('');
     setIsGenerating(true);
 
-    // Simulate AI response
+    // Enhanced AI response with planning capabilities
     setTimeout(() => {
       const aiMessage: Message = {
         id: (Date.now() + 1).toString(),
         type: 'ai',
-        content: `I'll help you create content based on: "${input}". This could be generated as an image or text post. Would you like me to proceed with generation?`,
+        content: generatePlanningResponse(currentInput),
         timestamp: new Date(),
       };
       setMessages(prev => [...prev, aiMessage]);
@@ -53,9 +88,9 @@ export const AIChat: React.FC = () => {
   };
 
   const quickPrompts = [
-    { icon: Image, text: 'Social Media Post', color: 'bg-gradient-primary' },
-    { icon: Type, text: 'Blog Header', color: 'bg-gradient-secondary' },
-    { icon: Wand2, text: 'Marketing Banner', color: 'bg-gradient-accent' },
+    { icon: Image, text: 'Plan content structure', color: 'bg-gradient-primary' },
+    { icon: Type, text: 'Connect content pieces', color: 'bg-gradient-secondary' },
+    { icon: Wand2, text: 'Marketing campaign', color: 'bg-gradient-accent' },
   ];
 
   return (

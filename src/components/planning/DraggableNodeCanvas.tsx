@@ -30,13 +30,15 @@ interface NodeCanvasProps {
   onNodeClick: (node: ContentNode) => void;
   onNodeUpdate: (nodes: ContentNode[]) => void;
   onAddNode: () => void;
+  onDeleteNode?: (nodeId: string) => void;
 }
 
 export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({ 
   nodes, 
   onNodeClick, 
   onNodeUpdate,
-  onAddNode 
+  onAddNode,
+  onDeleteNode 
 }) => {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -213,6 +215,20 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
           >
             {/* Connection Controls */}
             <div className="absolute -top-2 -right-2 flex gap-1">
+              {onDeleteNode && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 w-6 p-0 bg-destructive hover:bg-destructive/90 text-white"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteNode(node.id);
+                  }}
+                  title="Delete node"
+                >
+                  <X className="w-3 h-3" />
+                </Button>
+              )}
               {connectingMode === node.id ? (
                 <Button
                   size="sm"
