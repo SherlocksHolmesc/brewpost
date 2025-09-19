@@ -37,14 +37,12 @@ interface ContentModalProps {
   node: ContentNode | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onScheduleToCalendar?: (node: ContentNode) => void;
 }
 
 export const ContentModal: React.FC<ContentModalProps> = ({ 
   node, 
   open, 
-  onOpenChange,
-  onScheduleToCalendar
+  onOpenChange 
 }) => {
   if (!node) return null;
 
@@ -163,13 +161,9 @@ export const ContentModal: React.FC<ContentModalProps> = ({
               Edit Content
             </Button>
             
-            <Button 
-              variant="outline" 
-              className="border-primary/20 hover:border-primary/40 glow-hover"
-              onClick={() => node && onScheduleToCalendar?.(node)}
-            >
+            <Button variant="outline" className="border-primary/20 hover:border-primary/40 glow-hover">
               <Calendar className="w-4 h-4 mr-2" />
-              Add to Calendar
+              Schedule
             </Button>
             
             <Button variant="outline" className="border-primary/20 hover:border-primary/40">
