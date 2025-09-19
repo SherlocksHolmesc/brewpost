@@ -161,7 +161,7 @@ export const Landing: React.FC = () => {
       <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-l from-accent/25 to-primary/25 rounded-full blur-3xl animate-float-delayed opacity-60"></div>
       
       {/* Navigation Header */}
-      <header className="relative z-10 px-6 py-4">
+      <header className="relative z-10 px-6 py-8">
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="relative">
@@ -186,6 +186,16 @@ export const Landing: React.FC = () => {
           >
             Sign In
           </Button>
+        </div>
+        
+        {/* BrewPost branding in center */}
+        <div className="text-center mt-8">
+          <div className="relative inline-block">
+            <h1 className="text-6xl md:text-8xl font-bold bg-gradient-primary bg-clip-text text-transparent opacity-20 select-none">
+              BrewPost
+            </h1>
+            <div className="absolute inset-0 bg-gradient-primary opacity-5 blur-3xl"></div>
+          </div>
         </div>
       </header>
 
@@ -352,10 +362,9 @@ export const Landing: React.FC = () => {
               </p>
             </div>
 
-            <Card className="p-12 bg-card/20 backdrop-blur-xl border border-primary/20 relative overflow-hidden shadow-2xl"
-                  style={{ boxShadow: '0 0 60px hsl(var(--primary) / 0.3)' }}>
-              <div className="absolute inset-0 bg-gradient-to-br from-primary/10 via-accent/5 to-primary/10"></div>
-              <div className="absolute -inset-1 bg-gradient-primary opacity-20 blur-2xl animate-pulse"></div>
+            <Card className="p-12 bg-card/20 backdrop-blur-xl border border-primary/20 relative overflow-hidden"
+                  style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.1)' }}>
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-accent/2 to-primary/5"></div>
               
               <div className="relative z-10">
                 <div className="flex items-center justify-between mb-12">
@@ -363,15 +372,14 @@ export const Landing: React.FC = () => {
                     Content Network
                     <div className="absolute -bottom-1 left-0 w-full h-0.5 bg-gradient-primary opacity-60"></div>
                   </h4>
-                  <Button variant="outline" className="border-primary/30 hover:border-primary/60 bg-card/50 backdrop-blur-sm shadow-lg hover:shadow-xl transition-all duration-300"
-                          style={{ boxShadow: '0 0 20px hsl(var(--primary) / 0.2)' }}>
+                  <Button variant="outline" className="border-primary/30 hover:border-primary/60 bg-card/50 backdrop-blur-sm">
                     <Play className="w-4 h-4 mr-2" />
                     Try Interactive Demo
                   </Button>
                 </div>
 
                 {/* Enhanced Node Canvas Preview */}
-                <div className="relative h-[500px] bg-gradient-to-br from-background/40 via-primary/5 to-background/40 rounded-2xl p-8 overflow-hidden backdrop-blur-sm border border-primary/10">
+                <div className="relative h-[500px] bg-gradient-to-br from-background/40 via-primary/3 to-background/40 rounded-2xl p-8 overflow-hidden backdrop-blur-sm border border-primary/5">
                   {/* Glowing Connection Lines */}
                   <svg className="absolute inset-0 w-full h-full">
                     <defs>
@@ -403,6 +411,7 @@ export const Landing: React.FC = () => {
                       filter="url(#glow)"
                       className="animate-pulse"
                       strokeLinecap="round"
+                      style={{ animationDuration: '4s' }}
                     />
                     <path
                       d="M 180 150 Q 200 200, 240 280"
@@ -412,7 +421,7 @@ export const Landing: React.FC = () => {
                       filter="url(#glow)"
                       className="animate-pulse"
                       strokeLinecap="round"
-                      style={{ animationDelay: '0.5s' }}
+                      style={{ animationDelay: '1s', animationDuration: '5s' }}
                     />
                     <path
                       d="M 380 180 Q 420 220, 460 260"
@@ -422,11 +431,11 @@ export const Landing: React.FC = () => {
                       filter="url(#glow)"
                       className="animate-pulse"
                       strokeLinecap="round"
-                      style={{ animationDelay: '1s' }}
+                      style={{ animationDelay: '2s', animationDuration: '6s' }}
                     />
                   </svg>
 
-                  {/* Enhanced Glowing Nodes */}
+                  {/* Enhanced Draggable Nodes */}
                   {sampleNodes.map((node, index) => {
                     const TypeIcon = node.type === 'post' ? Target : node.type === 'image' ? Eye : Zap;
                     const statusColors = {
@@ -445,7 +454,7 @@ export const Landing: React.FC = () => {
                     return (
                       <div
                         key={node.id}
-                        className="absolute bg-card/90 backdrop-blur-sm border border-primary/30 rounded-2xl p-6 shadow-2xl hover:shadow-3xl transition-all cursor-pointer group transform hover:scale-110 hover:-translate-y-2"
+                        className="absolute bg-card/90 backdrop-blur-sm border border-primary/30 rounded-2xl p-6 shadow-2xl hover:shadow-3xl transition-all cursor-grab hover:cursor-grabbing group transform hover:scale-110 hover:-translate-y-2 active:cursor-grabbing select-none"
                         style={{
                           left: `${positions[index].x}px`,
                           top: `${positions[index].y}px`,
@@ -453,16 +462,19 @@ export const Landing: React.FC = () => {
                           boxShadow: `0 0 40px ${colors.glow}40, 0 10px 30px rgba(0,0,0,0.3)`
                         }}
                       >
-                        {/* Multiple glowing layers */}
-                        <div className="absolute -inset-1 bg-gradient-primary opacity-30 blur-lg rounded-2xl animate-pulse group-hover:opacity-60 transition-opacity duration-300"></div>
-                        <div className="absolute -inset-2 bg-gradient-primary opacity-10 blur-xl rounded-2xl group-hover:opacity-30 transition-opacity duration-500"></div>
+                        {/* Slower glowing layers only on nodes */}
+                        <div className="absolute -inset-1 bg-gradient-primary opacity-20 blur-lg rounded-2xl animate-pulse group-hover:opacity-40 transition-opacity duration-500"
+                             style={{ animationDuration: '3s' }}></div>
+                        <div className="absolute -inset-2 bg-gradient-primary opacity-10 blur-xl rounded-2xl animate-pulse group-hover:opacity-20 transition-opacity duration-700"
+                             style={{ animationDuration: '4s', animationDelay: '0.5s' }}></div>
                         
                         <div className="relative z-10">
                           <div className="flex items-center gap-3 mb-4">
                             <div className={`w-12 h-12 ${colors.bg} rounded-xl flex items-center justify-center shadow-xl relative overflow-hidden group-hover:scale-110 transition-transform duration-300`}
                                  style={{ boxShadow: `0 0 20px ${colors.glow}60` }}>
                               <TypeIcon className="w-6 h-6 text-white" />
-                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-sweep"></div>
+                              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent animate-sweep"
+                                   style={{ animationDuration: '3s' }}></div>
                             </div>
                             <div className="flex-1 min-w-0">
                               <h5 className="text-lg font-bold truncate text-foreground group-hover:text-primary transition-colors">{node.title}</h5>
