@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AIChat } from '@/components/ai/AIChat';
 import { PlanningPanel } from '@/components/planning/PlanningPanel';
-import { CalendarView } from '@/components/calendar/CalendarView';
 import { Sparkles, Calendar, Network, LogOut } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -12,15 +11,15 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
-  const [showPlanning, setShowPlanning] = useState(false);
+  const [showPlanning, setShowPlanning] = useState(true); // Default to open
   const [showCalendar, setShowCalendar] = useState(false);
 
   const togglePlanning = () => {
     setShowPlanning(!showPlanning);
   };
 
-  const toggleCalendar = () => {
-    setShowCalendar(!showCalendar);
+  const handleCalendarPage = () => {
+    navigate('/calendar');
   };
 
   const handleLogout = () => {
@@ -57,7 +56,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <Button 
               size="sm" 
               className="bg-gradient-primary hover:opacity-90 glow-hover"
-              onClick={toggleCalendar}
+              onClick={handleCalendarPage}
             >
               <Calendar className="w-4 h-4 mr-2" />
               Calendar
@@ -94,10 +93,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         </div>
       </div>
 
-      {/* Calendar Modal */}
-      {showCalendar && (
-        <CalendarView onClose={() => setShowCalendar(false)} />
-      )}
     </div>
   );
 };

@@ -7,6 +7,7 @@ import { ContentModal } from '@/components/modals/ContentModal';
 import { DraggableNodeCanvas } from '@/components/planning/DraggableNodeCanvas';
 import { AddNodeModal } from '@/components/modals/AddNodeModal';
 import { ScheduleConfirmationModal } from '@/components/modals/ScheduleConfirmationModal';
+import { CalendarModal } from '@/components/modals/CalendarModal';
 import { 
   Calendar, 
   Clock, 
@@ -36,6 +37,7 @@ export const PlanningPanel: React.FC = () => {
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScheduleConfirmation, setShowScheduleConfirmation] = useState(false);
+  const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [nodes, setNodes] = useState<ContentNode[]>([
     {
       id: '1',
@@ -120,9 +122,7 @@ export const PlanningPanel: React.FC = () => {
   };
 
   const handleCalendarView = () => {
-    // Show calendar with currently scheduled nodes
-    const scheduledNodes = nodes.filter(node => node.scheduledDate && node.status === 'scheduled');
-    navigate('/calendar', { state: { nodes: scheduledNodes } });
+    setShowCalendarModal(true);
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -245,6 +245,13 @@ export const PlanningPanel: React.FC = () => {
         onOpenChange={setShowScheduleConfirmation}
         nodes={nodes}
         onConfirm={handleConfirmSchedule}
+      />
+
+      {/* Calendar Preview Modal */}
+      <CalendarModal
+        open={showCalendarModal}
+        onOpenChange={setShowCalendarModal}
+        scheduledNodes={nodes.filter(node => node.scheduledDate && node.status === 'scheduled')}
       />
     </div>
   );
