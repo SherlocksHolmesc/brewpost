@@ -137,6 +137,26 @@ export default {
             opacity: "0",
           },
         },
+        "snow": {
+          "0%": {
+            transform: "translateY(-100vh) translateX(0px)",
+            opacity: "1",
+          },
+          "100%": {
+            transform: "translateY(100vh) translateX(100px)",
+            opacity: "0",
+          },
+        },
+        "snow-delayed": {
+          "0%": {
+            transform: "translateY(-100vh) translateX(0px) rotate(0deg)",
+            opacity: "1",
+          },
+          "100%": {
+            transform: "translateY(100vh) translateX(-50px) rotate(360deg)",
+            opacity: "0",
+          },
+        },
       },
       animation: {
         "accordion-down": "accordion-down 0.2s ease-out",
@@ -145,6 +165,8 @@ export default {
         "slide-out-right": "slide-out-right 0.5s cubic-bezier(0.25, 0.46, 0.45, 0.94)",
         "node-pulse": "node-pulse 2s ease-in-out infinite",
         "blink": "blink 1s infinite",
+        "snow": "snow linear infinite",
+        "snow-delayed": "snow-delayed linear infinite",
       },
     },
   },

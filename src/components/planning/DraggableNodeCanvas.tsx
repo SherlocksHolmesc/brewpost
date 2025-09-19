@@ -190,18 +190,24 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         return (
           <Card
             key={node.id}
-            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-border/50 transition-all duration-200 z-10 ${
+            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 transition-all duration-200 z-10 ${
               draggedNode === node.id 
-                ? 'scale-105 shadow-2xl border-primary/50 cursor-grabbing' 
-                : 'hover:border-primary/50 cursor-grab hover:scale-102'
+                ? 'scale-105 shadow-2xl shadow-primary/30 border-primary glow-hover cursor-grabbing' 
+                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20'
             } ${
               isConnecting 
-                ? 'ring-2 ring-primary/50 border-primary' 
+                ? 'ring-2 ring-primary/70 border-primary animate-pulse' 
                 : ''
             } ${
               canConnect 
-                ? 'ring-2 ring-accent/50 border-accent cursor-pointer' 
+                ? 'ring-2 ring-accent/70 border-accent animate-node-pulse cursor-pointer' 
                 : ''
+            } ${
+              node.status === 'published' 
+                ? 'border-success/50 hover:border-success/70' 
+                : node.status === 'scheduled' 
+                ? 'border-accent/50 hover:border-accent/70' 
+                : 'border-muted/50 hover:border-muted/70'
             }`}
             style={{
               left: node.position.x,

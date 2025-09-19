@@ -40,6 +40,32 @@ export const Landing: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden">
+      {/* Snow Animation */}
+      <div className="absolute inset-0 pointer-events-none overflow-hidden">
+        {[...Array(50)].map((_, i) => (
+          <div
+            key={i}
+            className="absolute w-1 h-1 bg-primary/40 rounded-full animate-snow"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 10}s`,
+              animationDuration: `${5 + Math.random() * 10}s`,
+            }}
+          />
+        ))}
+        {[...Array(30)].map((_, i) => (
+          <div
+            key={`large-${i}`}
+            className="absolute w-2 h-2 bg-accent/30 rounded-full animate-snow-delayed"
+            style={{
+              left: `${Math.random() * 100}%`,
+              animationDelay: `${Math.random() * 8}s`,
+              animationDuration: `${7 + Math.random() * 8}s`,
+            }}
+          />
+        ))}
+      </div>
+
       {/* Enhanced Background Effects */}
       <div className="absolute inset-0 bg-gradient-conic from-primary/10 via-accent/5 to-primary/10"></div>
       <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-gradient-to-r from-primary/20 to-accent/20 rounded-full blur-3xl animate-float opacity-70"></div>
