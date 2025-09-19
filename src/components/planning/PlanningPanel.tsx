@@ -93,20 +93,22 @@ export const PlanningPanel: React.FC = () => {
   };
 
   const handleScheduleAll = () => {
-    // Navigate to calendar page with all nodes that have scheduled dates
-    const scheduledNodes = nodes.filter(node => node.scheduledDate && node.status === 'scheduled');
-    if (scheduledNodes.length === 0) {
-      // If no scheduled nodes, create scheduled versions of draft nodes
-      const updatedNodes = nodes.map(node => 
-        node.status === 'draft' 
-          ? { ...node, status: 'scheduled' as const, scheduledDate: new Date() }
-          : node
-      );
-      setNodes(updatedNodes);
-      navigate('/calendar', { state: { nodes: updatedNodes.filter(n => n.scheduledDate) } });
-    } else {
-      navigate('/calendar', { state: { nodes: scheduledNodes } });
-    }
+    // Automatically schedule all nodes with dates starting from today
+    const today = new Date();
+    const updatedNodes = nodes.map((node, index) => {
+      // Calculate date for each node (spread them across days)
+      const scheduledDate = new Date(today);
+      scheduledDate.setDate(today.getDate() + index);
+      
+      return {
+        ...node,
+        status: 'scheduled' as const,
+        scheduledDate: scheduledDate
+      };
+    });
+    
+    setNodes(updatedNodes);
+    navigate('/calendar', { state: { nodes: updatedNodes } });
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
