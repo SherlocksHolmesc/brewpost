@@ -37,6 +37,12 @@ interface CalendarViewProps {
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [], onClose }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  
+  // Helper function to format date keys
+  const formatDateKey = (year: number, month: number, day: number) => {
+    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+  };
+  
   // Convert scheduled nodes to calendar format
   const scheduledContent: Record<string, ScheduledContent[]> = {};
   
@@ -83,9 +89,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [],
     return days;
   };
 
-  const formatDateKey = (year: number, month: number, day: number) => {
-    return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
-  };
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
