@@ -103,10 +103,7 @@ export const Landing: React.FC = () => {
         <div className="flex items-center justify-between max-w-7xl mx-auto">
           <div className="flex items-center gap-3">
             <div className="relative">
-              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
-                <Sparkles className="w-5 h-5 text-white animate-pulse" />
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
-              </div>
+              <img src="/logo.svg" alt="BrewPost" className="w-10 h-10" />
               <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-30 blur animate-pulse"></div>
             </div>
             <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">BrewPost</h1>
@@ -368,10 +365,7 @@ export const Landing: React.FC = () => {
             <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-lg"></div>
             <div className="relative z-10">
               <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4 relative overflow-hidden">
-                  <Sparkles className="w-6 h-6 text-white animate-pulse" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
-                </div>
+                <img src="/logo.svg" alt="BrewPost" className="w-12 h-12 mx-auto mb-4" />
                 <h3 className="text-2xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">Welcome to BrewPost</h3>
                 <p className="text-muted-foreground">Sign in to start creating amazing content</p>
               </div>
