@@ -1,15 +1,17 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AIChat } from '@/components/ai/AIChat';
 import { PlanningPanel } from '@/components/planning/PlanningPanel';
 import { CalendarView } from '@/components/calendar/CalendarView';
-import { Sparkles, Calendar, Network } from 'lucide-react';
+import { Sparkles, Calendar, Network, LogOut } from 'lucide-react';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
 }
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
+  const navigate = useNavigate();
   const [showPlanning, setShowPlanning] = useState(false);
   const [showCalendar, setShowCalendar] = useState(false);
 
@@ -19,6 +21,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   const toggleCalendar = () => {
     setShowCalendar(!showCalendar);
+  };
+
+  const handleLogout = () => {
+    navigate('/');
   };
 
   return (
@@ -38,7 +44,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
           </div>
           
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -55,6 +61,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             >
               <Calendar className="w-4 h-4 mr-2" />
               Calendar
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleLogout}
+              className="border-destructive/20 hover:border-destructive/40 hover:bg-destructive/10 text-destructive"
+            >
+              <LogOut className="w-4 h-4 mr-2" />
+              Logout
             </Button>
           </div>
         </div>

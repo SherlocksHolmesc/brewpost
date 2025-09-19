@@ -93,9 +93,20 @@ export const PlanningPanel: React.FC = () => {
   };
 
   const handleScheduleAll = () => {
-    // Navigate to calendar page with scheduled nodes
-    const scheduledNodes = nodes.filter(node => node.scheduledDate);
-    navigate('/calendar', { state: { nodes: scheduledNodes } });
+    // Navigate to calendar page with all nodes that have scheduled dates
+    const scheduledNodes = nodes.filter(node => node.scheduledDate && node.status === 'scheduled');
+    if (scheduledNodes.length === 0) {
+      // If no scheduled nodes, create scheduled versions of draft nodes
+      const updatedNodes = nodes.map(node => 
+        node.status === 'draft' 
+          ? { ...node, status: 'scheduled' as const, scheduledDate: new Date() }
+          : node
+      );
+      setNodes(updatedNodes);
+      navigate('/calendar', { state: { nodes: updatedNodes.filter(n => n.scheduledDate) } });
+    } else {
+      navigate('/calendar', { state: { nodes: scheduledNodes } });
+    }
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -177,7 +188,12 @@ export const PlanningPanel: React.FC = () => {
       {/* Quick Actions */}
       <div className="p-4 border-t border-border/20 bg-card/20 backdrop-blur-sm">
         <div className="flex gap-2">
-          <Button variant="outline" size="sm" className="flex-1 border-primary/20 hover:border-primary/40">
+          <Button 
+            variant="outline" 
+            size="sm" 
+            className="flex-1 border-primary/20 hover:border-primary/40"
+            onClick={() => navigate('/calendar')}
+          >
             <Calendar className="w-3 h-3 mr-2" />
             Calendar View
           </Button>
