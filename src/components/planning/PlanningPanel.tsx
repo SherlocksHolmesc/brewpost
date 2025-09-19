@@ -3,7 +3,8 @@ import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { ContentModal } from '@/components/modals/ContentModal';
-import { NodeCanvas } from '@/components/planning/NodeCanvas';
+import { DraggableNodeCanvas } from '@/components/planning/DraggableNodeCanvas';
+import { AddNodeModal } from '@/components/modals/AddNodeModal';
 import { 
   Calendar, 
   Clock, 
@@ -24,13 +25,14 @@ interface ContentNode {
   content: string;
   imageUrl?: string;
   connections: string[];
+  position: { x: number; y: number };
 }
 
 export const PlanningPanel: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);
-
-  const sampleNodes: ContentNode[] = [
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [nodes, setNodes] = useState<ContentNode[]>([
     {
       id: '1',
       title: 'Product Launch Post',
@@ -39,6 +41,7 @@ export const PlanningPanel: React.FC = () => {
       scheduledDate: new Date('2024-01-15'),
       content: 'Exciting product launch announcement with key features and benefits.',
       connections: ['2', '3'],
+      position: { x: 50, y: 50 }
     },
     {
       id: '2',
@@ -47,6 +50,7 @@ export const PlanningPanel: React.FC = () => {
       status: 'draft',
       content: 'Show the team working on the product development process.',
       connections: ['3'],
+      position: { x: 350, y: 120 }
     },
     {
       id: '3',
@@ -55,12 +59,26 @@ export const PlanningPanel: React.FC = () => {
       status: 'draft',
       content: 'Detailed infographic showing product features and specifications.',
       connections: [],
+      position: { x: 200, y: 250 }
     },
-  ];
+  ]);
 
   const handleNodeClick = (node: ContentNode) => {
     setSelectedNode(node);
     setShowModal(true);
+  };
+
+  const handleNodeUpdate = (updatedNodes: ContentNode[]) => {
+    setNodes(updatedNodes);
+  };
+
+  const handleAddNode = (nodeData: Omit<ContentNode, 'id' | 'connections'>) => {
+    const newNode: ContentNode = {
+      ...nodeData,
+      id: Date.now().toString(),
+      connections: []
+    };
+    setNodes([...nodes, newNode]);
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -95,7 +113,11 @@ export const PlanningPanel: React.FC = () => {
               Connect and schedule your content flow
             </p>
           </div>
-          <Button size="sm" className="bg-gradient-secondary hover:opacity-90 glow-hover">
+          <Button 
+            size="sm" 
+            className="bg-gradient-secondary hover:opacity-90 glow-hover"
+            onClick={() => setShowAddModal(true)}
+          >
             <Plus className="w-4 h-4 mr-1" />
             Add Node
           </Button>
@@ -126,7 +148,12 @@ export const PlanningPanel: React.FC = () => {
 
       {/* Node Canvas */}
       <div className="flex-1 relative overflow-hidden">
-        <NodeCanvas nodes={sampleNodes} onNodeClick={handleNodeClick} />
+        <DraggableNodeCanvas 
+          nodes={nodes} 
+          onNodeClick={handleNodeClick}
+          onNodeUpdate={handleNodeUpdate}
+          onAddNode={() => setShowAddModal(true)}
+        />
       </div>
 
       {/* Quick Actions */}
@@ -148,6 +175,13 @@ export const PlanningPanel: React.FC = () => {
         node={selectedNode}
         open={showModal}
         onOpenChange={setShowModal}
+      />
+
+      {/* Add Node Modal */}
+      <AddNodeModal
+        open={showAddModal}
+        onOpenChange={setShowAddModal}
+        onAddNode={handleAddNode}
       />
     </div>
   );
