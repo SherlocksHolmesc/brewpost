@@ -115,6 +115,7 @@ export const PlanningPanel: React.FC = () => {
     
     setNodes(updatedNodes);
     setShowScheduleConfirmation(false);
+    // Redirect to the dedicated calendar page
     navigate('/calendar', { state: { nodes: updatedNodes } });
   };
 
