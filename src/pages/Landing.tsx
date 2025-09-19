@@ -3,7 +3,23 @@ import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Sparkles, Zap, Target, Calendar, ArrowRight } from 'lucide-react';
+import { Badge } from '@/components/ui/badge';
+import { 
+  Sparkles, 
+  Zap, 
+  Target, 
+  Calendar, 
+  ArrowRight, 
+  Eye,
+  Link,
+  Home,
+  Settings,
+  BarChart3,
+  Users,
+  FileText,
+  Layers,
+  Play
+} from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 export const Landing: React.FC = () => {
@@ -38,8 +54,49 @@ export const Landing: React.FC = () => {
     }
   ];
 
+  // Sample node data for preview
+  const sampleNodes = [
+    {
+      id: '1',
+      title: 'Marketing Campaign',
+      type: 'post' as const,
+      status: 'published' as const,
+      content: 'Launch our new product line with engaging social media content',
+      connections: ['2', '3'],
+      position: { x: 50, y: 50 }
+    },
+    {
+      id: '2', 
+      title: 'Brand Story',
+      type: 'image' as const,
+      status: 'scheduled' as const,
+      content: 'Visual storytelling through compelling brand imagery',
+      connections: ['1'],
+      position: { x: 200, y: 120 }
+    },
+    {
+      id: '3',
+      title: 'User Generated Content',
+      type: 'story' as const, 
+      status: 'draft' as const,
+      content: 'Curate and share customer success stories',
+      connections: ['1'],
+      position: { x: 80, y: 200 }
+    }
+  ];
+
+  const navigationItems = [
+    { icon: Home, label: 'Dashboard', active: false },
+    { icon: Layers, label: 'Planning', active: false },
+    { icon: Calendar, label: 'Calendar', active: false },
+    { icon: BarChart3, label: 'Analytics', active: false },
+    { icon: FileText, label: 'Content', active: false },
+    { icon: Users, label: 'Team', active: false },
+    { icon: Settings, label: 'Settings', active: false }
+  ];
+
   return (
-    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden">
+    <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden flex">
       {/* Enhanced Snow Animation */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
         {/* Main snow particles */}
@@ -51,7 +108,7 @@ export const Landing: React.FC = () => {
               left: `${Math.random() * 100}%`,
               width: `${2 + Math.random() * 4}px`,
               height: `${2 + Math.random() * 4}px`,
-              background: `hsl(${191 + Math.random() * 20}, ${60 + Math.random() * 20}%, ${40 + Math.random() * 20}%)`,
+              background: `hsl(var(--primary))`,
               animationDelay: `${Math.random() * 10}s`,
               animationDuration: `${5 + Math.random() * 15}s`,
               filter: 'blur(0.5px)',
@@ -68,7 +125,7 @@ export const Landing: React.FC = () => {
               left: `${Math.random() * 100}%`,
               width: `${4 + Math.random() * 8}px`,
               height: `${4 + Math.random() * 8}px`,
-              background: `linear-gradient(135deg, hsl(${191 + Math.random() * 15}, 60%, 45%), hsl(${191 + Math.random() * 15}, 70%, 35%))`,
+              background: `linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))`,
               animationDelay: `${Math.random() * 8}s`,
               animationDuration: `${8 + Math.random() * 12}s`,
               filter: 'blur(1px)',
@@ -86,11 +143,11 @@ export const Landing: React.FC = () => {
               top: `${Math.random() * 100}%`,
               width: `${6 + Math.random() * 12}px`,
               height: `${6 + Math.random() * 12}px`,
-              background: `radial-gradient(circle, hsl(191, 70%, 50%), transparent)`,
+              background: `radial-gradient(circle, hsl(var(--primary)), transparent)`,
               animationDelay: `${Math.random() * 6}s`,
               animationDuration: `${10 + Math.random() * 10}s`,
               filter: 'blur(2px)',
-              boxShadow: `0 0 ${10 + Math.random() * 20}px hsl(191, 60%, 40%)`,
+              boxShadow: `0 0 ${10 + Math.random() * 20}px hsl(var(--primary))`,
             }}
           />
         ))}
@@ -102,78 +159,205 @@ export const Landing: React.FC = () => {
       {/* Floating orbs */}
       <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-gradient-to-r from-primary/25 to-accent/25 rounded-full blur-3xl animate-float opacity-60"></div>
       <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-l from-accent/25 to-primary/25 rounded-full blur-3xl animate-float-delayed opacity-60"></div>
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-r from-transparent via-primary/10 to-transparent rounded-full blur-2xl animate-pulse"></div>
       
-      {/* Animated grid overlay */}
-      <div className="absolute inset-0 opacity-5">
-        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse" 
-             style={{ 
-               backgroundImage: `
-                 linear-gradient(90deg, transparent 98%, hsl(var(--primary)) 100%),
-                 linear-gradient(0deg, transparent 98%, hsl(var(--primary)) 100%)
-               `,
-               backgroundSize: '50px 50px'
-             }}>
-        </div>
-      </div>
-
-      <div className="relative z-10">
-        {/* Header */}
-        <header className="border-b border-border/20 bg-card/40 backdrop-blur-xl relative">
-          {/* Header glow effect */}
-          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent"></div>
-          
-          <div className="container mx-auto px-6 py-4 flex items-center justify-between relative z-10">
-            <div className="flex items-center gap-3">
-              <div className="relative">
-                <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
-                  <Sparkles className="w-6 h-6 text-white animate-pulse" />
-                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
-                </div>
-                <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-30 blur animate-pulse"></div>
+      {/* Sidebar Navigation */}
+      <aside className="w-80 bg-card/60 backdrop-blur-xl border-r border-border/20 relative z-10 flex flex-col">
+        {/* Sidebar Header */}
+        <div className="p-6 border-b border-border/20">
+          <div className="flex items-center gap-3 mb-6">
+            <div className="relative">
+              <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
+                <Sparkles className="w-7 h-7 text-white animate-pulse" />
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
               </div>
-              <div>
-                <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-pulse">
-                  BrewPost
-                </h1>
-                <p className="text-xs text-muted-foreground">AI Content Generator</p>
-              </div>
+              <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-30 blur animate-pulse"></div>
             </div>
+            <div>
+              <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                BrewPost
+              </h1>
+              <p className="text-sm text-muted-foreground">AI Content Generator</p>
+            </div>
+          </div>
+          
+          <Button 
+            onClick={() => setShowLogin(true)}
+            className="w-full bg-gradient-primary hover:opacity-90 glow-hover relative overflow-hidden group"
+          >
+            <span className="relative z-10 flex items-center">
+              Get Started
+              <ArrowRight className="w-4 h-4 ml-2 group-hover:translate-x-1 transition-transform" />
+            </span>
+            <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+          </Button>
+        </div>
+
+        {/* Navigation */}
+        <nav className="flex-1 p-6">
+          <div className="space-y-2 mb-8">
+            {navigationItems.map((item, index) => {
+              const Icon = item.icon;
+              return (
+                <div
+                  key={index}
+                  className={`flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 cursor-pointer group ${
+                    item.active 
+                      ? 'bg-gradient-primary text-white shadow-lg' 
+                      : 'hover:bg-card/80 hover:shadow-md'
+                  }`}
+                  style={{ animationDelay: `${index * 0.1}s` }}
+                >
+                  <Icon className={`w-5 h-5 ${item.active ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'}`} />
+                  <span className={`font-medium ${item.active ? 'text-white' : 'text-muted-foreground group-hover:text-foreground'}`}>
+                    {item.label}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Node Preview Section */}
+          <div className="space-y-4">
+            <h3 className="text-lg font-semibold text-foreground mb-4">Visual Planning Preview</h3>
             
+            {/* Mini Node Canvas */}
+            <Card className="p-4 bg-card/40 backdrop-blur-sm border-border/50 relative overflow-hidden">
+              <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent"></div>
+              
+              <div className="relative z-10">
+                <div className="flex items-center justify-between mb-4">
+                  <h4 className="text-sm font-medium">Content Network</h4>
+                  <Button size="sm" variant="outline" className="h-6 text-xs">
+                    <Play className="w-3 h-3 mr-1" />
+                    Demo
+                  </Button>
+                </div>
+
+                {/* Sample Nodes */}
+                <div className="relative h-32 bg-background/20 rounded-lg p-2 overflow-hidden">
+                  {/* Connection lines */}
+                  <svg className="absolute inset-0 w-full h-full">
+                    <line
+                      x1="25" y1="20" x2="70" y2="45"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="1"
+                      strokeDasharray="2,2"
+                      opacity="0.6"
+                    />
+                    <line
+                      x1="25" y1="20" x2="30" y2="70"
+                      stroke="hsl(var(--primary))"
+                      strokeWidth="1" 
+                      strokeDasharray="2,2"
+                      opacity="0.6"
+                    />
+                  </svg>
+
+                  {/* Mini nodes */}
+                  {sampleNodes.map((node, index) => {
+                    const TypeIcon = node.type === 'post' ? Target : node.type === 'image' ? Eye : Zap;
+                    const statusColor = node.status === 'published' ? 'bg-success' : 
+                                       node.status === 'scheduled' ? 'bg-gradient-primary' : 'bg-muted';
+                    
+                    return (
+                      <div
+                        key={node.id}
+                        className="absolute bg-card/90 border border-border/50 rounded-md p-2 shadow-sm hover:shadow-md transition-all cursor-pointer group"
+                        style={{
+                          left: `${(index * 45) + 10}px`,
+                          top: `${index === 0 ? 10 : index === 1 ? 35 : 60}px`,
+                          width: '70px'
+                        }}
+                      >
+                        <div className="flex items-center gap-1 mb-1">
+                          <div className={`w-4 h-4 ${statusColor} rounded flex items-center justify-center`}>
+                            <TypeIcon className="w-2 h-2 text-white" />
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <h5 className="text-[10px] font-medium truncate">{node.title}</h5>
+                          </div>
+                        </div>
+                        <p className="text-[8px] text-muted-foreground line-clamp-2 leading-tight">
+                          {node.content}
+                        </p>
+                        <Badge 
+                          variant="secondary" 
+                          className={`text-[8px] h-3 px-1 mt-1 ${
+                            node.status === 'published' ? 'bg-success/20 text-success' :
+                            node.status === 'scheduled' ? 'bg-primary/20 text-primary' :
+                            'bg-muted/50 text-muted-foreground'
+                          }`}
+                        >
+                          {node.status}
+                        </Badge>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </Card>
+
+            {/* Quick Stats */}
+            <div className="grid grid-cols-2 gap-3">
+              <Card className="p-3 bg-card/40 backdrop-blur-sm border-border/50">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-primary">3</div>
+                  <div className="text-xs text-muted-foreground">Active Nodes</div>
+                </div>
+              </Card>
+              <Card className="p-3 bg-card/40 backdrop-blur-sm border-border/50">
+                <div className="text-center">
+                  <div className="text-lg font-bold text-accent">2</div>
+                  <div className="text-xs text-muted-foreground">Connections</div>
+                </div>
+              </Card>
+            </div>
+          </div>
+        </nav>
+      </aside>
+
+      {/* Main Content */}
+      <div className="flex-1 relative z-10 flex flex-col">
+        {/* Top Header */}
+        <header className="bg-card/40 backdrop-blur-xl border-b border-border/20 relative">
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent"></div>
+          <div className="relative z-10 px-8 py-4 flex items-center justify-end">
             <Button 
               onClick={() => setShowLogin(true)}
-              className="bg-gradient-primary hover:opacity-90 glow-hover relative overflow-hidden group"
+              size="sm"
+              variant="outline"
+              className="border-primary/20 hover:border-primary/40"
             >
-              <span className="relative z-10">Get Started</span>
-              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
+              Sign In
             </Button>
           </div>
         </header>
 
         {/* Hero Section */}
-        <section className="container mx-auto px-6 py-20 text-center relative">
-          <div className="max-w-4xl mx-auto relative">
+        <section className="flex-1 flex items-center justify-center px-8 py-16">
+          <div className="max-w-4xl text-center relative">
             {/* Floating elements around hero */}
             <div className="absolute -top-10 -left-10 w-20 h-20 bg-gradient-primary rounded-full opacity-20 animate-float blur"></div>
             <div className="absolute -top-5 -right-5 w-12 h-12 bg-gradient-accent rounded-full opacity-30 animate-float-delayed blur"></div>
             
-            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-primary bg-clip-text text-transparent leading-tight relative">
+            <h2 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-8 bg-gradient-primary bg-clip-text text-transparent leading-tight">
               <span className="relative inline-block animate-pulse">Brew</span>{" "}
               <span className="relative inline-block animate-pulse" style={{ animationDelay: '0.5s' }}>Content</span>{" "}
+              <br className="md:hidden" />
               <span className="relative inline-block animate-pulse" style={{ animationDelay: '1s' }}>That</span>{" "}
               <span className="relative inline-block animate-pulse" style={{ animationDelay: '1.5s' }}>Converts</span>
             </h2>
             
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed animate-fade-in" style={{ animationDelay: '2s' }}>
+            <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground mb-10 leading-relaxed max-w-3xl mx-auto animate-fade-in" style={{ animationDelay: '2s' }}>
               Create, plan, and schedule stunning content with AI-powered tools. 
               Connect your ideas visually and watch your content strategy come to life.
             </p>
             
-            <div className="flex gap-4 justify-center flex-wrap animate-fade-in" style={{ animationDelay: '2.5s' }}>
+            <div className="flex gap-6 justify-center flex-wrap animate-fade-in" style={{ animationDelay: '2.5s' }}>
               <Button 
                 size="lg"
                 onClick={() => setShowLogin(true)}
-                className="bg-gradient-primary hover:opacity-90 glow-hover text-lg px-8 py-4 h-auto relative overflow-hidden group transform hover:scale-105 transition-all duration-300"
+                className="bg-gradient-primary hover:opacity-90 glow-hover text-lg px-10 py-5 h-auto relative overflow-hidden group transform hover:scale-105 transition-all duration-300"
               >
                 <span className="relative z-10 flex items-center">
                   Start Creating
@@ -184,69 +368,61 @@ export const Landing: React.FC = () => {
               <Button 
                 size="lg"
                 variant="outline"
-                className="border-primary/20 hover:border-primary/40 text-lg px-8 py-4 h-auto relative overflow-hidden group backdrop-blur-sm hover:scale-105 transition-all duration-300"
+                className="border-primary/20 hover:border-primary/40 text-lg px-10 py-5 h-auto relative overflow-hidden group backdrop-blur-sm hover:scale-105 transition-all duration-300"
               >
-                <span className="relative z-10">Watch Demo</span>
+                <span className="relative z-10 flex items-center">
+                  <Play className="w-5 h-5 mr-2" />
+                  Watch Demo
+                </span>
                 <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Button>
             </div>
-          </div>
-        </section>
 
-        {/* Features */}
-        <section className="container mx-auto px-6 py-20 relative">
-          <div className="text-center mb-16 relative">
-            <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-primary rounded-full opacity-50"></div>
-            <h3 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">Everything You Need</h3>
-            <p className="text-lg text-muted-foreground">Powerful tools to transform your content creation workflow</p>
-          </div>
-          
-          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
-            {features.map((feature, index) => {
-              const Icon = feature.icon;
-              return (
-                <Card 
-                  key={index} 
-                  className="p-8 bg-card/60 backdrop-blur-sm border-border/50 hover:border-primary/50 transition-all duration-500 glow-hover group relative overflow-hidden transform hover:-translate-y-2"
-                  style={{ animationDelay: `${index * 0.2}s` }}
-                >
-                  {/* Card glow effect */}
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
-                  
-                  {/* Animated border */}
-                  <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-0 group-hover:opacity-20 blur-sm transition-opacity duration-500"></div>
-                  
-                  <div className="relative z-10">
-                    <div className="relative mb-6">
-                      <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
-                        <Icon className="w-8 h-8 text-white group-hover:animate-pulse" />
-                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
-                      </div>
-                      <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-0 group-hover:opacity-30 blur transition-opacity duration-500"></div>
-                    </div>
+            {/* Feature highlights */}
+            <div className="grid md:grid-cols-3 gap-6 mt-16 max-w-4xl mx-auto">
+              {features.map((feature, index) => {
+                const Icon = feature.icon;
+                return (
+                  <Card 
+                    key={index} 
+                    className="p-6 bg-card/40 backdrop-blur-sm border-border/30 hover:border-primary/50 transition-all duration-500 group relative overflow-hidden transform hover:-translate-y-1"
+                    style={{ animationDelay: `${3 + index * 0.2}s` }}
+                  >
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
                     
-                    <h4 className="text-xl font-semibold mb-4 group-hover:text-primary transition-colors">{feature.title}</h4>
-                    <p className="text-muted-foreground leading-relaxed group-hover:text-foreground/80 transition-colors">{feature.description}</p>
-                  </div>
-                  
-                  {/* Floating particles inside card */}
-                  <div className="absolute top-4 right-4 w-2 h-2 bg-primary/40 rounded-full opacity-0 group-hover:opacity-100 animate-float transition-opacity duration-500"></div>
-                  <div className="absolute bottom-4 left-4 w-1 h-1 bg-accent/40 rounded-full opacity-0 group-hover:opacity-100 animate-float-delayed transition-opacity duration-500"></div>
-                </Card>
-              );
-            })}
+                    <div className="relative z-10 text-center">
+                      <div className="relative mb-4 mx-auto w-12 h-12">
+                        <div className="w-12 h-12 bg-gradient-primary rounded-lg flex items-center justify-center relative overflow-hidden">
+                          <Icon className="w-6 h-6 text-white group-hover:animate-pulse" />
+                          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                        </div>
+                        <div className="absolute -inset-1 bg-gradient-primary rounded-lg opacity-0 group-hover:opacity-30 blur transition-opacity duration-500"></div>
+                      </div>
+                      
+                      <h4 className="text-lg font-semibold mb-3 group-hover:text-primary transition-colors">{feature.title}</h4>
+                      <p className="text-sm text-muted-foreground leading-relaxed group-hover:text-foreground/80 transition-colors">{feature.description}</p>
+                    </div>
+                  </Card>
+                );
+              })}
+            </div>
           </div>
         </section>
+      </div>
 
-        {/* Login Modal */}
-        {showLogin && (
-          <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-            <Card className="w-full max-w-md p-8 bg-card/95 backdrop-blur-xl border-border/50">
+      {/* Login Modal */}
+      {showLogin && (
+        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
+          <Card className="w-full max-w-md p-8 bg-card/95 backdrop-blur-xl border-border/50 relative">
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-lg"></div>
+            
+            <div className="relative z-10">
               <div className="text-center mb-6">
-                <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4">
-                  <Sparkles className="w-6 h-6 text-white" />
+                <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mx-auto mb-4 relative overflow-hidden">
+                  <Sparkles className="w-6 h-6 text-white animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
                 </div>
-                <h3 className="text-2xl font-bold mb-2">Welcome to BrewPost</h3>
+                <h3 className="text-2xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">Welcome to BrewPost</h3>
                 <p className="text-muted-foreground">Sign in to start creating amazing content</p>
               </div>
 
@@ -259,7 +435,7 @@ export const Landing: React.FC = () => {
                     value={email}
                     onChange={(e) => setEmail(e.target.value)}
                     placeholder="Enter your email"
-                    className="mt-1"
+                    className="mt-1 border-border/50 focus:border-primary/50"
                     required
                   />
                 </div>
@@ -271,31 +447,32 @@ export const Landing: React.FC = () => {
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder="Enter your password"
-                    className="mt-1"
+                    className="mt-1 border-border/50 focus:border-primary/50"
                     required
                   />
                 </div>
-                <div className="flex gap-2">
+                <div className="flex gap-3 pt-2">
                   <Button
                     type="button"
                     variant="outline"
                     onClick={() => setShowLogin(false)}
-                    className="flex-1"
+                    className="flex-1 border-border/50 hover:border-border"
                   >
                     Cancel
                   </Button>
                   <Button 
                     type="submit"
-                    className="flex-1 bg-gradient-primary hover:opacity-90"
+                    className="flex-1 bg-gradient-primary hover:opacity-90 relative overflow-hidden group"
                   >
-                    Sign In
+                    <span className="relative z-10">Sign In</span>
+                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
                   </Button>
                 </div>
               </form>
-            </Card>
-          </div>
-        )}
-      </div>
+            </div>
+          </Card>
+        </div>
+      )}
     </div>
   );
 };
