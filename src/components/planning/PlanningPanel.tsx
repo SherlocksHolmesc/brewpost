@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { ContentModal } from '@/components/modals/ContentModal';
 import { DraggableNodeCanvas } from '@/components/planning/DraggableNodeCanvas';
 import { AddNodeModal } from '@/components/modals/AddNodeModal';
+import { ScheduleConfirmationModal } from '@/components/modals/ScheduleConfirmationModal';
 import { 
   Calendar, 
   Clock, 
@@ -34,6 +35,7 @@ export const PlanningPanel: React.FC = () => {
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
+  const [showScheduleConfirmation, setShowScheduleConfirmation] = useState(false);
   const [nodes, setNodes] = useState<ContentNode[]>([
     {
       id: '1',
@@ -93,6 +95,10 @@ export const PlanningPanel: React.FC = () => {
   };
 
   const handleScheduleAll = () => {
+    setShowScheduleConfirmation(true);
+  };
+
+  const handleConfirmSchedule = () => {
     // Automatically schedule all nodes with dates starting from today
     const today = new Date();
     const updatedNodes = nodes.map((node, index) => {
@@ -108,7 +114,14 @@ export const PlanningPanel: React.FC = () => {
     });
     
     setNodes(updatedNodes);
+    setShowScheduleConfirmation(false);
     navigate('/calendar', { state: { nodes: updatedNodes } });
+  };
+
+  const handleCalendarView = () => {
+    // Show calendar with currently scheduled nodes
+    const scheduledNodes = nodes.filter(node => node.scheduledDate && node.status === 'scheduled');
+    navigate('/calendar', { state: { nodes: scheduledNodes } });
   };
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -190,12 +203,12 @@ export const PlanningPanel: React.FC = () => {
       {/* Quick Actions */}
       <div className="p-4 border-t border-border/20 bg-card/20 backdrop-blur-sm">
         <div className="flex gap-2">
-          <Button 
-            variant="outline" 
-            size="sm" 
-            className="flex-1 border-primary/20 hover:border-primary/40"
-            onClick={() => navigate('/calendar')}
-          >
+           <Button 
+             variant="outline" 
+             size="sm" 
+             className="flex-1 border-primary/20 hover:border-primary/40"
+             onClick={handleCalendarView}
+           >
             <Calendar className="w-3 h-3 mr-2" />
             Calendar View
           </Button>
@@ -223,6 +236,14 @@ export const PlanningPanel: React.FC = () => {
         open={showAddModal}
         onOpenChange={setShowAddModal}
         onAddNode={handleAddNode}
+      />
+
+      {/* Schedule Confirmation Modal */}
+      <ScheduleConfirmationModal
+        open={showScheduleConfirmation}
+        onOpenChange={setShowScheduleConfirmation}
+        nodes={nodes}
+        onConfirm={handleConfirmSchedule}
       />
     </div>
   );
