@@ -10,7 +10,9 @@ import {
   ArrowRight,
   Plus,
   Link,
-  X
+  X,
+  Edit,
+  Sparkles
 } from 'lucide-react';
 
 interface ContentNode {
@@ -31,6 +33,7 @@ interface NodeCanvasProps {
   onNodeUpdate: (nodes: ContentNode[]) => void;
   onAddNode: () => void;
   onDeleteNode?: (nodeId: string) => void;
+  onEditNode?: (node: ContentNode) => void;
 }
 
 export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({ 
@@ -38,7 +41,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   onNodeClick, 
   onNodeUpdate,
   onAddNode,
-  onDeleteNode 
+  onDeleteNode,
+  onEditNode 
 }) => {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -120,6 +124,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
           ? node.connections.filter(id => id !== toNodeId)
           : [...node.connections, toNodeId];
         return { ...node, connections };
+      }
+      // Also add bidirectional connection
+      if (node.id === toNodeId && !node.connections.includes(fromNodeId)) {
+        return { ...node, connections: [...node.connections, fromNodeId] };
       }
       return node;
     });
@@ -213,8 +221,22 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               }
             }}
           >
-            {/* Connection Controls */}
+            {/* Node Controls */}
             <div className="absolute -top-2 -right-2 flex gap-1">
+              {onEditNode && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="h-6 w-6 p-0 bg-secondary hover:bg-secondary/90"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onEditNode(node);
+                  }}
+                  title="Edit node"
+                >
+                  <Edit className="w-3 h-3" />
+                </Button>
+              )}
               {onDeleteNode && (
                 <Button
                   size="sm"

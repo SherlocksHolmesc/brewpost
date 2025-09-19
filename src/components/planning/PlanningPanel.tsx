@@ -8,6 +8,7 @@ import { DraggableNodeCanvas } from '@/components/planning/DraggableNodeCanvas';
 import { AddNodeModal } from '@/components/modals/AddNodeModal';
 import { ScheduleConfirmationModal } from '@/components/modals/ScheduleConfirmationModal';
 import { CalendarModal } from '@/components/modals/CalendarModal';
+import { EditNodeModal } from '@/components/modals/EditNodeModal';
 import { 
   Calendar, 
   Clock, 
@@ -38,6 +39,8 @@ export const PlanningPanel: React.FC = () => {
   const [showAddModal, setShowAddModal] = useState(false);
   const [showScheduleConfirmation, setShowScheduleConfirmation] = useState(false);
   const [showCalendarModal, setShowCalendarModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
+  const [editingNode, setEditingNode] = useState<ContentNode | null>(null);
   const [nodes, setNodes] = useState<ContentNode[]>([
     {
       id: '1',
@@ -72,6 +75,18 @@ export const PlanningPanel: React.FC = () => {
   const handleNodeClick = (node: ContentNode) => {
     setSelectedNode(node);
     setShowModal(true);
+  };
+
+  const handleEditNode = (node: ContentNode) => {
+    setEditingNode(node);
+    setShowEditModal(true);
+  };
+
+  const handleSaveEditedNode = (updatedNode: ContentNode) => {
+    const updatedNodes = nodes.map(node => 
+      node.id === updatedNode.id ? updatedNode : node
+    );
+    setNodes(updatedNodes);
   };
 
   const handleNodeUpdate = (updatedNodes: ContentNode[]) => {
@@ -198,6 +213,7 @@ export const PlanningPanel: React.FC = () => {
           onNodeUpdate={handleNodeUpdate}
           onAddNode={() => setShowAddModal(true)}
           onDeleteNode={handleDeleteNode}
+          onEditNode={handleEditNode}
         />
       </div>
 
@@ -252,6 +268,14 @@ export const PlanningPanel: React.FC = () => {
         open={showCalendarModal}
         onOpenChange={setShowCalendarModal}
         scheduledNodes={nodes.filter(node => node.scheduledDate && node.status === 'scheduled')}
+      />
+
+      {/* Edit Node Modal */}
+      <EditNodeModal
+        open={showEditModal}
+        onOpenChange={setShowEditModal}
+        node={editingNode}
+        onSave={handleSaveEditedNode}
       />
     </div>
   );

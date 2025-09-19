@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { CalendarEventModal } from '@/components/modals/CalendarEventModal';
 import { 
   ChevronLeft, 
   ChevronRight,
@@ -33,10 +34,19 @@ interface ContentNode {
 interface CalendarViewProps {
   scheduledNodes?: ContentNode[];
   onClose: () => void;
+  onUpdateNode?: (updatedNode: ContentNode) => void;
+  onDeleteNode?: (nodeId: string) => void;
 }
 
-export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [], onClose }) => {
+export const CalendarView: React.FC<CalendarViewProps> = ({ 
+  scheduledNodes = [], 
+  onClose, 
+  onUpdateNode, 
+  onDeleteNode 
+}) => {
   const [currentDate, setCurrentDate] = useState(new Date());
+  const [selectedEvent, setSelectedEvent] = useState<ContentNode | null>(null);
+  const [showEventModal, setShowEventModal] = useState(false);
   
   // Helper function to format date keys
   const formatDateKey = (year: number, month: number, day: number) => {
@@ -186,24 +196,33 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [],
                   </div>
                   
                   <div className="space-y-1">
-                    {dayContent.slice(0, 2).map(content => (
-                      <div 
-                        key={content.id} 
-                        className={`p-1 rounded text-xs ${
-                          content.status === 'published' 
-                            ? 'bg-success/20 text-success-foreground' 
-                            : 'bg-primary/20 text-primary-foreground'
-                        }`}
-                      >
-                        <div className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          <span>{content.time}</span>
+                    {dayContent.slice(0, 2).map(content => {
+                      const fullEvent = scheduledNodes.find(node => node.id === content.id);
+                      return (
+                        <div 
+                          key={content.id} 
+                          className={`p-1 rounded text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                            content.status === 'published' 
+                              ? 'bg-success/20 text-success-foreground' 
+                              : 'bg-primary/20 text-primary-foreground'
+                          }`}
+                          onClick={() => {
+                            if (fullEvent) {
+                              setSelectedEvent(fullEvent);
+                              setShowEventModal(true);
+                            }
+                          }}
+                        >
+                          <div className="flex items-center gap-1">
+                            <Clock className="w-3 h-3" />
+                            <span>{content.time}</span>
+                          </div>
+                          <div className="truncate font-medium">
+                            {content.title}
+                          </div>
                         </div>
-                        <div className="truncate font-medium">
-                          {content.title}
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                     {dayContent.length > 2 && (
                       <div className="text-xs text-muted-foreground">
                         +{dayContent.length - 2} more
@@ -228,6 +247,23 @@ export const CalendarView: React.FC<CalendarViewProps> = ({ scheduledNodes = [],
           </div>
         </div>
       </Card>
+
+      {/* Calendar Event Edit Modal */}
+      <CalendarEventModal
+        open={showEventModal}
+        onOpenChange={setShowEventModal}
+        event={selectedEvent}
+        onSave={(updatedEvent) => {
+          if (onUpdateNode) {
+            onUpdateNode(updatedEvent);
+          }
+        }}
+        onDelete={(eventId) => {
+          if (onDeleteNode) {
+            onDeleteNode(eventId);
+          }
+        }}
+      />
     </div>
   );
 };
