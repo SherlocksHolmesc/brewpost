@@ -40,48 +40,100 @@ export const Landing: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden">
-      {/* Snow Animation */}
+      {/* Enhanced Snow Animation */}
       <div className="absolute inset-0 pointer-events-none overflow-hidden">
-        {[...Array(50)].map((_, i) => (
+        {/* Main snow particles */}
+        {[...Array(80)].map((_, i) => (
           <div
             key={i}
-            className="absolute w-1 h-1 bg-primary/40 rounded-full animate-snow"
+            className="absolute rounded-full animate-snow opacity-70"
             style={{
               left: `${Math.random() * 100}%`,
+              width: `${2 + Math.random() * 4}px`,
+              height: `${2 + Math.random() * 4}px`,
+              background: `hsl(${191 + Math.random() * 20}, ${60 + Math.random() * 20}%, ${40 + Math.random() * 20}%)`,
               animationDelay: `${Math.random() * 10}s`,
-              animationDuration: `${5 + Math.random() * 10}s`,
+              animationDuration: `${5 + Math.random() * 15}s`,
+              filter: 'blur(0.5px)',
             }}
           />
         ))}
-        {[...Array(30)].map((_, i) => (
+        
+        {/* Larger snow particles */}
+        {[...Array(40)].map((_, i) => (
           <div
             key={`large-${i}`}
-            className="absolute w-2 h-2 bg-accent/30 rounded-full animate-snow-delayed"
+            className="absolute rounded-full animate-snow-delayed opacity-50"
             style={{
               left: `${Math.random() * 100}%`,
+              width: `${4 + Math.random() * 8}px`,
+              height: `${4 + Math.random() * 8}px`,
+              background: `linear-gradient(135deg, hsl(${191 + Math.random() * 15}, 60%, 45%), hsl(${191 + Math.random() * 15}, 70%, 35%))`,
               animationDelay: `${Math.random() * 8}s`,
-              animationDuration: `${7 + Math.random() * 8}s`,
+              animationDuration: `${8 + Math.random() * 12}s`,
+              filter: 'blur(1px)',
+            }}
+          />
+        ))}
+
+        {/* Glowing particles */}
+        {[...Array(20)].map((_, i) => (
+          <div
+            key={`glow-${i}`}
+            className="absolute rounded-full animate-float opacity-30"
+            style={{
+              left: `${Math.random() * 100}%`,
+              top: `${Math.random() * 100}%`,
+              width: `${6 + Math.random() * 12}px`,
+              height: `${6 + Math.random() * 12}px`,
+              background: `radial-gradient(circle, hsl(191, 70%, 50%), transparent)`,
+              animationDelay: `${Math.random() * 6}s`,
+              animationDuration: `${10 + Math.random() * 10}s`,
+              filter: 'blur(2px)',
+              boxShadow: `0 0 ${10 + Math.random() * 20}px hsl(191, 60%, 40%)`,
             }}
           />
         ))}
       </div>
 
       {/* Enhanced Background Effects */}
-      <div className="absolute inset-0 bg-gradient-conic from-primary/10 via-accent/5 to-primary/10"></div>
-      <div className="absolute top-1/4 left-1/4 w-[500px] h-[500px] bg-gradient-to-r from-primary/20 to-accent/20 rounded-full blur-3xl animate-float opacity-70"></div>
-      <div className="absolute bottom-1/4 right-1/4 w-[400px] h-[400px] bg-gradient-to-l from-accent/20 to-primary/20 rounded-full blur-3xl animate-float-delayed opacity-70"></div>
-      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[600px] h-[300px] bg-gradient-to-r from-transparent via-primary/5 to-transparent rounded-full blur-2xl"></div>
+      <div className="absolute inset-0 bg-gradient-conic from-primary/15 via-accent/8 to-primary/15 animate-pulse"></div>
+      
+      {/* Floating orbs */}
+      <div className="absolute top-1/4 left-1/4 w-[600px] h-[600px] bg-gradient-to-r from-primary/25 to-accent/25 rounded-full blur-3xl animate-float opacity-60"></div>
+      <div className="absolute bottom-1/4 right-1/4 w-[500px] h-[500px] bg-gradient-to-l from-accent/25 to-primary/25 rounded-full blur-3xl animate-float-delayed opacity-60"></div>
+      <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-[700px] h-[400px] bg-gradient-to-r from-transparent via-primary/10 to-transparent rounded-full blur-2xl animate-pulse"></div>
+      
+      {/* Animated grid overlay */}
+      <div className="absolute inset-0 opacity-5">
+        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary to-transparent animate-pulse" 
+             style={{ 
+               backgroundImage: `
+                 linear-gradient(90deg, transparent 98%, hsl(var(--primary)) 100%),
+                 linear-gradient(0deg, transparent 98%, hsl(var(--primary)) 100%)
+               `,
+               backgroundSize: '50px 50px'
+             }}>
+        </div>
+      </div>
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="border-b border-border/20 bg-card/30 backdrop-blur-xl">
-          <div className="container mx-auto px-6 py-4 flex items-center justify-between">
+        <header className="border-b border-border/20 bg-card/40 backdrop-blur-xl relative">
+          {/* Header glow effect */}
+          <div className="absolute inset-0 bg-gradient-to-r from-transparent via-primary/10 to-transparent"></div>
+          
+          <div className="container mx-auto px-6 py-4 flex items-center justify-between relative z-10">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center">
-                <Sparkles className="w-6 h-6 text-white" />
+              <div className="relative">
+                <div className="w-10 h-10 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
+                  <Sparkles className="w-6 h-6 text-white animate-pulse" />
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent animate-sweep"></div>
+                </div>
+                <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-30 blur animate-pulse"></div>
               </div>
               <div>
-                <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent">
+                <h1 className="text-2xl font-bold bg-gradient-primary bg-clip-text text-transparent animate-pulse">
                   BrewPost
                 </h1>
                 <p className="text-xs text-muted-foreground">AI Content Generator</p>
@@ -90,57 +142,96 @@ export const Landing: React.FC = () => {
             
             <Button 
               onClick={() => setShowLogin(true)}
-              className="bg-gradient-primary hover:opacity-90 glow-hover"
+              className="bg-gradient-primary hover:opacity-90 glow-hover relative overflow-hidden group"
             >
-              Get Started
+              <span className="relative z-10">Get Started</span>
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
             </Button>
           </div>
         </header>
 
         {/* Hero Section */}
-        <section className="container mx-auto px-6 py-20 text-center">
-          <div className="max-w-4xl mx-auto">
-            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-primary bg-clip-text text-transparent leading-tight">
-              Brew Content That Converts
+        <section className="container mx-auto px-6 py-20 text-center relative">
+          <div className="max-w-4xl mx-auto relative">
+            {/* Floating elements around hero */}
+            <div className="absolute -top-10 -left-10 w-20 h-20 bg-gradient-primary rounded-full opacity-20 animate-float blur"></div>
+            <div className="absolute -top-5 -right-5 w-12 h-12 bg-gradient-accent rounded-full opacity-30 animate-float-delayed blur"></div>
+            
+            <h2 className="text-5xl md:text-7xl font-bold mb-6 bg-gradient-primary bg-clip-text text-transparent leading-tight relative">
+              <span className="relative inline-block animate-pulse">Brew</span>{" "}
+              <span className="relative inline-block animate-pulse" style={{ animationDelay: '0.5s' }}>Content</span>{" "}
+              <span className="relative inline-block animate-pulse" style={{ animationDelay: '1s' }}>That</span>{" "}
+              <span className="relative inline-block animate-pulse" style={{ animationDelay: '1.5s' }}>Converts</span>
             </h2>
-            <p className="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed">
+            
+            <p className="text-xl md:text-2xl text-muted-foreground mb-8 leading-relaxed animate-fade-in" style={{ animationDelay: '2s' }}>
               Create, plan, and schedule stunning content with AI-powered tools. 
               Connect your ideas visually and watch your content strategy come to life.
             </p>
             
-            <div className="flex gap-4 justify-center flex-wrap">
+            <div className="flex gap-4 justify-center flex-wrap animate-fade-in" style={{ animationDelay: '2.5s' }}>
               <Button 
                 size="lg"
                 onClick={() => setShowLogin(true)}
-                className="bg-gradient-primary hover:opacity-90 glow-hover text-lg px-8 py-4 h-auto"
+                className="bg-gradient-primary hover:opacity-90 glow-hover text-lg px-8 py-4 h-auto relative overflow-hidden group transform hover:scale-105 transition-all duration-300"
               >
-                Start Creating
-                <ArrowRight className="w-5 h-5 ml-2" />
+                <span className="relative z-10 flex items-center">
+                  Start Creating
+                  <ArrowRight className="w-5 h-5 ml-2 group-hover:translate-x-1 transition-transform" />
+                </span>
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
               </Button>
               <Button 
                 size="lg"
                 variant="outline"
-                className="border-primary/20 hover:border-primary/40 text-lg px-8 py-4 h-auto"
+                className="border-primary/20 hover:border-primary/40 text-lg px-8 py-4 h-auto relative overflow-hidden group backdrop-blur-sm hover:scale-105 transition-all duration-300"
               >
-                Watch Demo
+                <span className="relative z-10">Watch Demo</span>
+                <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
               </Button>
             </div>
           </div>
         </section>
 
         {/* Features */}
-        <section className="container mx-auto px-6 py-20">
-          <h3 className="text-3xl font-bold text-center mb-12">Everything You Need</h3>
+        <section className="container mx-auto px-6 py-20 relative">
+          <div className="text-center mb-16 relative">
+            <div className="absolute -top-5 left-1/2 transform -translate-x-1/2 w-32 h-1 bg-gradient-primary rounded-full opacity-50"></div>
+            <h3 className="text-4xl font-bold mb-4 bg-gradient-primary bg-clip-text text-transparent">Everything You Need</h3>
+            <p className="text-lg text-muted-foreground">Powerful tools to transform your content creation workflow</p>
+          </div>
+          
           <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto">
             {features.map((feature, index) => {
               const Icon = feature.icon;
               return (
-                <Card key={index} className="p-8 bg-card/50 backdrop-blur-sm border-border/50 hover:border-primary/30 transition-all duration-300 glow-hover">
-                  <div className="w-12 h-12 bg-gradient-primary rounded-xl flex items-center justify-center mb-6">
-                    <Icon className="w-6 h-6 text-white" />
+                <Card 
+                  key={index} 
+                  className="p-8 bg-card/60 backdrop-blur-sm border-border/50 hover:border-primary/50 transition-all duration-500 glow-hover group relative overflow-hidden transform hover:-translate-y-2"
+                  style={{ animationDelay: `${index * 0.2}s` }}
+                >
+                  {/* Card glow effect */}
+                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500"></div>
+                  
+                  {/* Animated border */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-primary via-accent to-primary opacity-0 group-hover:opacity-20 blur-sm transition-opacity duration-500"></div>
+                  
+                  <div className="relative z-10">
+                    <div className="relative mb-6">
+                      <div className="w-16 h-16 bg-gradient-primary rounded-xl flex items-center justify-center relative overflow-hidden">
+                        <Icon className="w-8 h-8 text-white group-hover:animate-pulse" />
+                        <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/30 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-1000"></div>
+                      </div>
+                      <div className="absolute -inset-1 bg-gradient-primary rounded-xl opacity-0 group-hover:opacity-30 blur transition-opacity duration-500"></div>
+                    </div>
+                    
+                    <h4 className="text-xl font-semibold mb-4 group-hover:text-primary transition-colors">{feature.title}</h4>
+                    <p className="text-muted-foreground leading-relaxed group-hover:text-foreground/80 transition-colors">{feature.description}</p>
                   </div>
-                  <h4 className="text-xl font-semibold mb-4">{feature.title}</h4>
-                  <p className="text-muted-foreground leading-relaxed">{feature.description}</p>
+                  
+                  {/* Floating particles inside card */}
+                  <div className="absolute top-4 right-4 w-2 h-2 bg-primary/40 rounded-full opacity-0 group-hover:opacity-100 animate-float transition-opacity duration-500"></div>
+                  <div className="absolute bottom-4 left-4 w-1 h-1 bg-accent/40 rounded-full opacity-0 group-hover:opacity-100 animate-float-delayed transition-opacity duration-500"></div>
                 </Card>
               );
             })}
