@@ -17,29 +17,29 @@
     --popover: 240 5% 6%;
     --popover-foreground: 0 0% 98%;
 
-    /* Brand colors - Creative AI Theme */
-    --primary: 270 100% 70%;
+    /* Brand colors - #354F52 Theme */
+    --primary: 191 19% 33%;
     --primary-foreground: 0 0% 100%;
-    --primary-glow: 280 100% 80%;
+    --primary-glow: 191 25% 40%;
 
-    --secondary: 210 100% 60%;
+    --secondary: 191 15% 25%;
     --secondary-foreground: 0 0% 100%;
 
     --muted: 240 3.7% 15.9%;
     --muted-foreground: 240 5% 64.9%;
 
-    --accent: 315 100% 65%;
+    --accent: 191 19% 38%;
     --accent-foreground: 0 0% 100%;
 
-    /* Creative gradients */
-    --gradient-primary: linear-gradient(135deg, hsl(270 100% 70%), hsl(315 100% 65%));
-    --gradient-secondary: linear-gradient(135deg, hsl(210 100% 60%), hsl(270 100% 70%));
-    --gradient-accent: linear-gradient(135deg, hsl(315 100% 65%), hsl(350 100% 70%));
+    /* Theme gradients with #354F52 */
+    --gradient-primary: linear-gradient(135deg, hsl(191 19% 33%), hsl(191 25% 40%));
+    --gradient-secondary: linear-gradient(135deg, hsl(191 15% 25%), hsl(191 19% 33%));
+    --gradient-accent: linear-gradient(135deg, hsl(191 19% 38%), hsl(191 25% 45%));
     --gradient-subtle: linear-gradient(135deg, hsl(240 10% 3.9%), hsl(240 5% 6%));
 
     /* Interactive states */
-    --hover-glow: 0 0 30px hsl(270 100% 70% / 0.3);
-    --focus-glow: 0 0 20px hsl(315 100% 65% / 0.4);
+    --hover-glow: 0 0 30px hsl(191 19% 33% / 0.4);
+    --focus-glow: 0 0 20px hsl(191 25% 40% / 0.5);
 
     /* Functional colors */
     --destructive: 0 84.2% 60.2%;
@@ -51,7 +51,7 @@
     /* Borders and inputs */
     --border: 240 3.7% 15.9%;
     --input: 240 3.7% 15.9%;
-    --ring: 270 100% 70%;
+    --ring: 191 19% 33%;
 
     /* Animations */
     --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);

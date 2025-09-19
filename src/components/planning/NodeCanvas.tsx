@@ -56,8 +56,8 @@ export const NodeCanvas: React.FC<NodeCanvasProps> = ({ nodes, onNodeClick }) =>
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
         <defs>
           <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-            <stop offset="0%" stopColor="hsl(270 100% 70%)" stopOpacity="0.3" />
-            <stop offset="100%" stopColor="hsl(315 100% 65%)" stopOpacity="0.6" />
+            <stop offset="0%" stopColor="hsl(191 19% 33%)" stopOpacity="0.4" />
+            <stop offset="100%" stopColor="hsl(191 25% 40%)" stopOpacity="0.7" />
           </linearGradient>
         </defs>
         {nodes.map((node, index) => 
@@ -93,7 +93,7 @@ export const NodeCanvas: React.FC<NodeCanvasProps> = ({ nodes, onNodeClick }) =>
         return (
           <Card
             key={node.id}
-            className="absolute w-60 p-4 bg-card/80 backdrop-blur-sm border-border/50 hover:border-primary/50 cursor-pointer transition-all duration-300 hover:scale-105 glow-hover node-pulse z-10"
+            className="absolute w-60 p-4 bg-card/80 backdrop-blur-sm border-border/50 hover:border-primary/50 cursor-pointer transition-all duration-300 hover:scale-105 glow-hover z-10"
             style={{
               left: position.x,
               top: position.y,

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { AIChat } from '@/components/ai/AIChat';
 import { PlanningPanel } from '@/components/planning/PlanningPanel';
+import { CalendarView } from '@/components/calendar/CalendarView';
 import { Sparkles, Calendar, Network } from 'lucide-react';
 
 interface MainLayoutProps {
@@ -10,9 +11,14 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [showPlanning, setShowPlanning] = useState(false);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const togglePlanning = () => {
     setShowPlanning(!showPlanning);
+  };
+
+  const toggleCalendar = () => {
+    setShowCalendar(!showCalendar);
   };
 
   return (
@@ -42,7 +48,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Network className="w-4 h-4 mr-2" />
               {showPlanning ? 'Hide Planning' : 'Show Planning'}
             </Button>
-            <Button size="sm" className="bg-gradient-primary hover:opacity-90 glow-hover">
+            <Button 
+              size="sm" 
+              className="bg-gradient-primary hover:opacity-90 glow-hover"
+              onClick={toggleCalendar}
+            >
               <Calendar className="w-4 h-4 mr-2" />
               Calendar
             </Button>
@@ -52,22 +62,27 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Main Content Area */}
       <div className="flex h-[calc(100vh-80px)] relative">
-        {/* AI Chat - Main Area */}
+        {/* AI Chat - Main Area (30% when planning is open) */}
         <div className={`transition-all duration-500 ease-in-out ${
-          showPlanning ? 'w-1/2' : 'w-full'
+          showPlanning ? 'w-[30%]' : 'w-full'
         }`}>
           <AIChat />
         </div>
 
-        {/* Planning Panel - Sliding Sidebar */}
+        {/* Planning Panel - Sliding Sidebar (70% when open) */}
         <div className={`fixed right-0 top-[80px] h-[calc(100vh-80px)] bg-card border-l border-border/50 backdrop-blur-xl transition-all duration-500 ease-in-out z-40 ${
           showPlanning 
-            ? 'w-1/2 translate-x-0 opacity-100' 
-            : 'w-1/2 translate-x-full opacity-0 pointer-events-none'
+            ? 'w-[70%] translate-x-0 opacity-100' 
+            : 'w-[70%] translate-x-full opacity-0 pointer-events-none'
         }`}>
           <PlanningPanel />
         </div>
       </div>
+
+      {/* Calendar Modal */}
+      {showCalendar && (
+        <CalendarView onClose={() => setShowCalendar(false)} />
+      )}
     </div>
   );
 };
