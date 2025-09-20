@@ -70,8 +70,8 @@ async function generateImageFromBedrock(promptText, opts = {}) {
     imageGenerationConfig: {
       seed: opts.seed ?? Math.floor(Math.random() * 858993460),
       quality: opts.quality ?? "standard", // standard | high etc.
-      width: opts.width ?? 512,
-      height: opts.height ?? 512,
+      width: opts.width ?? 832,
+      height: opts.height ?? 1216,
       numberOfImages: opts.numberOfImages ?? 1,
     },
   };
