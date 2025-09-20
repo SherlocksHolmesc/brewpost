@@ -120,7 +120,7 @@ Click the link icon on any node to start connecting them. What type of content f
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4">
+      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
         {messages.map((message) => (
           <div
             key={message.id}

@@ -206,6 +206,12 @@
     content: "|";
     animation: blink 1s infinite;
   }
+
+  /* Scrollbar hide utility */
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;  
+  }
 }
 
 /* Keyframes */
