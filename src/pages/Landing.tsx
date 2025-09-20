@@ -22,14 +22,11 @@ import {
 import { useNavigate } from 'react-router-dom';
 
 export const Landing: React.FC = () => {
-  const [showLogin, setShowLogin] = useState(false);
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
   const navigate = useNavigate();
 
-  const handleLogin = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (email && password) navigate('/app');
+  const handleAuthRedirect = () => {
+    // Instead of /api/auth/login, go to your Node server
+    window.location.href = "http://localhost:8081/login";
   };
 
   const features = [
@@ -109,7 +106,7 @@ export const Landing: React.FC = () => {
             <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">BrewPost</h1>
           </div>
 
-          <Button onClick={() => setShowLogin(true)} size="sm" variant="outline" className="border-primary/20 hover:border-primary/40">
+          <Button onClick={handleAuthRedirect} size="sm" variant="outline" className="...">
             Sign In
           </Button>
         </div>
@@ -165,7 +162,7 @@ export const Landing: React.FC = () => {
               <div className="flex gap-8 justify-center flex-wrap mb-16">
                 <Button
                   size="lg"
-                  onClick={() => setShowLogin(true)}
+                  onClick={handleAuthRedirect}
                   className="bg-gradient-primary hover:opacity-90 text-lg px-12 py-6 h-auto relative overflow-hidden group transform hover:scale-110 transition-all duration-300 shadow-2xl"
                   style={{ boxShadow: '0 0 40px hsl(var(--primary) / 0.6), 0 0 80px hsl(var(--primary) / 0.3)' }}
                 >
@@ -358,39 +355,7 @@ export const Landing: React.FC = () => {
         </div>
       </div>
 
-      {/* Login Modal (unchanged) */}
-      {showLogin && (
-        <div className="fixed inset-0 bg-background/80 backdrop-blur-sm flex items-center justify-center p-6 z-50">
-          <Card className="w-full max-w-md p-8 bg-card/95 backdrop-blur-xl border-border/50 relative">
-            <div className="absolute inset-0 bg-gradient-to-br from-primary/10 to-transparent rounded-lg"></div>
-            <div className="relative z-10">
-              <div className="text-center mb-6">
-                <img src="/logo.svg" alt="BrewPost" className="w-12 h-12 mx-auto mb-4" />
-                <h3 className="text-2xl font-bold mb-2 bg-gradient-primary bg-clip-text text-transparent">Welcome to BrewPost</h3>
-                <p className="text-muted-foreground">Sign in to start creating amazing content</p>
-              </div>
-
-              <form onSubmit={handleLogin} className="space-y-4">
-                <div>
-                  <Label htmlFor="email">Email</Label>
-                  <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="Enter your email" className="mt-1 border-border/50 focus:border-primary/50" required />
-                </div>
-                <div>
-                  <Label htmlFor="password">Password</Label>
-                  <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="Enter your password" className="mt-1 border-border/50 focus:border-primary/50" required />
-                </div>
-                <div className="flex gap-3 pt-2">
-                  <Button type="button" variant="outline" onClick={() => setShowLogin(false)} className="flex-1 border-border/50 hover:border-border">Cancel</Button>
-                  <Button type="submit" className="flex-1 bg-gradient-primary hover:opacity-90 relative overflow-hidden group">
-                    <span className="relative z-10">Sign In</span>
-                    <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/20 to-transparent translate-x-[-100%] group-hover:translate-x-[100%] transition-transform duration-700"></div>
-                  </Button>
-                </div>
-              </form>
-            </div>
-          </Card>
-        </div>
-      )}
+      
     </div>
   );
 };
