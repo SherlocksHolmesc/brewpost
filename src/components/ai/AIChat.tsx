@@ -159,7 +159,13 @@ Click the link icon on any node to start connecting them. What type of content f
   };
 
 
-
+  const isPlannerMessage = (text: string) => {
+    const normalized = text.toLowerCase();
+    return (
+      normalized.includes('planner mode') &&
+      ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].every(day => normalized.includes(day))
+    );
+  };
 
   // Insert a caption into input (user can edit & send)
   const handleUseCaption = (caption: string) => setInput(caption);
@@ -227,6 +233,16 @@ Click the link icon on any node to start connecting them. What type of content f
               ) : (
                 <>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
+                  {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.content) && (
+                  <Button 
+                    size="sm" 
+                    className="mt-4 bg-gradient-secondary glow-hover"
+                    onClick={() => console.log('Inject planner nodes here')}
+                  >
+                    📅 Use This Planner
+                  </Button>
+                )}
+
                 </>
               )}
 
