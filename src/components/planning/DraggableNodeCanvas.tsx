@@ -47,6 +47,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [connectingMode, setConnectingMode] = useState<string | null>(null);
+  const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -70,10 +71,17 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const handleMouseDown = useCallback((e: React.MouseEvent, nodeId: string) => {
     if (e.button !== 0) return; // Only handle left click
     
+    // Prevent default to avoid text selection
+    e.preventDefault();
+    
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
     setDraggedNode(nodeId);
+    
+    // Add dragging class to body to prevent text selection globally
+    document.body.classList.add('dragging');
+    
     const rect = (e.target as HTMLElement).closest('.node-card')?.getBoundingClientRect();
     if (rect) {
       setDragOffset({
@@ -102,6 +110,9 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const handleMouseUp = useCallback(() => {
     setDraggedNode(null);
     setDragOffset({ x: 0, y: 0 });
+    
+    // Remove dragging class from body
+    document.body.classList.remove('dragging');
   }, []);
 
   React.useEffect(() => {
@@ -111,9 +122,22 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
+        // Cleanup: remove dragging class if component unmounts during drag
+        document.body.classList.remove('dragging');
       };
     }
   }, [draggedNode, handleMouseMove, handleMouseUp]);
+
+  // Cleanup effect to remove dragging class on component unmount
+  React.useEffect(() => {
+    return () => {
+      document.body.classList.remove('dragging');
+      // Clear any pending click timeout
+      if (clickTimeout) {
+        clearTimeout(clickTimeout);
+      }
+    };
+  }, [clickTimeout]);
 
   const handleConnect = (fromNodeId: string, toNodeId: string) => {
     if (fromNodeId === toNodeId) return;
@@ -136,6 +160,36 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     setConnectingMode(null);
   };
 
+  // Handle double-click to open node details
+  const handleNodeDoubleClick = useCallback((node: ContentNode) => {
+    // Clear any pending single-click timeout
+    if (clickTimeout) {
+      clearTimeout(clickTimeout);
+      setClickTimeout(null);
+    }
+    
+    // Only open node if not in connecting mode and not being dragged
+    if (!connectingMode && !draggedNode) {
+      onNodeClick(node);
+    }
+  }, [clickTimeout, connectingMode, draggedNode, onNodeClick]);
+
+  // Handle single click (for selection/connection only)
+  const handleNodeSingleClick = useCallback((e: React.MouseEvent, node: ContentNode) => {
+    e.stopPropagation();
+    
+    // Handle connection mode
+    if (connectingMode) {
+      if (connectingMode !== node.id) {
+        handleConnect(connectingMode, node.id);
+      }
+      return;
+    }
+    
+    // Don't do anything else on single click - dragging is handled by onMouseDown
+    // Node opening is now handled by double-click only
+  }, [connectingMode, handleConnect]);
+
   const removeConnection = (fromNodeId: string, toNodeId: string) => {
     const updatedNodes = nodes.map(node => 
       node.id === fromNodeId 
@@ -148,8 +202,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   return (
     <div 
       ref={canvasRef}
-      className="relative w-full h-full p-6 overflow-auto bg-gradient-to-br from-background/50 to-background/80"
-      style={{ cursor: draggedNode ? 'grabbing' : 'default' }}
+      className="relative w-full h-full p-6 overflow-auto bg-gradient-to-br from-background/50 to-background/80 no-select"
+      style={{ 
+        cursor: draggedNode ? 'grabbing' : 'default',
+      }}
     >
       {/* Connection Lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
@@ -190,9 +246,9 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         return (
           <Card
             key={node.id}
-            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 transition-all duration-300 ease-out z-10 ${
+            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 transition-all duration-300 ease-out z-10 no-select ${
               draggedNode === node.id 
-                ? 'scale-105 shadow-2xl shadow-primary/30 border-primary glow-hover cursor-grabbing' 
+                ? 'dragging-node scale-105 shadow-2xl shadow-primary/30 border-primary glow-hover cursor-grabbing' 
                 : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20'
             } ${
               isConnecting 
@@ -213,18 +269,16 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               left: node.position.x,
               top: node.position.y,
             }}
+            title="Double-click to open details"
             onMouseDown={(e) => {
               if (!canConnect) {
                 handleMouseDown(e, node.id);
               }
             }}
-            onClick={(e) => {
+            onClick={(e) => handleNodeSingleClick(e, node)}
+            onDoubleClick={(e) => {
               e.stopPropagation();
-              if (canConnect) {
-                handleConnect(connectingMode, node.id);
-              } else if (!draggedNode) {
-                onNodeClick(node);
-              }
+              handleNodeDoubleClick(node);
             }}
           >
             {/* Node Controls */}
@@ -367,6 +421,21 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               {nodes.find(n => n.id === connectingMode)?.title}
             </span>
           </p>
+        </div>
+      )}
+
+      {/* Usage Instructions */}
+      {!connectingMode && nodes.length > 0 && (
+        <div className="absolute top-6 left-6 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg p-3 z-20">
+          <div className="flex items-center gap-2 mb-2">
+            <Sparkles className="w-4 h-4 text-primary" />
+            <p className="text-sm font-medium text-foreground">Content Canvas</p>
+          </div>
+          <div className="space-y-1 text-xs text-muted-foreground">
+            <p>• <strong>Drag</strong> to move nodes</p>
+            <p>• <strong>Double-click</strong> to open details</p>
+            <p>• <strong>Link icon</strong> to connect nodes</p>
+          </div>
         </div>
       )}
     </div>
