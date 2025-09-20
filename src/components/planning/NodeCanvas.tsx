@@ -51,7 +51,7 @@ export const NodeCanvas: React.FC<NodeCanvasProps> = ({ nodes, onNodeClick }) =>
   ];
 
   return (
-    <div className="relative w-full h-full p-6 overflow-auto">
+    <div className="relative w-full h-full p-6 overflow-auto scrollbar-hide">
       {/* Connection Lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
         <defs>
@@ -143,13 +143,6 @@ export const NodeCanvas: React.FC<NodeCanvasProps> = ({ nodes, onNodeClick }) =>
           </Card>
         );
       })}
-
-      {/* Floating Add Button */}
-      <div className="absolute bottom-6 right-6">
-        <button className="w-12 h-12 bg-gradient-accent rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform glow-hover">
-          <Target className="w-6 h-6 text-white" />
-        </button>
-      </div>
     </div>
   );
 };

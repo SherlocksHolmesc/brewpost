@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -9,6 +9,7 @@ import { AddNodeModal } from '@/components/modals/AddNodeModal';
 import { ScheduleConfirmationModal } from '@/components/modals/ScheduleConfirmationModal';
 import { CalendarModal } from '@/components/modals/CalendarModal';
 import { EditNodeModal } from '@/components/modals/EditNodeModal';
+import { NodeAPI } from '@/services/nodeService';
 import { 
   Calendar, 
   Clock, 
@@ -34,6 +35,9 @@ interface ContentNode {
 
 export const PlanningPanel: React.FC = () => {
   const navigate = useNavigate();
+  const projectId = 'demo-project-123'; // using a more realistic demo project ID
+  const [nodes, setNodes] = useState<ContentNode[]>([]);
+  const [edgesByKey, setEdgesByKey] = useState<Record<string,string>>({}); // "from->to" : edgeId
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);
   const [showAddModal, setShowAddModal] = useState(false);
@@ -41,36 +45,123 @@ export const PlanningPanel: React.FC = () => {
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingNode, setEditingNode] = useState<ContentNode | null>(null);
-  const [nodes, setNodes] = useState<ContentNode[]>([
-    {
-      id: '1',
-      title: 'Product Launch Post',
-      type: 'post',
-      status: 'scheduled',
-      scheduledDate: new Date('2024-01-15'),
-      content: 'Exciting product launch announcement with key features and benefits.',
-      connections: ['2', '3'],
-      position: { x: 50, y: 50 }
-    },
-    {
-      id: '2',
-      title: 'Behind Scenes Story',
-      type: 'story',
-      status: 'draft',
-      content: 'Show the team working on the product development process.',
-      connections: ['3'],
-      position: { x: 350, y: 120 }
-    },
-    {
-      id: '3',
-      title: 'Feature Highlight',
-      type: 'image',
-      status: 'draft',
-      content: 'Detailed infographic showing product features and specifications.',
-      connections: [],
-      position: { x: 200, y: 250 }
-    },
-  ]);
+  const persistPositions = useRef<NodeJS.Timeout | null>(null);
+
+  // Calculate node counts by status
+  const getNodeCounts = () => {
+    const published = nodes.filter(node => node.status === 'published').length;
+    const scheduled = nodes.filter(node => node.status === 'scheduled').length;
+    const drafts = nodes.filter(node => node.status === 'draft').length;
+    return { published, scheduled, drafts };
+  };
+
+  const { published, scheduled, drafts } = getNodeCounts();
+
+  useEffect(() => {
+    let unsubscribe: (() => void) | undefined;
+
+    const initializeData = async () => {
+      try {
+        console.log('Initializing data for project:', projectId);
+        
+        // Try to load nodes
+        try {
+          const n = await NodeAPI.list(projectId);
+          console.log('Loaded nodes:', n);
+          // transform NodeDTO -> ContentNode used by your UI
+          setNodes(n.map(x => ({
+            id: x.nodeId,
+            title: x.title,
+            type: 'post',              // map if you store type in description/status/etc.
+            status: (x.status as any) ?? 'draft',
+            scheduledDate: undefined,
+            content: x.description ?? '',
+            imageUrl: undefined,
+            connections: [],           // we'll fill from edges below
+            position: { x: x.x ?? 0, y: x.y ?? 0 },
+          })));
+        } catch (nodeError) {
+          console.warn('Failed to load nodes, using fallback data:', nodeError);
+          // Use fallback demo data if API fails
+          setNodes([
+            {
+              id: 'demo-1',
+              title: 'Demo Post',
+              type: 'post',
+              status: 'draft',
+              content: 'This is a demo post while API is being set up.',
+              connections: [],
+              position: { x: 100, y: 100 }
+            }
+          ]);
+        }
+
+        // Try to load edges
+        try {
+          const edges = await NodeAPI.listEdges(projectId);
+          console.log('Loaded edges:', edges);
+          setNodes(curr => curr.map(nd => ({
+            ...nd,
+            connections: edges.filter(e => e.from === nd.id).map(e => e.to),
+          })));
+          
+          // Update edge map
+          setEdgesByKey(Object.fromEntries(edges.map(e => [`${e.from}->${e.to}`, e.edgeId])));
+        } catch (edgeError) {
+          console.warn('Failed to load edges:', edgeError);
+        }
+
+        // Set up subscriptions (only if API calls work)
+        try {
+          unsubscribe = NodeAPI.subscribe(projectId, ({ type, payload }) => {
+            console.log('Subscription event:', type, payload);
+            setNodes(curr => {
+              if (type === 'created') {
+                const nd = payload;
+                return [...curr, {
+                  id: nd.nodeId, title: nd.title, type: 'post', status: nd.status ?? 'draft',
+                  content: nd.description ?? '', imageUrl: undefined,
+                  connections: [], position: { x: nd.x ?? 0, y: nd.y ?? 0 },
+                }];
+              }
+              if (type === 'updated') {
+                return curr.map(n => n.id === payload.nodeId
+                  ? { ...n, title: payload.title, content: payload.description ?? '', status: payload.status ?? n.status,
+                      position: { x: payload.x ?? n.position.x, y: payload.y ?? n.position.y } }
+                  : n);
+              }
+              if (type === 'deleted') {
+                console.log('Subscription received delete event for node:', payload.nodeId);
+                // Only remove if the node actually exists (avoid double deletion from optimistic updates)
+                return curr.filter(n => n.id !== payload.nodeId)
+                           .map(n => ({ ...n, connections: n.connections.filter(c => c !== payload.nodeId) }));
+              }
+              if (type === 'edge') {
+                // simple reconcile of connections
+                const e = payload;
+                return curr.map(n => n.id === e.from
+                  ? { ...n, connections: Array.from(new Set([...n.connections.filter(x => x !== e.to), e.to])) }
+                  : n);
+              }
+              return curr;
+            });
+          });
+        } catch (subscriptionError) {
+          console.warn('Failed to set up subscriptions:', subscriptionError);
+        }
+      } catch (error) {
+        console.error('Failed to initialize planning panel:', error);
+      }
+    };
+
+    initializeData();
+
+    return () => {
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, [projectId]);
 
   const handleNodeClick = (node: ContentNode) => {
     setSelectedNode(node);
@@ -82,33 +173,183 @@ export const PlanningPanel: React.FC = () => {
     setShowEditModal(true);
   };
 
-  const handleSaveEditedNode = (updatedNode: ContentNode) => {
-    const updatedNodes = nodes.map(node => 
-      node.id === updatedNode.id ? updatedNode : node
+  const handleSaveEditedNode = async (updatedNode: ContentNode) => {
+    // Optimistic update - update UI immediately
+    setNodes(prevNodes => 
+      prevNodes.map(node => 
+        node.id === updatedNode.id ? updatedNode : node
+      )
     );
-    setNodes(updatedNodes);
+    
+    try {
+      await NodeAPI.update({
+        projectId,
+        nodeId: updatedNode.id,
+        title: updatedNode.title,
+        description: updatedNode.content,
+        status: updatedNode.status,
+      });
+      console.log('Node updated successfully');
+    } catch (error) {
+      console.error('Failed to update node:', error);
+      // Could revert the optimistic update here if needed
+    }
   };
 
-  const handleNodeUpdate = (updatedNodes: ContentNode[]) => {
-    setNodes(updatedNodes);
+  const handleNodeUpdate = (updated: ContentNode[]) => {
+    // Update UI immediately for smooth dragging
+    setNodes(updated);
+    
+    // Debounce AWS position updates with longer delay
+    if (persistPositions.current) clearTimeout(persistPositions.current);
+    persistPositions.current = setTimeout(() => {
+      // Only update positions that have actually changed
+      updated.forEach(n => {
+        const originalNode = nodes.find(orig => orig.id === n.id);
+        if (originalNode && 
+            (originalNode.position.x !== n.position.x || originalNode.position.y !== n.position.y)) {
+          NodeAPI.update({ 
+            projectId, 
+            nodeId: n.id, 
+            x: n.position.x, 
+            y: n.position.y 
+          }).catch(error => {
+            // Silently handle position update errors during dragging
+            console.warn(`Position update failed for node ${n.id}:`, error.message || 'Unknown error');
+          });
+        }
+      });
+    }, 500); // Increased debounce delay for better performance
   };
 
-  const handleAddNode = (nodeData: Omit<ContentNode, 'id' | 'connections'>) => {
-    const newNode: ContentNode = {
+  const handleAddNode = async (nodeData: Omit<ContentNode,'id'|'connections'>) => {
+    // Optimistic update - add to UI immediately
+    const tempId = `temp-${Date.now()}`;
+    const optimisticNode: ContentNode = {
       ...nodeData,
-      id: Date.now().toString(),
+      id: tempId,
       connections: []
     };
-    setNodes([...nodes, newNode]);
+    
+    setNodes(prevNodes => [...prevNodes, optimisticNode]);
+    
+    try {
+      const res = await NodeAPI.create({
+        projectId,
+        title: nodeData.title,
+        description: nodeData.content,
+        x: nodeData.position?.x ?? 0,
+        y: nodeData.position?.y ?? 0,
+        status: nodeData.status,
+        contentId: undefined,
+      });
+      
+      // Replace the optimistic node with the real one from AWS
+      setNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === tempId 
+            ? {
+                id: res.nodeId,
+                title: res.title,
+                type: 'post',
+                status: (res.status as any) ?? 'draft',
+                content: res.description ?? '',
+                imageUrl: undefined,
+                connections: [],
+                position: { x: res.x ?? 0, y: res.y ?? 0 },
+                scheduledDate: undefined
+              }
+            : node
+        )
+      );
+      
+      console.log('Node created successfully:', res);
+    } catch (error) {
+      console.error('Failed to create node:', error);
+      // Remove the optimistic node if creation failed
+      setNodes(prevNodes => prevNodes.filter(node => node.id !== tempId));
+    }
   };
 
-  const handleDeleteNode = (nodeId: string) => {
-    const updatedNodes = nodes.filter(node => node.id !== nodeId)
-      .map(node => ({
-        ...node,
-        connections: node.connections.filter(id => id !== nodeId)
-      }));
-    setNodes(updatedNodes);
+  const handleDeleteNode = async (nodeId: string) => {
+    console.log('handleDeleteNode called with nodeId:', nodeId);
+    
+    // Optimistic update - remove from UI immediately
+    const previousNodes = nodes;
+    const optimisticNodes = nodes.filter(node => node.id !== nodeId);
+    setNodes(optimisticNodes);
+    console.log('Node removed from UI immediately, calling API...');
+    
+    try {
+      await NodeAPI.remove(projectId, nodeId);
+      console.log('Node deleted successfully from server');
+      // Keep the optimistic update - ensure node stays deleted
+      setNodes(currentNodes => currentNodes.filter(node => node.id !== nodeId));
+    } catch (error) {
+      console.error('Failed to delete node from server:', error);
+      // Only revert if there was a real server error (not GraphQL response issues)
+      if (error && typeof error === 'object' && 'networkError' in error) {
+        console.warn('Network error - restoring node to UI');
+        setNodes(previousNodes);
+      } else {
+        console.log('Node was likely deleted on server despite GraphQL response issues - keeping UI updated');
+        // Ensure the node stays deleted even if GraphQL has issues
+        setNodes(currentNodes => currentNodes.filter(node => node.id !== nodeId));
+      }
+    }
+  };
+
+  const createOrDeleteEdge = async (from: string, to: string) => {
+    const key = `${from}->${to}`;
+    const existing = edgesByKey[key];
+    
+    if (existing) {
+      // Optimistic removal
+      setEdgesByKey(m => { const { [key]:_, ...rest } = m; return rest; });
+      setNodes(prevNodes => prevNodes.map(node => 
+        node.id === from 
+          ? { ...node, connections: node.connections.filter(c => c !== to) }
+          : node
+      ));
+      
+      try {
+        await NodeAPI.deleteEdge(projectId, existing);
+        console.log('Edge deleted successfully');
+      } catch (error) {
+        console.error('Failed to delete edge:', error);
+        // Revert optimistic update
+        setEdgesByKey(m => ({ ...m, [key]: existing }));
+        setNodes(prevNodes => prevNodes.map(node => 
+          node.id === from 
+            ? { ...node, connections: [...node.connections, to] }
+            : node
+        ));
+      }
+    } else {
+      // Optimistic addition
+      const tempEdgeId = `temp-edge-${Date.now()}`;
+      setEdgesByKey(m => ({ ...m, [key]: tempEdgeId }));
+      setNodes(prevNodes => prevNodes.map(node => 
+        node.id === from 
+          ? { ...node, connections: Array.from(new Set([...node.connections, to])) }
+          : node
+      ));
+      
+      try {
+        const e = await NodeAPI.createEdge(projectId, from, to);
+        setEdgesByKey(m => ({ ...m, [key]: e.edgeId }));
+        console.log('Edge created successfully');
+      } catch (error) {
+        console.error('Failed to create edge:', error);
+        // Revert optimistic update
+        setEdgesByKey(m => { const { [key]:_, ...rest } = m; return rest; });
+        setNodes(prevNodes => prevNodes.map(node => 
+          node.id === from 
+            ? { ...node, connections: node.connections.filter(c => c !== to) }
+            : node
+        ));
+      }
+    }
   };
 
   const handleScheduleAll = () => {
@@ -187,19 +428,19 @@ export const PlanningPanel: React.FC = () => {
           <Card className="px-3 py-2 bg-card/50 backdrop-blur-sm border-border/50">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-success rounded-full"></div>
-              <span className="text-xs text-muted-foreground">Published: 12</span>
+              <span className="text-xs text-muted-foreground">Published: {published}</span>
             </div>
           </Card>
           <Card className="px-3 py-2 bg-card/50 backdrop-blur-sm border-border/50">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-primary rounded-full"></div>
-              <span className="text-xs text-muted-foreground">Scheduled: 5</span>
+              <span className="text-xs text-muted-foreground">Scheduled: {scheduled}</span>
             </div>
           </Card>
           <Card className="px-3 py-2 bg-card/50 backdrop-blur-sm border-border/50">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-muted-foreground rounded-full"></div>
-              <span className="text-xs text-muted-foreground">Drafts: 8</span>
+              <span className="text-xs text-muted-foreground">Drafts: {drafts}</span>
             </div>
           </Card>
         </div>
@@ -214,6 +455,7 @@ export const PlanningPanel: React.FC = () => {
           onAddNode={() => setShowAddModal(true)}
           onDeleteNode={handleDeleteNode}
           onEditNode={handleEditNode}
+          createOrDeleteEdge={createOrDeleteEdge}
         />
       </div>
 
@@ -246,6 +488,7 @@ export const PlanningPanel: React.FC = () => {
         node={selectedNode}
         open={showModal}
         onOpenChange={setShowModal}
+        onEditNode={handleEditNode}
       />
 
       {/* Add Node Modal */}

@@ -4,6 +4,37 @@
 
 /* BrewPost Design System - Creative AI Content Generator */
 
+/* Dragging optimizations */
+.dragging {
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  cursor: grabbing !important;
+}
+
+.node-card {
+  will-change: transform;
+  transition: none;
+  /* Additional optimizations for smooth dragging */
+  backface-visibility: hidden;
+  -webkit-backface-visibility: hidden;
+  transform: translateZ(0); /* Force hardware acceleration */
+}
+
+.node-card.dragging {
+  transition: none !important;
+  transform: translateZ(0); /* Force hardware acceleration */
+  backface-visibility: hidden;
+  /* Disable hover effects during dragging */
+  pointer-events: auto !important;
+}
+
+.node-card:not(.dragging) {
+  /* Only apply transitions when not dragging */
+  transition: all 0.3s ease-out;
+}
+
 @layer base {
   :root {
     /* Base colors */
@@ -238,6 +269,11 @@
   }
 
   .dragging .node-card {
+    pointer-events: auto !important;
+  }
+
+  /* Ensure buttons are always clickable */
+  .node-card button {
     pointer-events: auto !important;
   }
 
