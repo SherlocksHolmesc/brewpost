@@ -3,25 +3,25 @@ import express from "express";
 import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import cors from "cors";
-import pkg from "aws-sdk";            // aws-sdk v2 is CommonJS — import default and destructure
-import { invokeModelViaHttp } from "./bedrock.js"; // your existing helper
+import pkg from "aws-sdk";
+import { invokeModelViaHttp } from "./bedrock.js";
 
 dotenv.config();
 
-const { S3 } = pkg; // <- destructure S3 from the default import (fixes the named-export error)
+const { S3 } = pkg;
 
 const PORT = process.env.PORT || 8081;
-const REGION = process.env.AWS_REGION || "ap-southeast-1";
-const TEXT_MODEL = process.env.TEXT_MODEL;    // inference-profile ARN that worked in your test
-const IMAGE_MODEL = process.env.IMAGE_MODEL;  // optional
-const S3_BUCKET = process.env.S3_BUCKET;      // optional
+const REGION = process.env.AWS_REGION || "us-east-1";
+const TEXT_MODEL = process.env.TEXT_MODEL; 
+const IMAGE_MODEL = process.env.IMAGE_MODEL; 
+const S3_BUCKET = process.env.S3_BUCKET;
 
 const app = express();
 
 // CORS only after app is created
 app.use(
   cors({
-    origin: "http://localhost:8080", // change for production or use '*' for quick hackathon testing
+    origin: "http://localhost:8080", 
     methods: ["GET", "POST", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization"],
   })
