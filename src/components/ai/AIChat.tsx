@@ -423,7 +423,7 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch('http://localhost:8081/generate', {
+      const resp = await fetch('https://main.d3rq5op2806z3.amplifyapp.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: refinementPrompt }),
@@ -484,7 +484,7 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch('http://localhost:8081/generate', {
+      const resp = await fetch('https://main.d3rq5op2806z3.amplifyapp.com/generate', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messagesForBackend }),
