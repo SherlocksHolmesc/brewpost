@@ -256,13 +256,49 @@
     animation: blink 1s infinite;
   }
 
-  /* Scrollbar hide utility */
+  /* Scrollbar hide utility - Enhanced for all browsers */
   .scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;  
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;     /* Firefox */
   }
 
   .scrollbar-hide::-webkit-scrollbar {
+    display: none;             /* Safari and Chrome */
+  }
+
+  /* Global scrollbar hiding - Apply to all scrollable elements */
+  * {
+    -ms-overflow-style: none;  /* Internet Explorer 10+ */
+    scrollbar-width: none;     /* Firefox */
+  }
+
+  *::-webkit-scrollbar {
+    display: none;             /* Safari and Chrome */
+  }
+
+  /* Specific scrollbar hiding for common scrollable elements */
+  html, body {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  html::-webkit-scrollbar,
+  body::-webkit-scrollbar {
+    display: none;
+  }
+
+  /* Override for any containers that might show scrollbars */
+  div, section, article, main, aside, nav {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+
+  div::-webkit-scrollbar,
+  section::-webkit-scrollbar,
+  article::-webkit-scrollbar,
+  main::-webkit-scrollbar,
+  aside::-webkit-scrollbar,
+  nav::-webkit-scrollbar {
     display: none;
   }
 
