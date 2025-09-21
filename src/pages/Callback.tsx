@@ -19,14 +19,39 @@ export default function Callback() {
 
     const exchangeToken = async () => {
       try {
-        const res = await fetch(`/api/auth/exchange`, {
+        const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+        const res = await fetch(`${BACKEND_URL}/api/auth/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
-          credentials: "include",
+          credentials: "include", // ensure session cookie is set on the backend
         });
 
         if (res.ok) {
+          // server now returns { success: true, tokens }
+          const body = await res.json().catch(() => null);
+          const tokens = body?.tokens ?? null;
+
+          // NEW: if id_token present decode it and store userId in localStorage for per-user fetches
+          try {
+            if (tokens && tokens.id_token) {
+              const parts = String(tokens.id_token).split('.');
+              if (parts.length >= 2) {
+                // base64url -> base64
+                const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                const json = decodeURIComponent(atob(b64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                const payload = JSON.parse(json);
+                if (payload && payload.sub) {
+                  localStorage.setItem('userId', payload.sub);
+                }
+              }
+            }
+            // Also persist tokens client-side for convenience (optional)
+            if (tokens) localStorage.setItem('auth_tokens', JSON.stringify(tokens));
+          } catch (e) {
+            console.warn('Failed to decode id_token or store userId:', e);
+          }
+
           setStatus("Login successful! Redirecting...");
           navigate("/app");
         } else {
