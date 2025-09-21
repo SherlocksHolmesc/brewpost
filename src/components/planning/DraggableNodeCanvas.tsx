@@ -23,6 +23,8 @@ interface ContentNode {
   scheduledDate?: Date;
   content: string;
   imageUrl?: string;
+  imagePrompt?: string;
+  day?: string;
   connections: string[];
   position: { x: number; y: number };
 }
@@ -139,7 +141,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     };
   }, [clickTimeout]);
 
-  const handleConnect = (fromNodeId: string, toNodeId: string) => {
+  const handleConnect = useCallback((fromNodeId: string, toNodeId: string) => {
     if (fromNodeId === toNodeId) return;
 
     const updatedNodes = nodes.map(node => {
@@ -158,7 +160,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
 
     onNodeUpdate(updatedNodes);
     setConnectingMode(null);
-  };
+  }, [nodes, onNodeUpdate]);
 
   // Handle double-click to open node details
   const handleNodeDoubleClick = useCallback((node: ContentNode) => {
@@ -345,7 +347,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 </div>
                 <div>
                   <h3 className="font-medium text-sm">{node.title}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">{node.type}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{node.day || node.type}</p>
                 </div>
               </div>
             </div>
@@ -353,6 +355,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
             <p className="text-xs text-muted-foreground mb-3 line-clamp-2">
               {node.content}
             </p>
+
+            {node.imagePrompt && (
+              <p className="text-xs text-muted-foreground mb-3 italic line-clamp-2">📷 {node.imagePrompt}</p>
+            )}
 
             <div className="flex items-center justify-between">
               <Badge 

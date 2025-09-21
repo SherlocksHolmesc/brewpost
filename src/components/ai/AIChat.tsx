@@ -4,6 +4,8 @@ import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Send, Image, Type, Wand2, Sparkles } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import type { ContentNode } from '@/components/planning/PlanningPanel';
 
 interface Message {
   id: string;
@@ -15,7 +17,152 @@ interface Message {
   captions?: string[];
 }
 
-export const AIChat: React.FC = () => {
+type PlannerNode = {
+  day: string;
+  title: string;
+  caption: string;
+  imagePrompt: string;
+};
+
+export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
+  const text = raw.replace(/\r\n/g, '\n');
+  const dayNamesRe = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i;
+
+  // Split into blocks by markdown heading lines (e.g., #### ...)
+  const headingRe = /^#{2,6}\s*(.+)$/gm;
+  const blocks: { heading: string; content: string }[] = [];
+
+  let lastIndex = 0;
+  let lastHeading = '';
+  let m: RegExpExecArray | null;
+
+  // Walk through headings and capture content between them
+  while ((m = headingRe.exec(text)) !== null) {
+    const heading = m[1].trim();
+    const start = m.index + m[0].length;
+    if (lastHeading) {
+      const content = text.slice(lastIndex, m.index).trim();
+      blocks.push({ heading: lastHeading, content });
+    }
+    lastHeading = heading;
+    lastIndex = start;
+  }
+
+  // push final block
+  if (lastHeading) {
+    const content = text.slice(lastIndex).trim();
+    blocks.push({ heading: lastHeading, content });
+  }
+
+  const nodes: PlannerNode[] = [];
+
+  blocks.forEach((b, idx) => {
+    // Extract day from heading (e.g., 'Monday: The Rise of DeFi' or '**Monday: ...')
+    const heading = b.heading.replace(/\*+/g, '').trim();
+    const dayMatch = heading.match(dayNamesRe);
+    const day = dayMatch ? dayMatch[0] : '';
+
+  // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
+  const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
+
+    const content = b.content;
+
+    // Match **Title**: "..." or Title: "..." or - **Title**: "..."
+  const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]\s*"?([^"\n]+)"?/i;
+  const captionRe = /(?:\*\*Caption\*\*|Caption)\s*[:-]\s*([\s\S]*?)(?=(?:\n\s*\*\*Image Prompt\*\*|\n\n|$))/i;
+  const imagePromptRe = /(?:\*\*Image Prompt\*\*|Image Prompt)\s*[:-]\s*([^\n]+)/i;
+
+    const titleMatch = content.match(titleRe);
+    const captionMatch = content.match(captionRe);
+    const imagePromptMatch = content.match(imagePromptRe);
+
+    const title = (titleMatch?.[1]?.trim() || headingTitle || `Untitled ${idx + 1}`);
+    const caption = (captionMatch?.[1]?.trim() || '').replace(/^-\s*/,'').trim();
+    const imagePrompt = (imagePromptMatch?.[1]?.trim() || '');
+
+    // Only accept blocks that explicitly reference a weekday in the heading
+    // This prevents the top-level header like 'PLANNER MODE: 7-Day Weekly Content Plan' from becoming a node
+    if (day) {
+      nodes.push({
+        day,
+        title,
+        caption,
+        imagePrompt,
+      });
+    } else {
+      console.debug('AIChat: skipping non-day block heading:', heading.slice(0, 80));
+    }
+  });
+
+  // As a final fallback, if no heading blocks found, try to parse by looking for bullet sections with 'Title' markers
+  if (nodes.length === 0) {
+    const itemRe = /(?:[-*]\s*)?\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?[:\s]*([\s\S]*?)(?=\n[-*\s]*\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?|$)/gi;
+    let it: RegExpExecArray | null;
+    while ((it = itemRe.exec(text)) !== null) {
+      const day = it[1];
+      const block = it[2] || '';
+  const titleMatch = block.match(/\*\*Title\*\*\s*[:-]\s*"?([^"\n]+)"?/i);
+  const captionMatch = block.match(/\*\*Caption\*\*\s*[:-]\s*([\s\S]*?)(?=\n\n|$)/i);
+  const imagePromptMatch = block.match(/\*\*Image Prompt\*\*\s*[:-]\s*([^\n]+)/i);
+      const title = titleMatch?.[1]?.trim() || `Untitled`;
+      const caption = captionMatch?.[1]?.trim() || '';
+      const imagePrompt = imagePromptMatch?.[1]?.trim() || '';
+      nodes.push({ day, title, caption, imagePrompt });
+    }
+  }
+
+  console.debug('AIChat: parsed planner blocks -> nodes:', nodes.length);
+  return nodes;
+}
+
+function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode[] {
+  const ids = plannerNodes.map((_, i) => Date.now().toString() + '-' + i + '-' + Math.floor(Math.random() * 1000));
+  const count = plannerNodes.length;
+  const spacing = 320; // increased horizontal spacing between nodes
+  const startX = 40; // left padding
+  const topY = 60; // top row Y
+  const bottomY = topY + 220; // bottom row Y (zig-zag)
+
+  return plannerNodes.map((node, index) => {
+  const isBottom = index % 2 === 1;
+  const x = startX + index * (spacing / 2);
+  const y = isBottom ? bottomY : topY;
+
+    return {
+      id: ids[index],
+      title: node.title.replace(/\*+/g, '').trim(),
+      type: 'post',
+      status: 'draft',
+      scheduledDate: getNextWeekdayDate(index),
+      content: node.caption,
+      imagePrompt: node.imagePrompt || undefined,
+      day: node.day,
+      connections: index < count - 1 ? [ids[index + 1]] : [],
+      imageUrl: undefined,
+      position: {
+        x,
+        y,
+      },
+    };
+  });
+}
+
+
+
+function getNextWeekdayDate(offset: number): Date {
+  const today = new Date();
+  const newDate = new Date(today);
+  newDate.setDate(today.getDate() + offset);
+  return newDate;
+}
+
+
+interface AIChatProps {
+  // optional: the AIChat can be rendered in places that don't need to update the planner
+  setPlanningNodes?: (nodes: ContentNode[]) => void;
+}
+
+export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
   const [messages, setMessages] = useState<Message[]>([
     {
       id: '1',
@@ -28,6 +175,7 @@ export const AIChat: React.FC = () => {
   ]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
+  const navigate = useNavigate();
 
   const quickPrompts = [
     { icon: Image, text: 'Plan content structure' },
@@ -144,8 +292,8 @@ Click the link icon on any node to start connecting them. What type of content f
           captions: Array.isArray(data.captions) ? data.captions : [],
         });
       }
-    } catch (err: any) {
-      console.error(err);
+    } catch (err: unknown) {
+      console.error('AIChat generate error', err);
       appendMessage({
         id: (Date.now() + 4).toString(),
         type: 'system',
@@ -161,10 +309,14 @@ Click the link icon on any node to start connecting them. What type of content f
 
   const isPlannerMessage = (text: string) => {
     const normalized = text.toLowerCase();
-    return (
-      normalized.includes('planner mode') &&
-      ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'].every(day => normalized.includes(day))
-    );
+    const hasAllDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
+      .every(day => normalized.includes(day));
+
+    const hasDayHeadings = /####\s+\*\*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\*\*/i.test(text);
+
+    const detected = hasAllDays || hasDayHeadings || normalized.includes('plan') || normalized.includes('suggest');
+    if (detected) console.debug('AIChat: planner message detected:', { hasAllDays, hasDayHeadings });
+    return detected;
   };
 
   // Insert a caption into input (user can edit & send)
@@ -234,15 +386,48 @@ Click the link icon on any node to start connecting them. What type of content f
                 <>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
                   {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.content) && (
-                  <Button 
-                    size="sm" 
-                    className="mt-4 bg-gradient-secondary glow-hover"
-                    onClick={() => console.log('Inject planner nodes here')}
-                  >
-                    📅 Use This Planner
-                  </Button>
-                )}
+                    <Button
+                      size="sm"
+                      className="mt-4 bg-gradient-secondary glow-hover"
+                      onClick={() => {
+                        console.info('AIChat: Use This Planner clicked. message length:', message.content.length);
+                        // log a short preview of the message to help debugging
+                        console.debug('AIChat: message content preview:', message.content.slice(0, 1200));
 
+                        const planner = extractPlannerNodesFromText(message.content);
+                        console.info('AIChat: extractPlannerNodesFromText ->', planner.length, 'blocks');
+                        console.debug('AIChat: planner parsed details:', planner);
+
+                        const contentNodes = mapPlannerNodesToContentNodes(planner);
+                        // If extraction produced no nodes, create a single fallback node using the full message
+                        if (contentNodes.length === 0) {
+                          console.warn('AIChat: planner extraction returned 0 nodes, creating a fallback node');
+                          const fallback: ContentNode[] = [{
+                            id: Date.now().toString() + '-fallback',
+                            title: 'AI Planner Suggestion',
+                            type: 'post',
+                            status: 'draft',
+                            scheduledDate: new Date(),
+                            content: message.content.slice(0, 800),
+                            connections: [],
+                            imageUrl: undefined,
+                            position: { x: 60, y: 60 }
+                          }];
+                          contentNodes.push(...fallback);
+                        }
+                        // If a setter was provided by the parent (MainLayout) update it.
+                        if (typeof setPlanningNodes === 'function') {
+                          console.info('AIChat: applying planner nodes', contentNodes.length);
+                          setPlanningNodes(contentNodes);
+                        } else {
+                          // Defensive: don't throw if the prop wasn't provided (some modals render AIChat without it)
+                          console.warn('AIChat: setPlanningNodes not provided, skipping applying planner nodes');
+                        }
+                      }}
+                    >
+                      📅 Use This Planner
+                    </Button>
+                  )}
                 </>
               )}
 

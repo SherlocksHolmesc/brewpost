@@ -63,7 +63,7 @@ async function generateTextFromBedrock(messagesArray) {
       - One post per day — **NO reels or carousels**. Only **single static image posts**
       - Each post must include:
         - **Title**: Strong, curiosity-driven line that must be **visibly placed inside the image**
-        - **Caption**: Write a long-form, storytelling or educational caption (aim for blog-style or micro-essay length). It should be engaging, unique, non-repetitive, and include **2–3 relevant emojis** + strategic hashtags. Avoid filler or generic tips — write like a thought leader.
+        - **Caption**: Write a storytelling or educational caption (aim for blog-style or micro-essay length). It should be engaging, unique, non-repetitive, and include **2–3 relevant emojis** + strategic hashtags. Avoid filler or generic tips — write like a thought leader.
         - **Image Prompt**: Describe the visual content of the post, including how the **title should appear inside the image** (font size/placement/vibe optional but encouraged)
 
       2. STRATEGIST MODE:

@@ -19,8 +19,17 @@ import {
   Target,
   TrendingUp
 } from 'lucide-react';
+import { v4 as uuidv4 } from 'uuid'; // optional, or use Date.now()
+import { useLocation } from 'react-router-dom';
 
-interface ContentNode {
+type PlannerNode = {
+  day: string;
+  title: string;
+  caption: string;
+  imagePrompt: string;
+};
+
+export type ContentNode = {
   id: string;
   title: string;
   type: 'post' | 'image' | 'story';
@@ -28,11 +37,18 @@ interface ContentNode {
   scheduledDate?: Date;
   content: string;
   imageUrl?: string;
+  imagePrompt?: string;
+  day?: string;
   connections: string[];
   position: { x: number; y: number };
+};
+
+interface PlanningPanelProps {
+  nodes: ContentNode[];
+  setNodes: (nodes: ContentNode[]) => void;
 }
 
-export const PlanningPanel: React.FC = () => {
+export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes }) => {
   const navigate = useNavigate();
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);
@@ -41,36 +57,6 @@ export const PlanningPanel: React.FC = () => {
   const [showCalendarModal, setShowCalendarModal] = useState(false);
   const [showEditModal, setShowEditModal] = useState(false);
   const [editingNode, setEditingNode] = useState<ContentNode | null>(null);
-  const [nodes, setNodes] = useState<ContentNode[]>([
-    {
-      id: '1',
-      title: 'Product Launch Post',
-      type: 'post',
-      status: 'scheduled',
-      scheduledDate: new Date('2024-01-15'),
-      content: 'Exciting product launch announcement with key features and benefits.',
-      connections: ['2', '3'],
-      position: { x: 50, y: 50 }
-    },
-    {
-      id: '2',
-      title: 'Behind Scenes Story',
-      type: 'story',
-      status: 'draft',
-      content: 'Show the team working on the product development process.',
-      connections: ['3'],
-      position: { x: 350, y: 120 }
-    },
-    {
-      id: '3',
-      title: 'Feature Highlight',
-      type: 'image',
-      status: 'draft',
-      content: 'Detailed infographic showing product features and specifications.',
-      connections: [],
-      position: { x: 200, y: 250 }
-    },
-  ]);
 
   const handleNodeClick = (node: ContentNode) => {
     setSelectedNode(node);

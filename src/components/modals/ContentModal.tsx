@@ -30,6 +30,8 @@ interface ContentNode {
   scheduledDate?: Date;
   content: string;
   imageUrl?: string;
+  imagePrompt?: string;
+  day?: string;
   connections: string[];
 }
 
@@ -104,6 +106,16 @@ export const ContentModal: React.FC<ContentModalProps> = ({
               <p className="text-sm leading-relaxed">{node.content}</p>
             </Card>
           </div>
+
+          {/* Image Prompt */}
+          {node.imagePrompt && (
+            <div>
+              <h3 className="text-sm font-medium mb-3">Image Prompt</h3>
+              <Card className="p-4 bg-card/50 backdrop-blur-sm border-border/30">
+                <p className="text-sm leading-relaxed italic">{node.imagePrompt}</p>
+              </Card>
+            </div>
+          )}
 
           {/* Scheduling Info */}
           {node.scheduledDate && (

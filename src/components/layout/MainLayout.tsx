@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { AIChat } from '@/components/ai/AIChat';
 import { PlanningPanel } from '@/components/planning/PlanningPanel';
 import { Sparkles, Calendar, Network, LogOut } from 'lucide-react';
+import type { ContentNode } from '@/components/planning/PlanningPanel';
 
 interface MainLayoutProps {
   children?: React.ReactNode;
@@ -13,6 +14,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [showPlanning, setShowPlanning] = useState(true); // Default to open
   const [showCalendar, setShowCalendar] = useState(false);
+  const [nodes, setNodes] = useState<ContentNode[]>([]);
+  // Wrap setNodes to add debug logging when nodes change
+  const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
+    if (typeof next === 'function') {
+      setNodes(prev => {
+        const updated = (next as (p: ContentNode[]) => ContentNode[])(prev);
+        console.info('MainLayout: nodes updated (from function) ->', updated.length);
+        return updated;
+      });
+    } else {
+      console.info('MainLayout: nodes replaced ->', next.length);
+      setNodes(next);
+    }
+  };
 
   const togglePlanning = () => {
     setShowPlanning(!showPlanning);
@@ -78,7 +93,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         <div className={`transition-all duration-500 ease-in-out ${
           showPlanning ? 'w-[30%]' : 'w-full'
         }`}>
-          <AIChat />
+          <AIChat setPlanningNodes={debugSetNodes} />
         </div>
 
         {/* Planning Panel - Sliding Sidebar (70% when open) */}
@@ -87,7 +102,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             ? 'w-[70%] translate-x-0 opacity-100' 
             : 'w-[70%] translate-x-full opacity-0 pointer-events-none'
         }`}>
-          <PlanningPanel />
+          <PlanningPanel nodes={nodes} setNodes={setNodes} />
         </div>
       </div>
 
