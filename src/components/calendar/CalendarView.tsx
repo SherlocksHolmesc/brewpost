@@ -47,16 +47,185 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<ContentNode | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
-  
+  const [fetchedNodes, setFetchedNodes] = useState<ContentNode[]>([]);
+  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+
+  // If no nodes provided from parent, fetch from backend (DynamoDB/AppSync-backed schedules)
+  React.useEffect(() => {
+    if (Array.isArray(scheduledNodes) && scheduledNodes.length > 0) return;
+    let mounted = true;
+    (async () => {
+      try {
+        // Try to include userId for per-user fetch; read from localStorage if your app stores it there.
+        let storedUserId = typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null;
+
+        // NEW: if userId missing, try to decode id_token from stored auth_tokens (Callback stores auth_tokens)
+        if (!storedUserId) {
+          try {
+            const authTokens = typeof window !== 'undefined' ? window.localStorage.getItem('auth_tokens') : null;
+            if (authTokens) {
+              const toks = JSON.parse(authTokens);
+              const idToken = toks?.id_token;
+              if (idToken && typeof idToken === 'string') {
+                const parts = idToken.split('.');
+                if (parts.length >= 2) {
+                  const b64 = parts[1].replace(/-/g, '+').replace(/_/g, '/');
+                  const json = decodeURIComponent(atob(b64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''));
+                  const payload = JSON.parse(json);
+                  if (payload && payload.sub) {
+                    storedUserId = payload.sub;
+                    // persist for future loads
+                    window.localStorage.setItem('userId', payload.sub);
+                  }
+                }
+              }
+            }
+          } catch (e) {
+            console.warn('Failed to derive userId from auth_tokens:', e);
+          }
+        }
+
+        const userQuery = storedUserId ? `?userId=${encodeURIComponent(storedUserId)}` : '';
+        const headers: Record<string,string> = {};
+        if (storedUserId) headers['x-user-id'] = storedUserId;
+        
+        console.log('Calendar fetch - storedUserId:', storedUserId);
+        console.log('Calendar fetch - userQuery:', userQuery);
+        console.log('Calendar fetch - headers:', headers);
+        
+        if (!storedUserId) {
+          // Helpful debug hint — recommend setting localStorage.userId for per-user fetching
+          console.info('No userId available locally; server may require session auth.');
+        }
+
+        // NOTE: include credentials so server session cookies are sent when using session-based auth
+        const fetchUrl = `${BACKEND_URL}/api/schedules/list${userQuery}`;
+        console.log('Calendar fetch URL:', fetchUrl);
+        const res = await fetch(fetchUrl, { headers, credentials: 'include' });
+        let data: any = null;
+        // try parse JSON if possible, otherwise capture text for debugging
+        const contentType = res.headers.get?.('content-type') || '';
+        if (contentType.includes('application/json')) {
+          try {
+            data = await res.json();
+          } catch (e) {
+            data = { ok: false, error: 'invalid_json', detail: 'Failed to parse JSON response' };
+          }
+        } else {
+          const txt = await res.text().catch(() => null);
+          // attempt to parse text as JSON fallback
+          try { data = txt ? JSON.parse(txt) : { ok: false, error: 'empty_response', detail: txt } } catch { data = { ok: false, error: 'non_json_response', detail: txt } }
+        }
+
+        // If HTTP status is not OK and server didn't provide ok:true, ensure we surface status & detail
+        if (!res.ok && (!data || data.ok !== true)) {
+          console.error("Schedule list HTTP error:", res.status, data);
+          const detailText = data?.detail ?? data?.error ?? `HTTP ${res.status} - ${res.statusText}`;
+          alert(`Failed to load schedules (server responded ${res.status}).\n\nDetail: ${typeof detailText === 'string' ? detailText : JSON.stringify(detailText)}`);
+          if (mounted) setFetchedNodes([]);
+          return;
+        }
+
+        if (!data.ok) {
+          console.error("Unexpected schedule list response:", data);
+
+          // NEW: handle missing_userid by prompting user to sign in (redirect to backend login)
+          if (data.error === 'missing_userid') {
+            const goLogin = confirm('You must sign in to view your schedules. Redirect to the sign-in page now?');
+            if (goLogin) {
+              // Use server login endpoint so session flow works
+              window.location.href = `${BACKEND_URL}/login`;
+              return;
+            } else {
+              if (mounted) setFetchedNodes([]);
+              return;
+            }
+          }
+
+          // If we received an unexpected_function_response include its detail stringified
+          if (data.error === 'unexpected_function_response') {
+            console.warn('Per-user schedules fetch returned unexpected shape detail:', data.detail);
+            alert('Failed to load schedules: per-user function returned unexpected data. Check console for "schedules/list" logs and paste the "detail" here for help.');
+            if (mounted) setFetchedNodes([]);
+            return;
+          }
+
+          // If server forwarded the per-user function response but shape was unexpected, show detail
+          if (data.error === 'unexpected_function_response') {
+            console.warn('Per-user schedules fetch returned unexpected shape:', data.detail);
+            alert('Failed to load schedules: per-user function returned unexpected data. Check browser console for the function response detail.');
+            if (mounted) setFetchedNodes([]);
+            return;
+          }
+
+          // NEW: detect DynamoDB Scan auth error and surface actionable message
+          const detail = String(data.detail || '');
+          if (/dynamodb:Scan/i.test(detail) || /DynamoDBScanAuthorizationError/i.test(data.error) || /DynamoDB authorization error/i.test(data.error)) {
+            // Friendly UI/alert so user knows why calendar is empty
+            alert('Failed to load schedules: server is missing DynamoDB read (Scan) permission or per-user fetch is not configured. Attach read permissions or configure the per-user Lambda. See aws/schedules-scan-policy.json for an example policy.');
+            if (mounted) setFetchedNodes([]);
+            return;
+          }
+
+          // Handle per-user function unexpected responses
+          if (data.error === 'unexpected_function_response' || data.error === 'function_url_error' || data.error === 'missing_userid') {
+            console.warn('Per-user schedules fetch returned:', data);
+            alert('Failed to fetch per-user schedules. Check console logs and ensure your userId is provided (localStorage.userId) or session is active.');
+            if (mounted) setFetchedNodes([]);
+            return;
+          }
+
+          // fallback: log and continue with empty list
+          if (mounted) setFetchedNodes([]);
+          return;
+        }
+
+        if (data.ok && Array.isArray(data.schedules) && mounted) {
+          console.log('Fetched schedules from backend:', data.schedules);
+          console.log('First schedule item structure:', data.schedules[0]);
+          console.log('First schedule title field:', data.schedules[0]?.title);
+          console.log('First schedule raw data:', JSON.stringify(data.schedules[0], null, 2));
+          
+          const parsed = data.schedules.map((s: any) => {
+            console.log('Processing schedule item:', s);
+            console.log('Schedule title value:', s.title, 'Type:', typeof s.title);
+            return {
+              id: s.scheduleId || s.id,
+              title: s.title || 'Untitled',
+              type: 'post' as const, // Default type since schedules don't store type
+              status: s.status || 'scheduled' as const,
+              scheduledDate: s.scheduledDate ? new Date(s.scheduledDate) : undefined,
+              content: s.content || '',
+              imageUrl: s.imageUrl || undefined,
+              connections: [],
+              position: { x: 0, y: 0 }, // Default position
+              userId: s.userId
+            };
+          });
+          console.log('Parsed nodes for calendar:', parsed);
+          console.log('First parsed node title:', parsed[0]?.title);
+          setFetchedNodes(parsed);
+        } else {
+          console.error("Unexpected schedule list response:", data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch schedules:", err);
+      }
+    })();
+    return () => { mounted = false; };
+  }, [scheduledNodes]);
+
   // Helper function to format date keys
   const formatDateKey = (year: number, month: number, day: number) => {
     return `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
+
+  const nodesToRender = scheduledNodes && scheduledNodes.length > 0 ? scheduledNodes : fetchedNodes;
   
   // Convert scheduled nodes to calendar format
   const scheduledContent: Record<string, ScheduledContent[]> = {};
   
-  scheduledNodes.forEach(node => {
+  nodesToRender.forEach(node => {
     if (node.scheduledDate) {
       const dateKey = formatDateKey(
         node.scheduledDate.getFullYear(),

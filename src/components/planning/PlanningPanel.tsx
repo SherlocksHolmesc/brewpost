@@ -372,38 +372,192 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
         console.error('Failed to create edge:', error);
         // Revert optimistic update
         setEdgesByKey(m => { const { [key]:_, ...rest } = m; return rest; });
-        setNodes(prevNodes => prevNodes.map(node => 
-          node.id === from 
-            ? { ...node, connections: node.connections.filter(c => c !== to) }
-            : node
-        ));
+        setNodes(prevNodes => 
+          prevNodes.map(node => 
+            node.id === from 
+              ? { ...node, connections: node.connections.filter(c => c !== to) }
+              : node
+          )
+        );
       }
     }
   };
 
+  // Ensure frontend has a usable backend URL at runtime
+  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+
+  // Open the schedule confirmation modal
   const handleScheduleAll = () => {
     setShowScheduleConfirmation(true);
   };
 
-  const handleConfirmSchedule = () => {
-    // Automatically schedule all nodes with dates starting from today
+  // Confirm scheduling: send to backend which writes to DynamoDB and notifies SNS (to create EventBridge one-shot schedules)
+  const handleConfirmSchedule = async () => {
+    // Build scheduled dates (spread starting today)
     const today = new Date();
-    const updatedNodes = nodes.map((node, index) => {
-      // Calculate date for each node (spread them across days)
+    const payloadNodes = nodes.map((node, index) => {
       const scheduledDate = new Date(today);
       scheduledDate.setDate(today.getDate() + index);
-      
       return {
-        ...node,
-        status: 'scheduled' as const,
-        scheduledDate: scheduledDate
+        id: node.id,
+        title: node.title,
+        type: node.type,
+        content: node.content,
+        imageUrl: node.imageUrl || null,
+        scheduledDate: scheduledDate.toISOString(),
       };
     });
-    
-    setNodes(updatedNodes);
-    setShowScheduleConfirmation(false);
-    // Redirect to the dedicated calendar page
-    navigate('/calendar', { state: { nodes: updatedNodes } });
+
+    // DEBUG: always log payload sent from client
+    console.log('Scheduling payloadNodes (count):', payloadNodes.length, payloadNodes.slice(0, 3));
+
+    try {
+      const doPost = async (nodesToSend: any[]) => {
+        try {
+          // Get user ID from localStorage (set during authentication)
+          const userId = typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null;
+          
+          // Prepare headers with user ID
+          const headers: Record<string, string> = { "Content-Type": "application/json" };
+          if (userId) {
+            headers['x-user-id'] = userId;
+          }
+
+          const res = await fetch(`${BACKEND_URL}/api/schedules/create-all`, {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ 
+              nodes: nodesToSend,
+              userId: userId // Also include in body as fallback
+            }),
+            credentials: 'include' // Include session cookies for server-side auth
+          });
+          const data = await res.json().catch(() => ({}));
+          // Return structured result so caller can inspect non-200 responses
+          return { ok: res.ok, status: res.status, data };
+        } catch (fetchErr) {
+          console.error("Network/Fetch failed:", fetchErr);
+          return { ok: false, status: 0, data: { error: "network_error", detail: String(fetchErr) } };
+        }
+      };
+
+      const resObj = await doPost(payloadNodes);
+
+      // Special handling: backend returned 500 with lambda_success_no_items or returned 200 with warning lambda_ok_but_no_items
+      const errData = resObj.data || {};
+      const serverError = errData.error || errData.warning || null;
+
+      if (!resObj.ok) {
+        console.error("Backend returned non-200:", errData);
+
+        // if Lambda reported "success but no items" surface detailed diagnostics and allow copying to clipboard
+        if (errData.error === 'lambda_success_no_items') {
+          const msg = `Scheduling failed: Lambda reported success but returned no scheduled items.\n\nnodes_count_sent: ${errData.nodes_count_sent ?? payloadNodes.length}\n\nServer message: ${errData.detail ?? JSON.stringify(errData)}`;
+          console.error('lambda_success_no_items details:', errData.lambdaResponse || errData);
+
+          // show concise alert, then offer to copy raw debug payloads to clipboard
+          alert(msg + '\n\nPress OK to copy server lambdaResponse and request payload to clipboard for inspection.');
+          try {
+            const toCopy = {
+              nodes_count_sent: errData.nodes_count_sent ?? payloadNodes.length,
+              clientPayloadPreview: payloadNodes.slice(0, 10),
+              lambdaResponse: errData.lambdaResponse ?? errData
+            };
+            await navigator.clipboard.writeText(JSON.stringify(toCopy, null, 2));
+            alert('Copied debug data to clipboard. Inspect in a text editor or paste into CloudWatch search for correlation.');
+          } catch (copyErr) {
+            console.warn('Clipboard copy failed:', copyErr);
+            alert('Failed to copy to clipboard. Check console for details.');
+          }
+
+          setShowScheduleConfirmation(false);
+          return;
+        }
+
+        // also handle server warning path where backend returned 200 with warning (lambda_ok_but_no_items)
+        if (errData.warning === 'lambda_ok_but_no_items') {
+          console.warn('Backend returned lambda_ok_but_no_items:', errData.lambdaResponse || errData);
+          alert('Backend returned a warning: Lambda returned ok but no scheduled items. Check Lambda logs and env. Lambda response has been logged to console.');
+          console.log('lambda_ok_but_no_items payload:', { nodes_count_sent: errData.nodes_count_sent ?? payloadNodes.length, lambdaResponse: errData.lambdaResponse ?? errData });
+          setShowScheduleConfirmation(false);
+          return;
+        }
+
+        // Special-case DynamoDB auth error returned by server
+        if (errData.error === 'DynamoDB authorization error' || (errData.detail && errData.detail.hint)) {
+          const hint = errData.detail?.hint || errData.detail || JSON.stringify(errData);
+          alert(`Scheduling failed: ${errData.error || 'server_error'}\n\n${hint}\n\nFix IAM permissions (dynamodb:PutItem) for the server identity and retry.`);
+          setShowScheduleConfirmation(false);
+          return;
+        }
+
+        // Generic non-OK
+        alert(`Scheduling failed (server returned ${resObj.status}). See console/server logs for details.`);
+        setShowScheduleConfirmation(false);
+        return;
+      }
+
+      // resObj.ok === true -> proceed
+      let data = resObj.data;
+
+      // If backend responded with partial failures, surface them to the user and offer retry
+      if (data.partial) {
+        console.warn("Partial schedule failures:", data.errors);
+        const failedEntries = data.errors || [];
+        const idsFailed = failedEntries.map((e: any) => e.id).filter(Boolean);
+        const reasons = failedEntries.map((e: any) => `${e.id}: ${e.reason || e.error || 'unknown'}`).join("\n");
+        // show reasons & ask to retry
+        const retry = confirm(`Some schedules failed:\n\n${reasons}\n\nRetry failed items now?`);
+        if (retry && idsFailed.length > 0) {
+          const nodesToRetry = payloadNodes.filter((p: any) => idsFailed.includes(p.id));
+          const retryRes = await doPost(nodesToRetry);
+          if (!retryRes.ok) {
+            console.error("Retry POST failed:", retryRes);
+            alert(`Retry failed (server ${retryRes.status}). Check server logs.`);
+            setShowScheduleConfirmation(false);
+            return;
+          }
+          const retryData = retryRes.data;
+          // merge retryData into data (overwrite entries)
+          const mergedScheduled = (data.scheduled || []).filter((s: any) => !idsFailed.includes(s.id)).concat(retryData.scheduled || []);
+          data.scheduled = mergedScheduled;
+          if (retryData.partial) {
+            alert(`Retry completed with ${retryData.errors?.length ?? 0} failures. Check logs for details.`);
+          } else {
+            alert('Retry completed successfully for previously failed items.');
+          }
+        } else {
+          alert(`Some schedules failed: ${idsFailed.join(', ')}. See console/server logs for details.`);
+        }
+      }
+
+      // Build map using id or scheduleId from backend
+      const scheduledMap = new Map<string, any>();
+      (data.scheduled || []).forEach((s: any) => {
+        const key = s.id || s.scheduleId;
+        if (key) scheduledMap.set(key, s);
+      });
+
+      const updatedNodes = nodes.map(n => {
+        const sched = scheduledMap.get(n.id);
+        if (sched && sched.status === 'scheduled') {
+          return {
+            ...n,
+            status: 'scheduled' as const,
+            scheduledDate: sched.scheduledDate ? new Date(sched.scheduledDate) : n.scheduledDate,
+          };
+        }
+        return n;
+      });
+
+      setNodes(updatedNodes);
+      setShowScheduleConfirmation(false);
+      navigate('/calendar', { state: { nodes: updatedNodes } });
+    } catch (err) {
+      console.error('handleConfirmSchedule failed:', err);
+      alert('Failed to schedule nodes. Check server logs and ensure SNS/Dynamo/Scheduler permissions are correct.');
+      setShowScheduleConfirmation(false);
+    }
   };
 
   const handleCalendarView = () => {
@@ -508,10 +662,10 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
           </Button>
           <Button 
             variant="outline" 
-            size="sm" 
-            className="flex-1 border-primary/20 hover:border-primary/40"
-            onClick={handleScheduleAll}
-          >
+             size="sm" 
+             className="flex-1 border-primary/20 hover:border-primary/40"
+             onClick={handleScheduleAll}
+           >
             <Clock className="w-3 h-3 mr-2" />
             Schedule All
           </Button>
@@ -545,7 +699,7 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
       <CalendarModal
         open={showCalendarModal}
         onOpenChange={setShowCalendarModal}
-        scheduledNodes={nodes.filter(node => node.scheduledDate && node.status === 'scheduled')}
+        scheduledNodes={[]} // Let calendar fetch from database instead of using local nodes
       />
 
       {/* Edit Node Modal */}
