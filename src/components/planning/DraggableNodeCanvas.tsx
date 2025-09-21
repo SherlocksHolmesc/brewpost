@@ -532,7 +532,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                   <TypeIcon className="w-4 h-4 text-white" />
                 </div>
                 <div>
-                  <h3 className="font-medium text-sm">{node.title}</h3>
+                  <h3 className="font-medium text-xs">{node.title}</h3>
                   <p className="text-xs text-muted-foreground capitalize">{node.day + " - " + node.type}</p>
                 </div>
               </div>

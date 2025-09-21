@@ -538,7 +538,7 @@ Return only the refined prompt, nothing else.`
           >
             <Card
               className={`max-w-[80%] p-4 ${
-                message.type === 'user' ? 'bg-gradient-primary text-white' : 'bg-card/50 backdrop-blur-sm border-border/50'
+                message.type === 'user' ? 'bg-gradient-primary text-white' : 'bg-[#77958E] text-white'
               }`}
             >
               {message.contentType === 'image' && message.imageUrl ? (
@@ -569,10 +569,9 @@ Return only the refined prompt, nothing else.`
                   {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.rawText ?? message.content) && (
                     <Button
                       size="sm"
-                      className="mt-4 bg-gradient-secondary glow-hover"
+                      className="mt-4 bg-[#text-white] border border-[#6B8BAE] glow-hover"
                       onClick={() => {
                         console.info('AIChat: Use This Planner clicked. message length:', message.content.length);
-                        // log a short preview of the message to help debugging
                         console.debug('AIChat: message content preview:', message.content.slice(0, 1200));
 
                         const planner = extractPlannerNodesFromText(message.rawText ?? message.content);
