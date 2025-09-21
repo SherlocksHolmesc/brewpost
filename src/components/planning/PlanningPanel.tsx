@@ -384,7 +384,7 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
   };
 
   // Ensure frontend has a usable backend URL at runtime
-  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'https://main.d3rq5op2806z3.amplifyapp.com';
 
   // Open the schedule confirmation modal
   const handleScheduleAll = () => {

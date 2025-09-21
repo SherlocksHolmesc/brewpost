@@ -48,7 +48,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
   const [selectedEvent, setSelectedEvent] = useState<ContentNode | null>(null);
   const [showEventModal, setShowEventModal] = useState(false);
   const [fetchedNodes, setFetchedNodes] = useState<ContentNode[]>([]);
-  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'https://main.d3rq5op2806z3.amplifyapp.com';
 
   // If no nodes provided from parent, fetch from backend (DynamoDB/AppSync-backed schedules)
   React.useEffect(() => {

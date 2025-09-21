@@ -226,7 +226,7 @@ app.post("/api/auth/exchange", async (req, res) => {
 
 app.get("/logout", (req, res) => {
   req.session.destroy(() => {
-    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID}&logout_uri=http://localhost:8080`;
+    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID}&logout_uri=https://main.d3rq5op2806z3.amplifyapp.com`;
     res.redirect(logoutUrl);
   });
 });
@@ -724,6 +724,6 @@ app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`✅ Unified server running on http://localhost:${PORT}`);
+  console.log(`✅ Unified server running on https://main.d3rq5op2806z3.amplifyapp.com`);
   console.log(`Region: ${REGION}`);
 });

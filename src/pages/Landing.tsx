@@ -26,7 +26,7 @@ export const Landing: React.FC = () => {
 
   const handleAuthRedirect = () => {
     // Instead of /api/auth/login, go to your Node server
-    window.location.href = "http://localhost:8081/login";
+    window.location.href = "https://main.d3rq5op2806z3.amplifyapp.com";
   };
 
   const features = [
