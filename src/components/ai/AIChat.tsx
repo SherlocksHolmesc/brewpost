@@ -7,13 +7,22 @@ import { Send, Image, Type, Wand2, Sparkles } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
+const cleanField = (s?: string) =>
+  (s ?? '')
+    .replace(/^\s*(\*{1,}|[-•])\s*/,'')   // **** or * or bullet at start
+    .replace(/^\s*["'`]+|["'`]+$/g,'')    // trim surrounding quotes
+    .replace(/\s+/g,' ')
+    .trim();
+
 interface Message {
   id: string;
+  title?: string;
   type: 'user' | 'ai' | 'system';
   content: string;
   timestamp: Date;
   contentType?: 'text' | 'image';
   imageUrl?: string;
+  imagePrompt?: string;
   captions?: string[];
 }
 
@@ -62,32 +71,62 @@ export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
     const dayMatch = heading.match(dayNamesRe);
     const day = dayMatch ? dayMatch[0] : '';
 
-  // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
-  const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
+    // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
+    const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
 
     const content = b.content;
+    const titleInlineRe = /(?:\*\*Title\*\*|Title)\s*[:-]?/i;
+    const captionInlineRe = /(?:\*\*Caption\*\*|Caption)\s*[:-]?/i;
+    const imagePromptInlineRe = /(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i;
 
-    // Match **Title**: "..." or Title: "..." or - **Title**: "..."
-  const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]\s*"?([^"\n]+)"?/i;
-  const captionRe = /(?:\*\*Caption\*\*|Caption)\s*[:-]\s*([\s\S]*?)(?=(?:\n\s*\*\*Image Prompt\*\*|\n\n|$))/i;
-  const imagePromptRe = /(?:\*\*Image Prompt\*\*|Image Prompt)\s*[:-]\s*([^\n]+)/i;
+    let titleFound: string | undefined = undefined;
+    let captionFound = '';
+    let imagePromptFound = '';
 
+    const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
     const titleMatch = content.match(titleRe);
-    const captionMatch = content.match(captionRe);
-    const imagePromptMatch = content.match(imagePromptRe);
+    if (titleMatch) {
+      titleFound = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
+    }
 
-    const title = (titleMatch?.[1]?.trim() || headingTitle || `Untitled ${idx + 1}`);
-    const caption = (captionMatch?.[1]?.trim() || '').replace(/^-\s*/,'').trim();
-    const imagePrompt = (imagePromptMatch?.[1]?.trim() || '');
+    // Find positions for caption and image prompt markers
+    const captionPos = content.search(captionInlineRe);
+    const imagePromptPos = content.search(imagePromptInlineRe);
+
+    if (captionPos >= 0) {
+      const capMarkerMatch = content.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i);
+      const capStart = captionPos + (capMarkerMatch ? capMarkerMatch[0].length : 0);
+      const capEnd = imagePromptPos >= 0 ? imagePromptPos : content.length;
+      captionFound = content.slice(capStart, capEnd).trim();
+    }
+
+    if (imagePromptPos >= 0) {
+      const ipMarkerMatch = content.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i);
+      const ipStart = imagePromptPos + (ipMarkerMatch ? ipMarkerMatch[0].length : 0);
+      const rest = content.slice(ipStart).trim();
+      const doubleNl = rest.search(/\n\s*\n/);
+      imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
+    }
+
+    const title = (titleFound && titleFound.length > 0) ? titleFound : headingTitle || `Untitled ${idx + 1}`;
+
+    // Normalize title and image prompt
+    let cleanTitle = title.replace(/\*+/g, '').trim();
+    cleanTitle = cleanTitle.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
+
+    let cleanImagePrompt = (imagePromptFound || '').replace(/\s+/g, ' ').trim();
+    cleanImagePrompt = cleanImagePrompt.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
+
+    const caption = captionFound.replace(/^[-\s]*/,'').trim();
 
     // Only accept blocks that explicitly reference a weekday in the heading
     // This prevents the top-level header like 'PLANNER MODE: 7-Day Weekly Content Plan' from becoming a node
     if (day) {
       nodes.push({
         day,
-        title,
+        title: cleanTitle,
         caption,
-        imagePrompt,
+        imagePrompt: cleanImagePrompt,
       });
     } else {
       console.debug('AIChat: skipping non-day block heading:', heading.slice(0, 80));
@@ -96,22 +135,37 @@ export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
 
   // As a final fallback, if no heading blocks found, try to parse by looking for bullet sections with 'Title' markers
   if (nodes.length === 0) {
-    const itemRe = /(?:[-*]\s*)?\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?[:\s]*([\s\S]*?)(?=\n[-*\s]*\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?|$)/gi;
+    const itemRe = /(?:[-*]\s*)?\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?[:\s]*([\s\S]*?)(?=(?:\n[-*\s]*\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?)|$)/gi;
     let it: RegExpExecArray | null;
     while ((it = itemRe.exec(text)) !== null) {
       const day = it[1];
       const block = it[2] || '';
-  const titleMatch = block.match(/\*\*Title\*\*\s*[:-]\s*"?([^"\n]+)"?/i);
-  const captionMatch = block.match(/\*\*Caption\*\*\s*[:-]\s*([\s\S]*?)(?=\n\n|$)/i);
-  const imagePromptMatch = block.match(/\*\*Image Prompt\*\*\s*[:-]\s*([^\n]+)/i);
-      const title = titleMatch?.[1]?.trim() || `Untitled`;
-      const caption = captionMatch?.[1]?.trim() || '';
-      const imagePrompt = imagePromptMatch?.[1]?.trim() || '';
-      nodes.push({ day, title, caption, imagePrompt });
+
+      const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
+      const titleMatch = block.match(titleRe);
+      const captionPos = block.search(/(?:\*\*Caption\*\*|Caption)\s*[:-]?/i);
+      const imagePromptPos = block.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:\-]?\s*/i);
+
+      const titleFound = titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim() : '';
+      const capStart = captionPos >= 0 ? (captionPos + (block.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i)?.[0].length || 0)) : -1;
+      const capEnd = imagePromptPos >= 0 ? imagePromptPos : block.length;
+      const captionFound = capStart >= 0 ? block.slice(capStart, capEnd).trim() : '';
+
+      let imagePromptFound = '';
+      if (imagePromptPos >= 0) {
+        const ipStart = imagePromptPos + (block.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i)?.[0].length || 0);
+        const rest = block.slice(ipStart).trim();
+        const doubleNl = rest.search(/\n\s*\n/);
+        imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
+      }
+
+      const titleFinal = (titleFound || '').replace(/\*+/g, '').replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim() || 'Untitled';
+      const imagePromptFinal = imagePromptFound.replace(/\s+/g, ' ').replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
+
+      nodes.push({ day, title: titleFinal, caption: captionFound, imagePrompt: imagePromptFinal });
     }
   }
-
-  console.debug('AIChat: parsed planner blocks -> nodes:', nodes.length);
+  console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, hasImagePrompt: !!n.imagePrompt })));
   return nodes;
 }
 
@@ -124,17 +178,30 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
   const bottomY = topY + 220; // bottom row Y (zig-zag)
 
   return plannerNodes.map((node, index) => {
-  const isBottom = index % 2 === 1;
-  const x = startX + index * (spacing / 2);
-  const y = isBottom ? bottomY : topY;
+    const isBottom = index % 2 === 1;
+    const x = startX + index * (spacing / 2);
+    const y = isBottom ? bottomY : topY;
 
+    let cleanedCaption = (node.caption || '').trim();
+    const ipIdx = cleanedCaption.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?/i);
+    if (ipIdx >= 0) {
+      cleanedCaption = cleanedCaption.slice(0, ipIdx).trim();
+    }
+    cleanedCaption = cleanedCaption.replace(/^\*+\s*/, '').trim();
+
+    let titleCandidate = (node.title || '').replace(/\*+/g, '').trim();
+    if (!titleCandidate) {
+      const firstLine = (cleanedCaption.split(/\r?\n/).find(l => l.trim()) || '').trim();
+      titleCandidate = firstLine || `${node.day} Post`;
+    }
+    
     return {
       id: ids[index],
-      title: node.title.replace(/\*+/g, '').trim(),
+      title: titleCandidate,
       type: 'post',
       status: 'draft',
       scheduledDate: getNextWeekdayDate(index),
-      content: node.caption,
+      content: cleanedCaption,
       imagePrompt: node.imagePrompt || undefined,
       day: node.day,
       connections: index < count - 1 ? [ids[index + 1]] : [],
@@ -318,20 +385,28 @@ Return only the refined prompt, nothing else.`
       const data: GenerateResponse = await resp.json();
 
       if (data.text) {
+        const textForPlanner = data.text ?? generatePlanningResponse(input);
+        const maybePlanner = extractPlannerNodesFromText(textForPlanner);
         appendMessage({
           id: (Date.now() + 1).toString(),
+          title: maybePlanner[0]?.title,
           type: 'ai',
           content: data.text,
           timestamp: new Date(),
           contentType: 'text',
+          imagePrompt: maybePlanner[0]?.imagePrompt,
         });
       } else {
+        const textForPlanner = data.text ?? generatePlanningResponse(input);
+        const maybePlanner = extractPlannerNodesFromText(textForPlanner);
         appendMessage({
           id: (Date.now() + 2).toString(),
+          title: maybePlanner[0]?.title,
           type: 'ai',
           content: generatePlanningResponse(input),
           timestamp: new Date(),
           contentType: 'text',
+          imagePrompt: maybePlanner[0]?.imagePrompt,
         });
       }
 
@@ -456,6 +531,7 @@ Return only the refined prompt, nothing else.`
                         console.debug('AIChat: planner parsed details:', planner);
 
                         const contentNodes = mapPlannerNodesToContentNodes(planner);
+                        console.info('AIChat: contentNodes (before apply) ->', contentNodes.map(n => ({ id: n.id, title: n.title, hasImagePrompt: !!n.imagePrompt, imagePrompt: n.imagePrompt }))); 
                         // If extraction produced no nodes, create a single fallback node using the full message
                         if (contentNodes.length === 0) {
                           console.warn('AIChat: planner extraction returned 0 nodes, creating a fallback node');
@@ -476,6 +552,7 @@ Return only the refined prompt, nothing else.`
                         if (typeof setPlanningNodes === 'function') {
                           console.info('AIChat: applying planner nodes', contentNodes.length);
                           setPlanningNodes(contentNodes);
+                          console.info('AIChat: applied planner nodes -> parent setter called');
                         } else {
                           // Defensive: don't throw if the prop wasn't provided (some modals render AIChat without it)
                           console.warn('AIChat: setPlanningNodes not provided, skipping applying planner nodes');

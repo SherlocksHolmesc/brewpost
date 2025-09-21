@@ -60,6 +60,12 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const canvasRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(0);
+  const [helpDragging, setHelpDragging] = useState(false);
+  const [helpOffset, setHelpOffset] = useState({ x: 0, y: 0 });
+  const [helpPos, setHelpPos] = useState<{ x: number; y: number } | null>(null);
+  const [helpVisible, setHelpVisible] = useState(true);
+
+  const helpRef = useRef<HTMLDivElement>(null);
   const dragThreshold = 5; // Minimum distance before starting drag
 
   const getStatusColor = (status: ContentNode['status']) => {
@@ -297,9 +303,6 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       }
       return;
     }
-    
-    // Don't do anything else on single click - dragging is handled by onMouseDown
-    // Node opening is now handled by double-click only
   }, [connectingMode, handleConnect]);
 
   const removeConnection = (fromNodeId: string, toNodeId: string) => {
@@ -316,6 +319,68 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       onNodeUpdate(updatedNodes);
     }
   };
+
+  React.useLayoutEffect(() => {
+    if (!canvasRef.current || !helpRef.current || helpPos) return;
+
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const helpRect = helpRef.current.getBoundingClientRect();
+
+    const x = canvasRect.width - helpRect.width - 24;
+    const y = 24;
+    setHelpPos({ x: Math.max(0, x), y: Math.max(0, y) });
+  }, [helpPos]);
+
+  const onHelpMouseDown = (e: React.MouseEvent) => {
+    if (!helpRef.current || !canvasRef.current || !helpPos) return;
+    e.preventDefault();
+
+    const rect = helpRef.current.getBoundingClientRect();
+    setHelpDragging(true);
+    document.body.classList.add('dragging');
+
+    setHelpOffset({
+      x: e.clientX - rect.left,
+      y: e.clientY - rect.top,
+    });
+  };
+
+  const onHelpMouseMove = useCallback((e: MouseEvent) => {
+    if (!helpDragging || !canvasRef.current || !helpRef.current) return;
+
+    const canvasRect = canvasRef.current.getBoundingClientRect();
+    const helpRect = helpRef.current.getBoundingClientRect();
+
+    const newX = e.clientX - canvasRect.left - helpOffset.x;
+    const newY = e.clientY - canvasRect.top - helpOffset.y;
+
+    // clamp inside canvas
+    const maxX = canvasRect.width - helpRect.width;
+    const maxY = canvasRect.height - helpRect.height;
+
+    setHelpPos({
+      x: Math.min(Math.max(0, newX), Math.max(0, maxX)),
+      y: Math.min(Math.max(0, newY), Math.max(0, maxY)),
+    });
+  }, [helpDragging, helpOffset]);
+
+  const onHelpMouseUp = () => {
+    if (!helpDragging) return;
+    setHelpDragging(false);
+    document.body.classList.remove('dragging');
+  };
+
+  React.useEffect(() => {
+    if (!helpDragging) return;
+    const move = (e: MouseEvent) => onHelpMouseMove(e);
+    const up = () => onHelpMouseUp();
+    document.addEventListener('mousemove', move, { passive: true });
+    document.addEventListener('mouseup', up, { passive: true });
+    return () => {
+      document.removeEventListener('mousemove', move);
+      document.removeEventListener('mouseup', up);
+    };
+  }, [helpDragging, onHelpMouseMove]);
 
   return (
     <div 
@@ -468,7 +533,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 </div>
                 <div>
                   <h3 className="font-medium text-sm">{node.title}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">{node.day || node.type}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{node.day + " - " + node.type}</p>
                 </div>
               </div>
               
@@ -550,12 +615,39 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       )}
 
       {/* Usage Instructions */}
-      {!connectingMode && nodes.length > 0 && (
-        <div className="absolute top-6 left-6 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg p-3 z-20">
-          <div className="flex items-center gap-2 mb-2">
-            <Sparkles className="w-4 h-4 text-primary" />
-            <p className="text-sm font-medium text-foreground">Content Canvas</p>
+      {helpVisible && (
+        <div
+          ref={helpRef}
+          className={`absolute bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg p-3 z-30 ${
+            helpDragging ? 'cursor-grabbing' : 'cursor-grab'
+          }`}
+          style={{
+            left: helpPos ? helpPos.x : 24,
+            top: helpPos ? helpPos.y : 24,
+            width: 220,
+            userSelect: 'none',
+          }}
+          onMouseDown={onHelpMouseDown}
+          title="Drag me"
+        >
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-2">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <p className="text-sm font-medium text-foreground">Content Canvas</p>
+            </div>
+            <button
+              onMouseDown={(e) => e.stopPropagation()}  // <— add this
+              onClick={(e) => {
+                e.stopPropagation();
+                setHelpVisible(false);
+              }}
+              className="p-1 rounded hover:bg-destructive/20 text-destructive transition"
+              title="Hide instructions"
+            >
+              <X className="w-4 h-4" />
+            </button>
           </div>
+
           <div className="space-y-1 text-xs text-muted-foreground">
             <p>• <strong>Drag</strong> to move nodes</p>
             <p>• <strong>Double-click</strong> to open details</p>
