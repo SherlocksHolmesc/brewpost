@@ -6,7 +6,7 @@ import AWS from "aws-sdk";
 const router = Router();
 const eventbridge = new EventBridgeClient({ region: "us-east-1" });
 
-const REGION = process.env.AWS_REGION || "us-east-1";
+const REGION = process.env.REGION || "us-east-1";
 const SNS = new AWS.SNS({ region: REGION });
 const TABLE_NAME = process.env.SCHEDULES_TABLE || "SchedulesTable";
 const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || "arn:aws:sns:us-east-1:123456789012:ScheduleNotifications";
