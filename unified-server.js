@@ -30,7 +30,10 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: [
+      "http://localhost:8080", 
+      "https://main.d3rq5op2806z3.amplifyapp.com"
+    ],
     methods: ["GET", "POST", "OPTIONS"],
     // NEW: allow x-user-id so frontend can send userId header, and allow credentials for session cookies
     allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
@@ -223,7 +226,7 @@ app.post("/api/auth/exchange", async (req, res) => {
 
 app.get("/logout", (req, res) => {
   req.session.destroy(() => {
-    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID}&logout_uri=http://localhost:8080`;
+    const logoutUrl = `${COGNITO_DOMAIN}/logout?client_id=${CLIENT_ID}&logout_uri=http://localhost:8080/`;
     res.redirect(logoutUrl);
   });
 });
@@ -721,6 +724,6 @@ app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 
 // Start the server
 app.listen(PORT, () => {
-  console.log(`✅ Unified server running on http://localhost:${PORT}`);
+  console.log(`✅ Unified server running on http://localhost:8080/`);
   console.log(`Region: ${REGION}`);
 });
