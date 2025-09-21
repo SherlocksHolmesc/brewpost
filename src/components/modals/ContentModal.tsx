@@ -39,12 +39,14 @@ interface ContentModalProps {
   node: ContentNode | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  onEditNode?: (node: ContentNode) => void;
 }
 
 export const ContentModal: React.FC<ContentModalProps> = ({ 
   node, 
   open, 
-  onOpenChange 
+  onOpenChange,
+  onEditNode 
 }) => {
   if (!node) return null;
 
@@ -168,23 +170,31 @@ export const ContentModal: React.FC<ContentModalProps> = ({
 
           {/* Actions */}
           <div className="flex gap-3 flex-wrap">
-            <Button className="bg-gradient-primary hover:opacity-90 glow-hover">
-              <Edit className="w-4 h-4 mr-2" />
+            <Button 
+              className="bg-gradient-primary hover:opacity-90 glow-hover"
+              onClick={() => {
+                if (onEditNode && node) {
+                  onEditNode(node);
+                  onOpenChange(false); // Close content modal
+                }
+              }}
+            >
+              <Edit className="w-3 h-3 mr-2" />
               Edit Content
             </Button>
             
             <Button variant="outline" className="border-primary/20 hover:border-primary/40 glow-hover">
-              <Calendar className="w-4 h-4 mr-2" />
+              <Calendar className="w-3 h-3 mr-2" />
               Schedule
             </Button>
             
             <Button variant="outline" className="border-primary/20 hover:border-primary/40">
-              <Download className="w-4 h-4 mr-2" />
+              <Download className="w-3 h-3 mr-2" />
               Export
             </Button>
             
             <Button variant="outline" className="border-primary/20 hover:border-primary/40">
-              <Share2 className="w-4 h-4 mr-2" />
+              <Share2 className="w-3 h-3 mr-2" />
               Share
             </Button>
           </div>

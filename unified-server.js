@@ -19,7 +19,7 @@ const S3_BUCKET = process.env.S3_BUCKET;
 // ====== Cognito Configuration ======
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID;
 const CLIENT_SECRET = process.env.COGNITO_CLIENT_SECRET;
-const COGNITO_DOMAIN = process.env.COGNITO_DOMAIN;
+const COGNITO_DOMAIN = process.env.COGNITO_DOMAIN || "https://us-east-1lnmmjkyb9.auth.us-east-1.amazoncognito.com";
 const REDIRECT_URI = process.env.REDIRECT_URI;
 // ====== Server Configuration ======
 const PORT = process.env.PORT || 8081;

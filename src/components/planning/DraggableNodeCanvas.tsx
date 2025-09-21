@@ -1,4 +1,4 @@
-import React, { useState, useRef, useCallback } from 'react';
+import React, { useState, useRef, useCallback, memo } from 'react';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -11,7 +11,6 @@ import {
   Plus,
   Link,
   X,
-  Edit,
   Sparkles
 } from 'lucide-react';
 
@@ -36,6 +35,7 @@ interface NodeCanvasProps {
   onAddNode: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onEditNode?: (node: ContentNode) => void;
+  createOrDeleteEdge?: (from: string, to: string) => Promise<void>;
 }
 
 export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({ 
@@ -44,13 +44,16 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   onNodeUpdate,
   onAddNode,
   onDeleteNode,
-  onEditNode 
+  onEditNode,
+  createOrDeleteEdge 
 }) => {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [connectingMode, setConnectingMode] = useState<string | null>(null);
   const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
   const canvasRef = useRef<HTMLDivElement>(null);
+  const animationFrameRef = useRef<number | null>(null);
+  const lastUpdateTime = useRef<number>(0);
 
   const getStatusColor = (status: ContentNode['status']) => {
     switch (status) {
@@ -96,20 +99,35 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggedNode || !canvasRef.current) return;
 
-    const canvasRect = canvasRef.current.getBoundingClientRect();
-    const newX = e.clientX - canvasRect.left - dragOffset.x;
-    const newY = e.clientY - canvasRect.top - dragOffset.y;
+    // Use requestAnimationFrame for optimal performance
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+    }
 
-    const updatedNodes = nodes.map(node => 
-      node.id === draggedNode 
-        ? { ...node, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
-        : node
-    );
+    animationFrameRef.current = requestAnimationFrame(() => {
+      if (!canvasRef.current) return;
+      
+      const canvasRect = canvasRef.current.getBoundingClientRect();
+      const newX = e.clientX - canvasRect.left - dragOffset.x;
+      const newY = e.clientY - canvasRect.top - dragOffset.y;
 
-    onNodeUpdate(updatedNodes);
+      const updatedNodes = nodes.map(node => 
+        node.id === draggedNode 
+          ? { ...node, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
+          : node
+      );
+
+      onNodeUpdate(updatedNodes);
+    });
   }, [draggedNode, dragOffset, nodes, onNodeUpdate]);
 
   const handleMouseUp = useCallback(() => {
+    // Clean up animation frame
+    if (animationFrameRef.current) {
+      cancelAnimationFrame(animationFrameRef.current);
+      animationFrameRef.current = null;
+    }
+    
     setDraggedNode(null);
     setDragOffset({ x: 0, y: 0 });
     
@@ -119,13 +137,18 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
 
   React.useEffect(() => {
     if (draggedNode) {
-      document.addEventListener('mousemove', handleMouseMove);
-      document.addEventListener('mouseup', handleMouseUp);
+      // Use passive listeners for better performance
+      document.addEventListener('mousemove', handleMouseMove, { passive: true });
+      document.addEventListener('mouseup', handleMouseUp, { passive: true });
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
         // Cleanup: remove dragging class if component unmounts during drag
         document.body.classList.remove('dragging');
+        // Cleanup animation frame
+        if (animationFrameRef.current) {
+          cancelAnimationFrame(animationFrameRef.current);
+        }
       };
     }
   }, [draggedNode, handleMouseMove, handleMouseUp]);
@@ -144,21 +167,27 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const handleConnect = useCallback((fromNodeId: string, toNodeId: string) => {
     if (fromNodeId === toNodeId) return;
 
-    const updatedNodes = nodes.map(node => {
-      if (node.id === fromNodeId) {
-        const connections = node.connections.includes(toNodeId) 
-          ? node.connections.filter(id => id !== toNodeId)
-          : [...node.connections, toNodeId];
-        return { ...node, connections };
-      }
-      // Also add bidirectional connection
-      if (node.id === toNodeId && !node.connections.includes(fromNodeId)) {
-        return { ...node, connections: [...node.connections, fromNodeId] };
-      }
-      return node;
-    });
+    if (createOrDeleteEdge) {
+      // Use API-based edge management
+      createOrDeleteEdge(fromNodeId, toNodeId);
+    } else {
+      // Fallback to local state management
+      const updatedNodes = nodes.map(node => {
+        if (node.id === fromNodeId) {
+          const connections = node.connections.includes(toNodeId) 
+            ? node.connections.filter(id => id !== toNodeId)
+            : [...node.connections, toNodeId];
+          return { ...node, connections };
+        }
+        // Also add bidirectional connection
+        if (node.id === toNodeId && !node.connections.includes(fromNodeId)) {
+          return { ...node, connections: [...node.connections, fromNodeId] };
+        }
+        return node;
+      });
 
-    onNodeUpdate(updatedNodes);
+      onNodeUpdate(updatedNodes);
+    }
     setConnectingMode(null);
   }, [nodes, onNodeUpdate]);
 
@@ -193,18 +222,24 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   }, [connectingMode, handleConnect]);
 
   const removeConnection = (fromNodeId: string, toNodeId: string) => {
-    const updatedNodes = nodes.map(node => 
-      node.id === fromNodeId 
-        ? { ...node, connections: node.connections.filter(id => id !== toNodeId) }
-        : node
-    );
-    onNodeUpdate(updatedNodes);
+    if (createOrDeleteEdge) {
+      // Use API-based edge management
+      createOrDeleteEdge(fromNodeId, toNodeId);
+    } else {
+      // Fallback to local state management
+      const updatedNodes = nodes.map(node => 
+        node.id === fromNodeId 
+          ? { ...node, connections: node.connections.filter(id => id !== toNodeId) }
+          : node
+      );
+      onNodeUpdate(updatedNodes);
+    }
   };
 
   return (
     <div 
       ref={canvasRef}
-      className="relative w-full h-full p-6 overflow-auto bg-gradient-to-br from-background/50 to-background/80 no-select"
+      className="relative w-full h-full p-6 overflow-auto scrollbar-hide bg-gradient-to-br from-background/50 to-background/80 no-select"
       style={{ 
         cursor: draggedNode ? 'grabbing' : 'default',
       }}
@@ -248,10 +283,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         return (
           <Card
             key={node.id}
-            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 transition-all duration-300 ease-out z-10 no-select ${
+            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 z-10 no-select ${
               draggedNode === node.id 
-                ? 'dragging-node scale-105 shadow-2xl shadow-primary/30 border-primary glow-hover cursor-grabbing' 
-                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20'
+                ? 'dragging dragging-node border-primary cursor-grabbing' 
+                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-out'
             } ${
               isConnecting 
                 ? 'ring-2 ring-primary/70 border-primary' 
@@ -283,29 +318,22 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               handleNodeDoubleClick(node);
             }}
           >
-            {/* Node Controls */}
-            <div className="absolute -top-2 -right-2 flex gap-1">
-              {onEditNode && (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 w-6 p-0 bg-secondary hover:bg-secondary/90"
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    onEditNode(node);
-                  }}
-                  title="Edit node"
-                >
-                  <Edit className="w-3 h-3" />
-                </Button>
-              )}
+            {/* Node Controls - 2 buttons: Delete, Link */}
+            <div 
+              className="absolute top-2 right-2 flex gap-1 z-50 pointer-events-auto"
+              onMouseDown={(e) => e.stopPropagation()}
+            >
+              {/* Delete Button */}
               {onDeleteNode && (
                 <Button
                   size="sm"
                   variant="outline"
-                  className="h-6 w-6 p-0 bg-destructive hover:bg-destructive/90 text-white"
+                  className="h-6 w-6 p-0 bg-destructive hover:bg-destructive/90 text-destructive-foreground border-destructive/50 pointer-events-auto"
+                  onMouseDown={(e) => e.stopPropagation()}
                   onClick={(e) => {
+                    console.log('Delete button clicked for node:', node.id);
                     e.stopPropagation();
+                    e.preventDefault();
                     onDeleteNode(node.id);
                   }}
                   title="Delete node"
@@ -313,31 +341,31 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                   <X className="w-3 h-3" />
                 </Button>
               )}
-              {connectingMode === node.id ? (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 w-6 p-0 bg-destructive hover:bg-destructive/90"
-                  onClick={(e) => {
-                    e.stopPropagation();
+              
+              {/* Link Button */}
+              <Button
+                size="sm"
+                variant="outline"
+                className={`h-6 w-6 p-0 pointer-events-auto ${
+                  connectingMode === node.id 
+                    ? 'bg-primary text-primary-foreground border-primary/50' 
+                    : 'bg-accent hover:bg-accent/90 border-accent/50'
+                }`}
+                onMouseDown={(e) => e.stopPropagation()}
+                onClick={(e) => {
+                  console.log('Link button clicked for node:', node.id);
+                  e.stopPropagation();
+                  e.preventDefault();
+                  if (connectingMode === node.id) {
                     setConnectingMode(null);
-                  }}
-                >
-                  <X className="w-3 h-3" />
-                </Button>
-              ) : (
-                <Button
-                  size="sm"
-                  variant="outline"
-                  className="h-6 w-6 p-0 bg-accent hover:bg-accent/90"
-                  onClick={(e) => {
-                    e.stopPropagation();
+                  } else {
                     setConnectingMode(node.id);
-                  }}
-                >
-                  <Link className="w-3 h-3" />
-                </Button>
-              )}
+                  }
+                }}
+                title={connectingMode === node.id ? "Cancel linking" : "Link to other nodes"}
+              >
+                <Link className="w-3 h-3" />
+              </Button>
             </div>
 
             <div className="flex items-start justify-between mb-3">
@@ -405,16 +433,6 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
           </Card>
         );
       })}
-
-      {/* Floating Add Button */}
-      <div className="absolute bottom-6 right-6">
-        <Button 
-          onClick={onAddNode}
-          className="w-12 h-12 bg-gradient-accent rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-transform glow-hover p-0"
-        >
-          <Plus className="w-6 h-6 text-white" />
-        </Button>
-      </div>
 
       {/* Connection Mode Instructions */}
       {connectingMode && (
