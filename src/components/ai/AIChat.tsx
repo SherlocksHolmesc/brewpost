@@ -486,19 +486,31 @@ Return only the refined prompt, nothing else.`
 
 
   const isPlannerMessage = (text: string) => {
-    // normalize and remove markdown emphasis
-    const normalized = text.toLowerCase().replace(/\*+/g, '');
+    const raw = (text || '');
+    const normalized = raw.toLowerCase();
 
-    const hasPlannerHeader = /#{2,6}\s*planner\s*mode\b.*:/i.test(normalized);
+    // Flexible header detection
+    const hasPlannerHeader =
+      /planner\s*mode|7\s*[-–]?\s*day\s+weekly\s+content\s+plan|weekly\s+content\s+plan/.test(normalized);
 
     const weekdays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-    const daysFound = weekdays.filter(day => normalized.includes(day)).length;
+    const daysFound = weekdays.reduce((acc, d) => acc + (normalized.includes(d) ? 1 : 0), 0);
 
-    return hasPlannerHeader && daysFound >= 4;
+    // Section markers (Title/Caption/Image Prompt) often appear in your plans
+    const hasSectionMarkers = /(title\s*[:\-])|(\bimage\s+prompt\b)|(\bcaption\s*[:\-])/.test(raw);
+
+    // Last-resort: actually try to parse – if we can extract several nodes, it's a planner
+    let parsedCount = 0;
+    try {
+      parsedCount = extractPlannerNodesFromText(raw).length;
+    } catch {}
+
+    return (
+      (hasPlannerHeader && daysFound >= 2) ||  // header + a couple weekdays
+      daysFound >= 4 ||                        // looks like a weekly plan
+      (hasSectionMarkers && parsedCount >= 3)  // parses into multiple nodes
+    );
   };
-
-
-
 
   // Insert a caption into input (user can edit & send)
   const handleUseCaption = (caption: string) => setInput(caption);
@@ -569,7 +581,7 @@ Return only the refined prompt, nothing else.`
                   {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.rawText ?? message.content) && (
                     <Button
                       size="sm"
-                      className="mt-4 bg-[#text-white] border border-[#6B8BAE] glow-hover"
+                      className="mt-4 bg-[#77958E] border border-primary glow-hover"
                       onClick={() => {
                         console.info('AIChat: Use This Planner clicked. message length:', message.content.length);
                         console.debug('AIChat: message content preview:', message.content.slice(0, 1200));
