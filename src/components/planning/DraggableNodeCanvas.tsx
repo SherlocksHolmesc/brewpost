@@ -375,7 +375,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 </div>
                 <div>
                   <h3 className="font-medium text-sm">{node.title}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">{node.day || node.type}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{node.day + " - " + node.type}</p>
                 </div>
               </div>
             </div>
