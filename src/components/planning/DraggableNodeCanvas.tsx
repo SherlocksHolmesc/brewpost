@@ -11,7 +11,8 @@ import {
   Plus,
   Link,
   X,
-  Sparkles
+  Sparkles,
+  CheckCircle
 } from 'lucide-react';
 
 interface ContentNode {
@@ -26,6 +27,9 @@ interface ContentNode {
   day?: string;
   connections: string[];
   position: { x: number; y: number };
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
 }
 
 interface NodeCanvasProps {
@@ -286,6 +290,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
             className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 z-10 no-select ${
               draggedNode === node.id 
                 ? 'dragging dragging-node border-primary cursor-grabbing' 
+                : (node.postedAt && node.postedTo && node.postedTo.length > 0)
+                ? 'border-green-500/70 hover:border-green-500 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-green-500/20 transition-all duration-300 ease-out'
                 : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-out'
             } ${
               isConnecting 
@@ -296,7 +302,9 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 ? 'ring-2 ring-accent/70 border-accent animate-node-pulse cursor-pointer' 
                 : ''
             } ${
-              node.status === 'published' 
+              (node.postedAt && node.postedTo && node.postedTo.length > 0)
+                ? 'border-green-500/50 hover:border-green-500/70'
+                : node.status === 'published' 
                 ? 'border-success/50 hover:border-success/70' 
                 : node.status === 'scheduled' 
                 ? 'border-accent/50 hover:border-accent/70' 
@@ -378,6 +386,14 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                   <p className="text-xs text-muted-foreground capitalize">{node.day || node.type}</p>
                 </div>
               </div>
+              
+              {/* Posted Indicator */}
+              {node.postedAt && node.postedTo && node.postedTo.length > 0 && (
+                <div className="flex items-center gap-1 text-green-600 dark:text-green-400" title={`Posted to ${node.postedTo.join(', ')} on ${node.postedAt.toLocaleDateString()}`}>
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-xs font-medium">Posted</span>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground mb-3 line-clamp-2">

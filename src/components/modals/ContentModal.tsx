@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Dialog,
   DialogContent,
@@ -10,6 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { postToX } from '@/services/postingService';
 import { 
   Calendar,
   Clock,
@@ -19,7 +20,11 @@ import {
   Target,
   Eye,
   Zap,
-  Image as ImageIcon
+  Image as ImageIcon,
+  Send,
+  Loader2,
+  CheckCircle,
+  AlertCircle
 } from 'lucide-react';
 
 interface ContentNode {
@@ -33,6 +38,9 @@ interface ContentNode {
   imagePrompt?: string;
   day?: string;
   connections: string[];
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
 }
 
 interface ContentModalProps {
@@ -48,7 +56,57 @@ export const ContentModal: React.FC<ContentModalProps> = ({
   onOpenChange,
   onEditNode 
 }) => {
+  const [isPosting, setIsPosting] = useState(false);
+  const [postResult, setPostResult] = useState<{ success: boolean; message: string } | null>(null);
+
   if (!node) return null;
+
+  const handlePost = async () => {
+    if (!node?.content) {
+      setPostResult({ success: false, message: 'No content to post' });
+      return;
+    }
+
+    setIsPosting(true);
+    setPostResult(null);
+
+    try {
+      const result = await postToX(node.content);
+      
+      if (result.success) {
+        // Update the node with posted information
+        const updatedNode = {
+          ...node,
+          status: 'published' as const,
+          postedAt: new Date(),
+          postedTo: ['X'],
+          tweetId: result.tweetId
+        };
+        
+        // Notify parent component about the status change
+        if (onEditNode) {
+          onEditNode(updatedNode);
+        }
+        
+        setPostResult({ 
+          success: true, 
+          message: `Successfully posted to X! Tweet ID: ${result.tweetId}` 
+        });
+      } else {
+        setPostResult({ 
+          success: false, 
+          message: result.error || 'Failed to post to X' 
+        });
+      }
+    } catch (error) {
+      setPostResult({ 
+        success: false, 
+        message: 'An unexpected error occurred while posting' 
+      });
+    } finally {
+      setIsPosting(false);
+    }
+  };
 
   const getStatusColor = (status: ContentNode['status']) => {
     switch (status) {
@@ -93,6 +151,33 @@ export const ContentModal: React.FC<ContentModalProps> = ({
         </DialogHeader>
 
         <div className="space-y-6">
+          {/* Posted Status - Show prominently if content has been posted */}
+          {node.postedAt && node.postedTo && (
+            <div>
+              <h3 className="text-sm font-medium mb-3">Posting Status</h3>
+              <Card className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 border-green-200 dark:from-green-950/20 dark:to-emerald-950/20 dark:border-green-800">
+                <div className="flex items-center gap-3 mb-2">
+                  <CheckCircle className="w-5 h-5 text-green-600" />
+                  <div>
+                    <p className="text-sm font-medium text-green-800 dark:text-green-200">
+                      ✅ This content has been posted!
+                    </p>
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Posted to {node.postedTo.join(', ')} on {node.postedAt.toLocaleDateString()} at {node.postedAt.toLocaleTimeString()}
+                    </p>
+                  </div>
+                </div>
+                {node.tweetId && (
+                  <div className="mt-3 pt-3 border-t border-green-200 dark:border-green-800">
+                    <p className="text-xs text-green-600 dark:text-green-400">
+                      Tweet ID: {node.tweetId}
+                    </p>
+                  </div>
+                )}
+              </Card>
+            </div>
+          )}
+
           {/* Content Preview */}
           <div>
             <h3 className="text-sm font-medium mb-3">Content Preview</h3>
@@ -168,6 +253,24 @@ export const ContentModal: React.FC<ContentModalProps> = ({
 
           <Separator className="opacity-50" />
 
+          {/* Post Status Message */}
+          {postResult && (
+            <Card className={`p-3 ${postResult.success ? 'bg-green-50 border-green-200' : 'bg-red-50 border-red-200'}`}>
+              <div className="flex items-center gap-2">
+                {postResult.success ? (
+                  <CheckCircle className="w-4 h-4 text-green-600" />
+                ) : (
+                  <AlertCircle className="w-4 h-4 text-red-600" />
+                )}
+                <span className={`text-sm ${postResult.success ? 'text-green-800' : 'text-red-800'}`}>
+                  {postResult.message}
+                </span>
+              </div>
+            </Card>
+          )}
+
+          <Separator className="opacity-50" />
+
           {/* Actions */}
           <div className="flex gap-3 flex-wrap">
             <Button 
@@ -181,6 +284,30 @@ export const ContentModal: React.FC<ContentModalProps> = ({
             >
               <Edit className="w-3 h-3 mr-2" />
               Edit Content
+            </Button>
+            
+            <Button 
+              className="bg-gradient-to-r from-green-500 to-emerald-600 hover:from-green-400 hover:to-emerald-500 text-white shadow-lg shadow-green-500/25 glow-hover border-0"
+              onClick={handlePost}
+              disabled={isPosting || !node?.content || (node.postedAt && node.postedTo && node.postedTo.length > 0)}
+            >
+              {isPosting ? (
+                <Loader2 className="w-3 h-3 mr-2 animate-spin" />
+              ) : (node.postedAt && node.postedTo && node.postedTo.length > 0) ? (
+                <CheckCircle className="w-3 h-3 mr-2" />
+              ) : postResult?.success ? (
+                <CheckCircle className="w-3 h-3 mr-2" />
+              ) : (
+                <Send className="w-3 h-3 mr-2" />
+              )}
+              {isPosting 
+                ? 'Posting...' 
+                : (node.postedAt && node.postedTo && node.postedTo.length > 0)
+                ? 'Already Posted'
+                : postResult?.success 
+                ? 'Posted!' 
+                : 'Post'
+              }
             </Button>
             
             <Button variant="outline" className="border-primary/20 hover:border-primary/40 glow-hover">
