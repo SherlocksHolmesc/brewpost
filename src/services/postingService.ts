@@ -4,6 +4,7 @@ const LAMBDA_FUNCTION_URL = "https://ilytuzdhum5h2pec6jgy5vnm2m0lmsoz.lambda-url
 interface PostResponse {
   ok: boolean;
   tweetId?: string;
+  id?: string; // Alternative field name for tweet ID
   error?: string;
   rate?: { retryAfterSec?: number | null; resetEpochSec?: number | null; remaining?: number | null };
   details?: any;
@@ -22,20 +23,39 @@ export class PostingService {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          // If you set WEBHOOK_SECRET in Lambda, include it here:
-          // "x-webhook-secret": "<same-secret>"
+          // If you set WEBHOOK_SECRET in Lambda, uncomment and add the secret:
+          // "x-webhook-secret": "your-webhook-secret-here"
         },
         body: JSON.stringify({ text })
       });
 
       const body: PostResponse = await res.json().catch(() => ({ ok: false, error: "Bad JSON from Lambda" }));
 
+      // Handle rate limiting (429)
       if (res.status === 429) {
         const retryIn =
           body?.rate?.retryAfterSec ??
           (body?.rate?.resetEpochSec ? Math.max(0, body.rate.resetEpochSec - Math.floor(Date.now() / 1000)) : null);
         const friendly = retryIn ? `Rate-limited. Try again in ~${Math.ceil(retryIn)}s.` : "Rate-limited. Try later.";
         return { ok: false, error: friendly, rate: body.rate, details: body.details };
+      }
+
+      // If status is 200 (OK), ensure we return success even if body.ok is not explicitly true
+      if (res.status === 200) {
+        return { 
+          ok: true, 
+          tweetId: body.tweetId || body.id || "posted", 
+          ...body 
+        };
+      }
+
+      // For other status codes, return the body as-is or mark as failed
+      if (!res.ok) {
+        return { 
+          ok: false, 
+          error: body.error || `HTTP ${res.status}: ${res.statusText}`,
+          details: body 
+        };
       }
 
       return body;
