@@ -550,9 +550,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               {node.content}
             </p>
 
-            {node.imagePrompt && (
-              <p className="text-xs text-muted-foreground mb-3 italic line-clamp-2">📷 {node.imagePrompt}</p>
-            )}
+          
 
             <div className="flex items-center justify-between">
               <Badge 
