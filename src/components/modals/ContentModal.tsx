@@ -10,7 +10,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
-import { postToX } from '@/services/postingService';
+import { PostingService } from '@/services/postingService';
 import { 
   Calendar,
   Clock,
@@ -71,9 +71,9 @@ export const ContentModal: React.FC<ContentModalProps> = ({
     setPostResult(null);
 
     try {
-      const result = await postToX(node.content);
+      const result = await PostingService.postToX(node.content);
       
-      if (result.success) {
+      if (result.ok) {
         // Update the node with posted information
         const updatedNode = {
           ...node,
