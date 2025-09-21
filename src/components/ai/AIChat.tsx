@@ -71,8 +71,8 @@ export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
     const dayMatch = heading.match(dayNamesRe);
     const day = dayMatch ? dayMatch[0] : '';
 
-  // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
-  const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
+    // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
+    const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
 
     const content = b.content;
     const titleInlineRe = /(?:\*\*Title\*\*|Title)\s*[:-]?/i;
@@ -177,41 +177,41 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
   const topY = 60; // top row Y
   const bottomY = topY + 220; // bottom row Y (zig-zag)
 
-    return plannerNodes.map((node, index) => {
-      const isBottom = index % 2 === 1;
-      const x = startX + index * (spacing / 2);
-      const y = isBottom ? bottomY : topY;
+  return plannerNodes.map((node, index) => {
+    const isBottom = index % 2 === 1;
+    const x = startX + index * (spacing / 2);
+    const y = isBottom ? bottomY : topY;
 
-      let cleanedCaption = (node.caption || '').trim();
-      const ipIdx = cleanedCaption.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?/i);
-      if (ipIdx >= 0) {
-        cleanedCaption = cleanedCaption.slice(0, ipIdx).trim();
-      }
-      cleanedCaption = cleanedCaption.replace(/^\*+\s*/, '').trim();
+    let cleanedCaption = (node.caption || '').trim();
+    const ipIdx = cleanedCaption.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?/i);
+    if (ipIdx >= 0) {
+      cleanedCaption = cleanedCaption.slice(0, ipIdx).trim();
+    }
+    cleanedCaption = cleanedCaption.replace(/^\*+\s*/, '').trim();
 
-      let titleCandidate = (node.title || '').replace(/\*+/g, '').trim();
-      if (!titleCandidate) {
-        const firstLine = (cleanedCaption.split(/\r?\n/).find(l => l.trim()) || '').trim();
-        titleCandidate = firstLine || `${node.day} Post`;
-      }
-
-      return {
-        id: ids[index],
-        title: titleCandidate,
-        type: 'post',
-        status: 'draft',
-        scheduledDate: getNextWeekdayDate(index),
-        content: cleanedCaption,
-        imagePrompt: node.imagePrompt || undefined,
-        day: node.day,
-        connections: index < count - 1 ? [ids[index + 1]] : [],
-        imageUrl: undefined,
-        position: {
-          x,
-          y,
-        },
-      };
-    });
+    let titleCandidate = (node.title || '').replace(/\*+/g, '').trim();
+    if (!titleCandidate) {
+      const firstLine = (cleanedCaption.split(/\r?\n/).find(l => l.trim()) || '').trim();
+      titleCandidate = firstLine || `${node.day} Post`;
+    }
+    
+    return {
+      id: ids[index],
+      title: titleCandidate,
+      type: 'post',
+      status: 'draft',
+      scheduledDate: getNextWeekdayDate(index),
+      content: cleanedCaption,
+      imagePrompt: node.imagePrompt || undefined,
+      day: node.day,
+      connections: index < count - 1 ? [ids[index + 1]] : [],
+      imageUrl: undefined,
+      position: {
+        x,
+        y,
+      },
+    };
+  });
 }
 
 
