@@ -100,7 +100,9 @@ async function generateTextFromBedrock(messagesArray) {
       - Think like a senior creative strategist — **sharp, persuasive, and brand-aware**
       - Focus on real content value, storytelling power, and audience psychology.
 
-      Output should always be structured, useful, and ready to deploy in a content calendar or automation pipeline.`
+      Output format (critical):
+      - Respond ONLY with plain text. 
+      - DO NOT use Markdown headings (#, ##, ###, ####), bold (**…**), italics (*…*), code fences (\`\`\`), or --- separators.`
     ),
   };
   return invokeModelViaHttp(REGION, TEXT_MODEL, payload, "application/json");

@@ -14,11 +14,21 @@ const cleanField = (s?: string) =>
     .replace(/\s+/g,' ')
     .trim();
 
+const stripMarkdownForDisplay = (s: string = "") =>
+  s
+    .replace(/^#{1,6}\s+/gm, "")        // remove markdown headings like ####
+    .replace(/\*\*(.*?)\*\*/g, "$1")    // **bold** -> plain
+    .replace(/^\s*[-*_]{3,}\s*$/gm, "") // --- or *** rules
+    .replace(/```([\s\S]*?)```/g, "$1") // code fences
+    .trim();
+
+
 interface Message {
   id: string;
   title?: string;
   type: 'user' | 'ai' | 'system';
   content: string;
+  rawText?: string;
   timestamp: Date;
   contentType?: 'text' | 'image';
   imageUrl?: string;
@@ -33,7 +43,7 @@ type PlannerNode = {
   imagePrompt: string;
 };
 
-export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
+function extractPlannerNodesFromText(raw: string): PlannerNode[] {
   const text = raw.replace(/\r\n/g, '\n');
   const dayNamesRe = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i;
 
@@ -135,34 +145,69 @@ export function extractPlannerNodesFromText(raw: string): PlannerNode[] {
 
   // As a final fallback, if no heading blocks found, try to parse by looking for bullet sections with 'Title' markers
   if (nodes.length === 0) {
-    const itemRe = /(?:[-*]\s*)?\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?[:\s]*([\s\S]*?)(?=(?:\n[-*\s]*\*\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*\*?)|$)/gi;
-    let it: RegExpExecArray | null;
-    while ((it = itemRe.exec(text)) !== null) {
-      const day = it[1];
-      const block = it[2] || '';
+    // Robust fallback: scan lines, detect 'Monday:' style headers and capture their following block
+    const lines = text.split(/\r?\n/);
+    // match a line that starts with a weekday, optionally followed by ':' and inline content
+  const dayStartRe = /^\s*(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b\s*[:]?\s*(.*)$/i;
+    let i = 0;
+    while (i < lines.length) {
+      const headerMatch = lines[i].match(dayStartRe);
+      if (headerMatch) {
+        const day = headerMatch[1];
+        const inline = headerMatch[2] || '';
+        i++;
+        const chunk: string[] = [];
+        if (inline.trim()) chunk.push(inline);
+        while (i < lines.length && !lines[i].match(dayStartRe)) {
+          chunk.push(lines[i]);
+          i++;
+        }
+        const block = chunk.join('\n').trim();
 
-      const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
-      const titleMatch = block.match(titleRe);
-      const captionPos = block.search(/(?:\*\*Caption\*\*|Caption)\s*[:-]?/i);
-      const imagePromptPos = block.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:\-]?\s*/i);
+    // Parse '- Title: ...' and '- Caption: ...' and '- Image Prompt: ...' where present
+  const titleMatch = block.match(/^[-\s*]*Title\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/im);
+  const captionMatch = block.match(/^[-\s*]*Caption\s*[:-]?\s*([\s\S]*?)(?=(?:\n[-\s*]*Image Prompt\b)|$)/im);
+  const imagePromptMatch = block.match(/^[-\s*]*Image Prompt\s*[:-]?\s*([\s\S]*?)(?=\n\s*$|$)/im);
 
-      const titleFound = titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim() : '';
-      const capStart = captionPos >= 0 ? (captionPos + (block.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i)?.[0].length || 0)) : -1;
-      const capEnd = imagePromptPos >= 0 ? imagePromptPos : block.length;
-      const captionFound = capStart >= 0 ? block.slice(capStart, capEnd).trim() : '';
+    const titleFinal = cleanField(titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3]) : '') || (day + ' Post');
+    const captionFinal = cleanField(captionMatch ? captionMatch[1] : '') || '';
+    const imagePromptFinal = (imagePromptMatch ? imagePromptMatch[1] : '').replace(/\s+/g, ' ').trim();
 
-      let imagePromptFound = '';
-      if (imagePromptPos >= 0) {
-        const ipStart = imagePromptPos + (block.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i)?.[0].length || 0);
-        const rest = block.slice(ipStart).trim();
-        const doubleNl = rest.search(/\n\s*\n/);
-        imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
+        nodes.push({ day, title: titleFinal, caption: captionFinal, imagePrompt: imagePromptFinal });
+      } else {
+        i++;
       }
+    }
+    // If still nothing, fall back to earlier permissive itemRe method
+    if (nodes.length === 0) {
+      const itemRe = /(?:[-*]\s*)?\*?\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*?\*?[:\s]*([\s\S]*?)(?=(?:\n[-*\s]*\*?\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*?\*?)|$)/gi;
+      let it: RegExpExecArray | null;
+      while ((it = itemRe.exec(text)) !== null) {
+        const day = it[1];
+        const block = it[2] || '';
+        const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
+        const titleMatch = block.match(titleRe);
+        const captionPos = block.search(/(?:\*\*Caption\*\*|Caption)\s*[:-]?/i);
+        const imagePromptPos = block.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i);
 
-      const titleFinal = (titleFound || '').replace(/\*+/g, '').replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim() || 'Untitled';
-      const imagePromptFinal = imagePromptFound.replace(/\s+/g, ' ').replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
+        const titleFound = titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim() : '';
+        const capStart = captionPos >= 0 ? (captionPos + (block.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i)?.[0].length || 0)) : -1;
+        const capEnd = imagePromptPos >= 0 ? imagePromptPos : block.length;
+        const captionFound = capStart >= 0 ? block.slice(capStart, capEnd).trim() : '';
 
-      nodes.push({ day, title: titleFinal, caption: captionFound, imagePrompt: imagePromptFinal });
+        let imagePromptFound = '';
+        if (imagePromptPos >= 0) {
+          const ipStart = imagePromptPos + (block.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i)?.[0].length || 0);
+          const rest = block.slice(ipStart).trim();
+          const doubleNl = rest.search(/\n\s*\n/);
+          imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
+        }
+
+        const titleFinal = cleanField(titleFound) || 'Untitled';
+        const imagePromptFinal = imagePromptFound.replace(/\s+/g, ' ').trim();
+
+        nodes.push({ day, title: titleFinal, caption: (captionFound || '').trim(), imagePrompt: imagePromptFinal });
+      }
     }
   }
   console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, hasImagePrompt: !!n.imagePrompt })));
@@ -194,7 +239,7 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
       const firstLine = (cleanedCaption.split(/\r?\n/).find(l => l.trim()) || '').trim();
       titleCandidate = firstLine || `${node.day} Post`;
     }
-    
+
     return {
       id: ids[index],
       title: titleCandidate,
@@ -331,25 +376,29 @@ Click the link icon on any node to start connecting them. What type of content f
       const data: GenerateResponse = await resp.json();
 
       if (data.text) {
-        const textForPlanner = data.text ?? generatePlanningResponse(input);
-        const maybePlanner = extractPlannerNodesFromText(textForPlanner);
+        const raw = data.text;
+        const display = stripMarkdownForDisplay(raw);
+        const maybePlanner = extractPlannerNodesFromText(raw);
         appendMessage({
           id: (Date.now() + 1).toString(),
           title: maybePlanner[0]?.title,
           type: 'ai',
-          content: data.text,
+          content: display, 
+          rawText: raw,
           timestamp: new Date(),
           contentType: 'text',
           imagePrompt: maybePlanner[0]?.imagePrompt,
         });
       } else {
-        const textForPlanner = data.text ?? generatePlanningResponse(input);
-        const maybePlanner = extractPlannerNodesFromText(textForPlanner);
+        const raw = generatePlanningResponse(input);
+        const display = stripMarkdownForDisplay(raw);
+        const maybePlanner = extractPlannerNodesFromText(raw);
         appendMessage({
           id: (Date.now() + 2).toString(),
           title: maybePlanner[0]?.title,
           type: 'ai',
-          content: generatePlanningResponse(input),
+          content: display,
+          rawText: raw,
           timestamp: new Date(),
           contentType: 'text',
           imagePrompt: maybePlanner[0]?.imagePrompt,
@@ -463,7 +512,7 @@ Click the link icon on any node to start connecting them. What type of content f
               ) : (
                 <>
                   <p className="text-sm leading-relaxed whitespace-pre-wrap">{message.content}</p>
-                  {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.content) && (
+                  {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.rawText ?? message.content) && (
                     <Button
                       size="sm"
                       className="mt-4 bg-gradient-secondary glow-hover"
@@ -472,7 +521,7 @@ Click the link icon on any node to start connecting them. What type of content f
                         // log a short preview of the message to help debugging
                         console.debug('AIChat: message content preview:', message.content.slice(0, 1200));
 
-                        const planner = extractPlannerNodesFromText(message.content);
+                        const planner = extractPlannerNodesFromText(message.rawText ?? message.content);
                         console.info('AIChat: extractPlannerNodesFromText ->', planner.length, 'blocks');
                         console.debug('AIChat: planner parsed details:', planner);
 
