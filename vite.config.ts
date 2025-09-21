@@ -27,4 +27,8 @@ export default defineConfig(({ mode }) => ({
       "@": path.resolve(__dirname, "./src"),
     },
   },
+  build: {
+    outDir: 'dist', // Explicitly set output directory for Amplify
+    sourcemap: false,
+  },
 }));
