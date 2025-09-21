@@ -3,7 +3,8 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Card } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import { Send, Image, Type, Wand2, Sparkles } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
@@ -290,6 +291,72 @@ export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
   const navigate = useNavigate();
   const [isRefining, setIsRefining] = useState(false);
 
+  // Image zoom state
+  const [showZoomModal, setShowZoomModal] = useState(false);
+  const [zoomedImage, setZoomedImage] = useState<string>('');
+  const [zoomLevel, setZoomLevel] = useState(1);
+  const [rotation, setRotation] = useState(0);
+
+  // Image zoom functions
+  const openZoomModal = (imageUrl: string) => {
+    setZoomedImage(imageUrl);
+    setZoomLevel(1);
+    setRotation(0);
+    setShowZoomModal(true);
+  };
+
+  const closeZoomModal = () => {
+    setShowZoomModal(false);
+    setZoomedImage('');
+    setZoomLevel(1);
+    setRotation(0);
+  };
+
+  const zoomIn = () => setZoomLevel(prev => Math.min(prev + 0.25, 3));
+  const zoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.25));
+  const rotateImage = () => setRotation(prev => (prev + 90) % 360);
+
+  const downloadImage = () => {
+    if (zoomedImage) {
+      const link = document.createElement('a');
+      link.href = zoomedImage;
+      link.download = `generated-image-${Date.now()}.png`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  // Keyboard shortcuts for zoom modal
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!showZoomModal) return;
+      
+      switch (e.key) {
+        case 'Escape':
+          closeZoomModal();
+          break;
+        case '+':
+        case '=':
+          e.preventDefault();
+          zoomIn();
+          break;
+        case '-':
+          e.preventDefault();
+          zoomOut();
+          break;
+        case 'r':
+        case 'R':
+          e.preventDefault();
+          rotateImage();
+          break;
+      }
+    };
+
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [showZoomModal]);
+
   const quickPrompts = [
     { icon: Image, text: 'Plan content structure' },
     { icon: Type, text: 'Connect content pieces' },
@@ -555,7 +622,19 @@ Return only the refined prompt, nothing else.`
             >
               {message.contentType === 'image' && message.imageUrl ? (
                 <div>
-                  <img src={message.imageUrl} alt="generated" className="w-full max-h-96 object-contain rounded-md mb-3" />
+                  <div className="relative group cursor-pointer" onClick={() => openZoomModal(message.imageUrl!)}>
+                    <img 
+                      src={message.imageUrl} 
+                      alt="generated" 
+                      className="w-full max-h-96 object-contain rounded-md mb-3 transition-transform duration-200 group-hover:scale-[1.02]" 
+                    />
+                    <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-colors duration-200 rounded-md flex items-center justify-center">
+                      <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/50 text-white px-3 py-1 rounded-full text-sm flex items-center gap-2">
+                        <Maximize2 className="w-4 h-4" />
+                        Click to zoom
+                      </div>
+                    </div>
+                  </div>
                   <p className="text-sm leading-relaxed mb-2">{message.content}</p>
 
                   {/* caption suggestions */}
@@ -700,6 +779,116 @@ Return only the refined prompt, nothing else.`
           </div>
         )}
       </div>
+
+      {/* Image Zoom Modal */}
+      <Dialog open={showZoomModal} onOpenChange={setShowZoomModal}>
+        <DialogContent className="max-w-[95vw] max-h-[95vh] p-0 bg-black/95 border-0 animate-in fade-in-0 zoom-in-95 duration-200">
+          <div className="relative w-full h-full flex flex-col">
+            {/* Header with controls */}
+            <DialogHeader className="flex-row items-center justify-between p-4 bg-gradient-to-b from-black/80 to-transparent">
+              <DialogTitle className="text-white font-medium">Image Preview</DialogTitle>
+              <div className="flex items-center gap-1">
+                <div className="bg-black/60 text-white text-xs px-2 py-1 rounded mr-3">
+                  {Math.round(zoomLevel * 100)}%
+                </div>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
+                  onClick={zoomOut}
+                  disabled={zoomLevel <= 0.25}
+                  title="Zoom Out (-)"
+                >
+                  <ZoomOut className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
+                  onClick={zoomIn}
+                  disabled={zoomLevel >= 3}
+                  title="Zoom In (+)"
+                >
+                  <ZoomIn className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
+                  onClick={rotateImage}
+                  title="Rotate (R)"
+                >
+                  <RotateCw className="w-4 h-4" />
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
+                  onClick={downloadImage}
+                  title="Download"
+                >
+                  <Download className="w-4 h-4" />
+                </Button>
+                <div className="w-px h-6 bg-white/20 mx-2" />
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
+                  onClick={closeZoomModal}
+                  title="Close (ESC)"
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </DialogHeader>
+
+            {/* Image container */}
+            <div 
+              className="flex-1 flex items-center justify-center overflow-hidden select-none"
+              onClick={(e) => {
+                // Close on backdrop click
+                if (e.target === e.currentTarget) {
+                  closeZoomModal();
+                }
+              }}
+            >
+              {zoomedImage && (
+                <div className="relative flex items-center justify-center w-full h-full">
+                  <img
+                    src={zoomedImage}
+                    alt="Zoomed view"
+                    className="max-w-none transition-all duration-300 ease-out shadow-2xl"
+                    style={{
+                      transform: `scale(${zoomLevel}) rotate(${rotation}deg)`,
+                      maxHeight: zoomLevel <= 1 ? '80vh' : 'none',
+                      maxWidth: zoomLevel <= 1 ? '80vw' : 'none',
+                      objectFit: 'contain'
+                    }}
+                    draggable={false}
+                  />
+                </div>
+              )}
+            </div>
+
+            {/* Keyboard shortcuts hint */}
+            <div className="absolute bottom-4 left-4 bg-black/70 text-white text-xs p-3 rounded-lg backdrop-blur-sm border border-white/10">
+              <div className="font-medium mb-1">Keyboard Shortcuts:</div>
+              <div className="space-y-1 text-white/80">
+                <div><kbd className="bg-white/20 px-1 rounded">ESC</kbd> Close</div>
+                <div><kbd className="bg-white/20 px-1 rounded">+/-</kbd> Zoom</div>
+                <div><kbd className="bg-white/20 px-1 rounded">R</kbd> Rotate</div>
+              </div>
+            </div>
+
+            {/* Zoom level indicator */}
+            {zoomLevel !== 1 && (
+              <div className="absolute top-1/2 right-4 bg-black/70 text-white text-sm px-3 py-2 rounded-lg backdrop-blur-sm border border-white/10">
+                {zoomLevel > 1 ? `${Math.round(zoomLevel * 100)}% Zoomed` : `${Math.round(zoomLevel * 100)}% Fit`}
+              </div>
+            )}
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
