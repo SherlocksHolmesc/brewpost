@@ -288,6 +288,7 @@ export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
+  const [isRefining, setIsRefining] = useState(false);
 
   const quickPrompts = [
     { icon: Image, text: 'Plan content structure' },
@@ -331,6 +332,59 @@ Click the link icon on any node to start connecting them. What type of content f
 
   // NEW: helper to append a message safely
   const appendMessage = (m: Message) => setMessages(prev => [...prev, m]);
+
+  // NEW: Prompt Refiner Function
+  const refinePrompt = async () => {
+    if (!input.trim() || isRefining) return;
+
+    setIsRefining(true);
+    
+    try {
+      const refinementPrompt = [
+        {
+          role: 'user',
+          content: `Please refine and improve this prompt to make it more clear, specific, and effective for content creation: "${input.trim()}"
+
+Guidelines for refinement:
+- Make it more specific and actionable
+- Add context if needed
+- Improve clarity and remove ambiguity
+- Keep the original intent but enhance the details
+- Make it suitable for content planning and creation
+
+Return only the refined prompt, nothing else.`
+        }
+      ];
+
+      const resp = await fetch('http://localhost:8081/generate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ messages: refinementPrompt }),
+      });
+
+      if (!resp.ok) {
+        throw new Error('Failed to refine prompt');
+      }
+
+      const data = await resp.json();
+      
+      if (data.text) {
+        // Update the input with the refined prompt
+        setInput(data.text.trim());
+      } else {
+        // Fallback local refinement
+        const refined = `Create engaging ${input.trim()} content with clear messaging, strong visual appeal, and strategic call-to-action that drives audience engagement and aligns with brand objectives.`;
+        setInput(refined);
+      }
+    } catch (err: any) {
+      console.error('Prompt refinement failed:', err);
+      // Fallback local refinement
+      const refined = `Enhanced: ${input.trim()} - with strategic approach, clear objectives, and engaging presentation.`;
+      setInput(refined);
+    } finally {
+      setIsRefining(false);
+    }
+  };
 
   type GenerateResponse = { imageUrl: string; captions: string[]; text?: string };
 
@@ -587,22 +641,53 @@ Click the link icon on any node to start connecting them. What type of content f
       {/* Input Area */}
       <div className="p-6 border-t border-border/20">
         <div className="flex gap-3">
-          <Textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            placeholder="Describe the content you want to create..."
-            className="min-h-[60px] resize-none glow-focus border-primary/20 focus:border-primary/40"
-            onKeyDown={(e) => {
-              if (e.key === 'Enter' && !e.shiftKey) {
-                e.preventDefault();
-                handleSend();
-              }
-            }}
-          />
-          <Button onClick={handleSend} disabled={!input.trim() || isGenerating} className="bg-gradient-primary hover:opacity-90 glow-hover px-6">
+          <div className="relative flex-1">
+            <Textarea
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Describe the content you want to create..."
+              className="min-h-[60px] resize-none glow-focus border-primary/20 focus:border-primary/40 pr-12"
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+            />
+            {/* Magic Wand Button for Prompt Refinement */}
+            {input.trim() && (
+              <Button
+                size="sm"
+                variant="ghost"
+                className="absolute top-2 right-2 h-8 w-8 p-0 hover:bg-primary/10 group"
+                onClick={refinePrompt}
+                disabled={isRefining}
+                title="Refine your prompt with AI"
+              >
+                <Wand2 
+                  className={`w-4 h-4 text-primary/70 group-hover:text-primary transition-all ${
+                    isRefining ? 'animate-spin' : 'group-hover:scale-110'
+                  }`} 
+                />
+              </Button>
+            )}
+          </div>
+          <Button 
+            onClick={handleSend} 
+            disabled={!input.trim() || isGenerating} 
+            className="bg-gradient-primary hover:opacity-90 glow-hover px-6"
+          >
             <Send className="w-4 h-4" />
           </Button>
         </div>
+        
+        {/* Prompt Refinement Indicator */}
+        {isRefining && (
+          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
+            <div className="w-1 h-1 bg-primary rounded-full animate-pulse"></div>
+            <span>AI is refining your prompt...</span>
+          </div>
+        )}
       </div>
     </div>
   );

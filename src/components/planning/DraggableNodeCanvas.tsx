@@ -11,7 +11,8 @@ import {
   Plus,
   Link,
   X,
-  Sparkles
+  Sparkles,
+  CheckCircle
 } from 'lucide-react';
 
 interface ContentNode {
@@ -26,6 +27,9 @@ interface ContentNode {
   day?: string;
   connections: string[];
   position: { x: number; y: number };
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
 }
 
 interface NodeCanvasProps {
@@ -51,6 +55,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
   const [connectingMode, setConnectingMode] = useState<string | null>(null);
   const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [draggedPosition, setDraggedPosition] = useState({ x: 0, y: 0 });
   const canvasRef = useRef<HTMLDivElement>(null);
   const animationFrameRef = useRef<number | null>(null);
   const lastUpdateTime = useRef<number>(0);
@@ -60,6 +66,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const [helpVisible, setHelpVisible] = useState(true);
 
   const helpRef = useRef<HTMLDivElement>(null);
+  const dragThreshold = 5; // Minimum distance before starting drag
 
   const getStatusColor = (status: ContentNode['status']) => {
     switch (status) {
@@ -88,24 +95,53 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
-    setDraggedNode(nodeId);
-    
-    // Add dragging class to body to prevent text selection globally
-    document.body.classList.add('dragging');
-    
     const rect = (e.target as HTMLElement).closest('.node-card')?.getBoundingClientRect();
     if (rect) {
-      setDragOffset({
-        x: e.clientX - rect.left,
-        y: e.clientY - rect.top
-      });
+      const offsetX = e.clientX - rect.left;
+      const offsetY = e.clientY - rect.top;
+      
+      setDragOffset({ x: offsetX, y: offsetY });
+      
+      // Store initial mouse position for threshold checking
+      const initialMousePos = { x: e.clientX, y: e.clientY };
+      
+      const handleInitialMove = (moveEvent: MouseEvent) => {
+        const deltaX = moveEvent.clientX - initialMousePos.x;
+        const deltaY = moveEvent.clientY - initialMousePos.y;
+        const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+        
+        if (distance > dragThreshold) {
+          // Start actual dragging
+          setDraggedNode(nodeId);
+          setIsDragging(true);
+          setDraggedPosition({ x: node.position.x, y: node.position.y });
+          
+          // Add smooth dragging class to body
+          document.body.classList.add('dragging');
+          document.body.style.userSelect = 'none';
+          document.body.style.cursor = 'grabbing';
+          
+          // Remove initial move listener
+          document.removeEventListener('mousemove', handleInitialMove);
+          document.removeEventListener('mouseup', handleInitialUp);
+        }
+      };
+      
+      const handleInitialUp = () => {
+        document.removeEventListener('mousemove', handleInitialMove);
+        document.removeEventListener('mouseup', handleInitialUp);
+      };
+      
+      // Listen for initial movement to determine if this is a drag
+      document.addEventListener('mousemove', handleInitialMove, { passive: true });
+      document.addEventListener('mouseup', handleInitialUp, { passive: true });
     }
-  }, [nodes]);
+  }, [nodes, dragThreshold]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
-    if (!draggedNode || !canvasRef.current) return;
+    if (!draggedNode || !canvasRef.current || !isDragging) return;
 
-    // Use requestAnimationFrame for optimal performance
+    // Use requestAnimationFrame for optimal performance with smooth interpolation
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current);
     }
@@ -114,18 +150,39 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       if (!canvasRef.current) return;
       
       const canvasRect = canvasRef.current.getBoundingClientRect();
-      const newX = e.clientX - canvasRect.left - dragOffset.x;
-      const newY = e.clientY - canvasRect.top - dragOffset.y;
+      
+      // Calculate new position with smooth boundaries
+      const newX = Math.max(0, Math.min(
+        canvasRect.width - 240, // Account for node width
+        e.clientX - canvasRect.left - dragOffset.x
+      ));
+      const newY = Math.max(0, Math.min(
+        canvasRect.height - 200, // Account for node height
+        e.clientY - canvasRect.top - dragOffset.y
+      ));
 
-      const updatedNodes = nodes.map(node => 
-        node.id === draggedNode 
-          ? { ...node, position: { x: Math.max(0, newX), y: Math.max(0, newY) } }
-          : node
-      );
+      // Smooth interpolation for fluid movement
+      const lerpFactor = 0.3; // Adjust for more/less smoothness
+      const currentPos = draggedPosition;
+      const smoothX = currentPos.x + (newX - currentPos.x) * lerpFactor;
+      const smoothY = currentPos.y + (newY - currentPos.y) * lerpFactor;
 
-      onNodeUpdate(updatedNodes);
+      setDraggedPosition({ x: smoothX, y: smoothY });
+
+      // Throttle updates to avoid overwhelming the parent component
+      const now = performance.now();
+      if (now - lastUpdateTime.current > 16) { // ~60fps
+        const updatedNodes = nodes.map(node => 
+          node.id === draggedNode 
+            ? { ...node, position: { x: smoothX, y: smoothY } }
+            : node
+        );
+
+        onNodeUpdate(updatedNodes);
+        lastUpdateTime.current = now;
+      }
     });
-  }, [draggedNode, dragOffset, nodes, onNodeUpdate]);
+  }, [draggedNode, dragOffset, nodes, onNodeUpdate, isDragging, draggedPosition]);
 
   const handleMouseUp = useCallback(() => {
     // Clean up animation frame
@@ -134,30 +191,54 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       animationFrameRef.current = null;
     }
     
+    // Final update with exact position
+    if (draggedNode && isDragging) {
+      const updatedNodes = nodes.map(node => 
+        node.id === draggedNode 
+          ? { ...node, position: draggedPosition }
+          : node
+      );
+      onNodeUpdate(updatedNodes);
+    }
+    
     setDraggedNode(null);
+    setIsDragging(false);
+    setDraggedPosition({ x: 0, y: 0 });
     setDragOffset({ x: 0, y: 0 });
     
-    // Remove dragging class from body
+    // Remove dragging styles from body with smooth transition
     document.body.classList.remove('dragging');
-  }, []);
+    document.body.style.userSelect = '';
+    document.body.style.cursor = '';
+  }, [draggedNode, isDragging, draggedPosition, nodes, onNodeUpdate]);
 
   React.useEffect(() => {
-    if (draggedNode) {
+    if (isDragging && draggedNode) {
       // Use passive listeners for better performance
       document.addEventListener('mousemove', handleMouseMove, { passive: true });
       document.addEventListener('mouseup', handleMouseUp, { passive: true });
+      
+      // Prevent context menu during drag
+      const preventContext = (e: Event) => e.preventDefault();
+      document.addEventListener('contextmenu', preventContext);
+      
       return () => {
         document.removeEventListener('mousemove', handleMouseMove);
         document.removeEventListener('mouseup', handleMouseUp);
-        // Cleanup: remove dragging class if component unmounts during drag
+        document.removeEventListener('contextmenu', preventContext);
+        
+        // Cleanup: remove dragging styles if component unmounts during drag
         document.body.classList.remove('dragging');
+        document.body.style.userSelect = '';
+        document.body.style.cursor = '';
+        
         // Cleanup animation frame
         if (animationFrameRef.current) {
           cancelAnimationFrame(animationFrameRef.current);
         }
       };
     }
-  }, [draggedNode, handleMouseMove, handleMouseUp]);
+  }, [isDragging, draggedNode, handleMouseMove, handleMouseUp]);
 
   // Cleanup effect to remove dragging class on component unmount
   React.useEffect(() => {
@@ -306,7 +387,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       ref={canvasRef}
       className="relative w-full h-full p-6 overflow-auto scrollbar-hide bg-gradient-to-br from-background/50 to-background/80 no-select"
       style={{ 
-        cursor: draggedNode ? 'grabbing' : 'default',
+        cursor: isDragging ? 'grabbing' : 'default',
+        willChange: isDragging ? 'transform' : 'auto',
       }}
     >
       {/* Connection Lines */}
@@ -350,8 +432,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
             key={node.id}
             className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 z-10 no-select ${
               draggedNode === node.id 
-                ? 'dragging dragging-node border-primary cursor-grabbing' 
-                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-102 hover:shadow-lg hover:shadow-primary/20 transition-all duration-300 ease-out'
+                ? 'dragging dragging-node border-primary cursor-grabbing will-change-transform' 
+                : (node.postedAt && node.postedTo && node.postedTo.length > 0)
+                ? 'border-green-500/70 hover:border-green-500 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-green-500/25 transition-all duration-200 ease-out transform-gpu'
+                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/25 transition-all duration-200 ease-out transform-gpu'
             } ${
               isConnecting 
                 ? 'ring-2 ring-primary/70 border-primary' 
@@ -361,15 +445,24 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 ? 'ring-2 ring-accent/70 border-accent animate-node-pulse cursor-pointer' 
                 : ''
             } ${
-              node.status === 'published' 
+              (node.postedAt && node.postedTo && node.postedTo.length > 0)
+                ? 'border-green-500/50 hover:border-green-500/70'
+                : node.status === 'published' 
                 ? 'border-success/50 hover:border-success/70' 
                 : node.status === 'scheduled' 
                 ? 'border-accent/50 hover:border-accent/70' 
                 : 'border-muted/50 hover:border-muted/70'
             }`}
             style={{
-              left: node.position.x,
-              top: node.position.y,
+              left: draggedNode === node.id ? draggedPosition.x : node.position.x,
+              top: draggedNode === node.id ? draggedPosition.y : node.position.y,
+              transform: draggedNode === node.id 
+                ? 'translateZ(0)' // Force GPU acceleration for dragged node
+                : 'translateZ(0)',
+              willChange: draggedNode === node.id ? 'transform' : 'auto',
+              transition: draggedNode === node.id 
+                ? 'none' // No transition during drag for immediate response
+                : 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.2s ease-out',
             }}
             title="Double-click to open details"
             onMouseDown={(e) => {
@@ -443,6 +536,14 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                   <p className="text-xs text-muted-foreground capitalize">{node.day + " - " + node.type}</p>
                 </div>
               </div>
+              
+              {/* Posted Indicator */}
+              {node.postedAt && node.postedTo && node.postedTo.length > 0 && (
+                <div className="flex items-center gap-1 text-green-600 dark:text-green-400" title={`Posted to ${node.postedTo.join(', ')} on ${node.postedAt.toLocaleDateString()}`}>
+                  <CheckCircle className="w-4 h-4" />
+                  <span className="text-xs font-medium">Posted</span>
+                </div>
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground mb-3 line-clamp-2">

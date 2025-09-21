@@ -1,6 +1,6 @@
 // src/services/nodeService.ts
 import '../amplify-config';
-import { generateClient } from 'aws-amplify/api';
+import { generateClient } from '@aws-amplify/api';
 import { listNodes, listEdges } from '../graphql/queries';
 import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../graphql/mutations';
 import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions';

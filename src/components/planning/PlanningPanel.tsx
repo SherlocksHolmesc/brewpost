@@ -42,11 +42,14 @@ export type ContentNode = {
   day?: string;
   connections: string[];
   position: { x: number; y: number };
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
 };
 
 interface PlanningPanelProps {
   nodes: ContentNode[];
-  setNodes: (nodes: ContentNode[]) => void;
+  setNodes: React.Dispatch<React.SetStateAction<ContentNode[]>>;
 }
 
 export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes }) => {
@@ -64,13 +67,14 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
 
   // Calculate node counts by status
   const getNodeCounts = () => {
-    const published = nodes.filter(node => node.status === 'published').length;
+    const posted = nodes.filter(node => node.postedAt && node.postedTo && node.postedTo.length > 0).length;
+    const published = nodes.filter(node => node.status === 'published' && !(node.postedAt && node.postedTo && node.postedTo.length > 0)).length;
     const scheduled = nodes.filter(node => node.status === 'scheduled').length;
     const drafts = nodes.filter(node => node.status === 'draft').length;
-    return { published, scheduled, drafts };
+    return { posted, published, scheduled, drafts };
   };
 
-  const { published, scheduled, drafts } = getNodeCounts();
+  const { posted, published, scheduled, drafts } = getNodeCounts();
 
   useEffect(() => {
     let unsubscribe: (() => void) | undefined;
@@ -205,6 +209,16 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
         status: updatedNode.status,
       });
       console.log('Node updated successfully');
+      
+      // If the node was posted, also log the posting information
+      if (updatedNode.postedAt && updatedNode.postedTo) {
+        console.log('Content posted successfully:', {
+          nodeId: updatedNode.id,
+          postedAt: updatedNode.postedAt,
+          postedTo: updatedNode.postedTo,
+          tweetId: updatedNode.tweetId
+        });
+      }
     } catch (error) {
       console.error('Failed to update node:', error);
       // Could revert the optimistic update here if needed
@@ -440,6 +454,12 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
 
         {/* Stats */}
         <div className="flex gap-3">
+          <Card className="px-3 py-2 bg-card/50 backdrop-blur-sm border-border/50">
+            <div className="flex items-center gap-2">
+              <div className="w-2 h-2 bg-green-500 rounded-full"></div>
+              <span className="text-xs text-muted-foreground">Posted: {posted}</span>
+            </div>
+          </Card>
           <Card className="px-3 py-2 bg-card/50 backdrop-blur-sm border-border/50">
             <div className="flex items-center gap-2">
               <div className="w-2 h-2 bg-success rounded-full"></div>
