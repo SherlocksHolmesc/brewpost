@@ -179,7 +179,7 @@ app.get("/Callback", (req, res) => {
   if (!code) {
     return res.status(400).send("No code received from Cognito");
   }
-  res.redirect(`http://localhost:8080/Callback?code=${code}`);
+  res.redirect(`${FRONTEND_URL}/Callback?code=${code}`);
 });
 
 app.post("/api/auth/exchange", async (req, res) => {
