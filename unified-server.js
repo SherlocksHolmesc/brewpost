@@ -30,7 +30,10 @@ app.use(express.json());
 app.use(bodyParser.json());
 app.use(
   cors({
-    origin: "http://localhost:8080",
+    origin: [
+      "http://localhost:8080", 
+      "https://main.d3rq5op2806z3.amplifyapp.com"
+    ],
     methods: ["GET", "POST", "OPTIONS"],
     // NEW: allow x-user-id so frontend can send userId header, and allow credentials for session cookies
     allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
