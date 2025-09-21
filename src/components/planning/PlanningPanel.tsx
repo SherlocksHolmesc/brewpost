@@ -52,7 +52,6 @@ interface PlanningPanelProps {
 export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes }) => {
   const navigate = useNavigate();
   const projectId = 'demo-project-123'; // using a more realistic demo project ID
-  const [nodes, setNodes] = useState<ContentNode[]>([]);
   const [edgesByKey, setEdgesByKey] = useState<Record<string,string>>({}); // "from->to" : edgeId
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [showModal, setShowModal] = useState(false);

@@ -308,16 +308,19 @@ Click the link icon on any node to start connecting them. What type of content f
 
 
   const isPlannerMessage = (text: string) => {
-    const normalized = text.toLowerCase();
-    const hasAllDays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday']
-      .every(day => normalized.includes(day));
+    // normalize and remove markdown emphasis
+    const normalized = text.toLowerCase().replace(/\*+/g, '');
 
-    const hasDayHeadings = /####\s+\*\*(monday|tuesday|wednesday|thursday|friday|saturday|sunday)\*\*/i.test(text);
+    const hasPlannerHeader = /#{2,6}\s*planner\s*mode\b.*:/i.test(normalized);
 
-    const detected = hasAllDays || hasDayHeadings || normalized.includes('plan') || normalized.includes('suggest');
-    if (detected) console.debug('AIChat: planner message detected:', { hasAllDays, hasDayHeadings });
-    return detected;
+    const weekdays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
+    const daysFound = weekdays.filter(day => normalized.includes(day)).length;
+
+    return hasPlannerHeader && daysFound >= 4;
   };
+
+
+
 
   // Insert a caption into input (user can edit & send)
   const handleUseCaption = (caption: string) => setInput(caption);
