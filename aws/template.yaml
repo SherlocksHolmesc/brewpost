@@ -1,0 +1,248 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: 'BrewPost AI Chatbot Backend - Lambda functions for AI generation'
+
+Parameters:
+  Environment:
+    Type: String
+    Default: dev
+    AllowedValues: [dev, staging, prod]
+    Description: Environment name
+  
+  FrontendBaseUrl:
+    Type: String
+    Default: https://main.d3rq5op2806z3.amplifyapp.com
+    Description: Frontend application URL for CORS
+  
+  TextModel:
+    Type: String
+    Default: anthropic.claude-3-5-sonnet-20241022-v2:0
+    Description: Bedrock text model ID
+  
+  ImageModel:
+    Type: String
+    Default: amazon.nova-canvas-v1-0
+    Description: Bedrock image model ID
+  
+  S3BucketName:
+    Type: String
+    Description: S3 bucket name for storing generated images
+    Default: brewpost-generated-images
+
+Globals:
+  Function:
+    Timeout: 60
+    Runtime: nodejs18.x
+    Environment:
+      Variables:
+        FRONTEND_BASE_URL: !Ref FrontendBaseUrl
+        TEXT_MODEL: !Ref TextModel
+        IMAGE_MODEL: !Ref ImageModel
+        S3_BUCKET: !Ref S3BucketName
+  Api:
+    Cors:
+      AllowMethods: "'GET,POST,OPTIONS'"
+      AllowHeaders: "'Content-Type,Authorization'"
+      AllowOrigin: !Sub "'${FrontendBaseUrl}'"
+
+Resources:
+  # S3 Bucket for storing generated images
+  GeneratedImagesBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+
+  # IAM Role for Lambda functions
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - lambda.amazonaws.com
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: BedrockAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - bedrock:InvokeModel
+                  - bedrock:InvokeModelWithResponseStream
+                Resource:
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${TextModel}'
+                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${ImageModel}'
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:DeleteObject
+                Resource:
+                  - !Sub '${GeneratedImagesBucket}/generated/*'
+              - Effect: Allow
+                Action:
+                  - s3:ListBucket
+                Resource:
+                  - !Ref GeneratedImagesBucket
+
+  # Lambda function for AI generation
+  AIGenerateFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'brewpost-ai-generate-${Environment}'
+      CodeUri: ./
+      Handler: lambda-ai-generate.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        GenerateApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BrewPostApi
+            Path: /generate
+            Method: post
+        GenerateOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BrewPostApi
+            Path: /generate
+            Method: options
+
+  # Lambda function for health check
+  HealthFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub 'brewpost-health-${Environment}'
+      CodeUri: ./
+      Handler: lambda-health.handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Events:
+        HealthApi:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BrewPostApi
+            Path: /health
+            Method: get
+        HealthOptions:
+          Type: Api
+          Properties:
+            RestApiId: !Ref BrewPostApi
+            Path: /health
+            Method: options
+
+  # API Gateway
+  BrewPostApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub 'brewpost-ai-api-${Environment}'
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,POST,OPTIONS'"
+        AllowHeaders: "'Content-Type,Authorization'"
+        AllowOrigin: !Sub "'${FrontendBaseUrl}'"
+      DefinitionBody:
+        openapi: '3.0.1'
+        info:
+          title: BrewPost AI API
+          version: '1.0'
+        paths:
+          /generate:
+            post:
+              responses:
+                '200':
+                  description: Success
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: string
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIGenerateFunction.Arn}/invocations'
+            options:
+              responses:
+                '200':
+                  description: Success
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: string
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: string
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: string
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${AIGenerateFunction.Arn}/invocations'
+          /health:
+            get:
+              responses:
+                '200':
+                  description: Success
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: string
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HealthFunction.Arn}/invocations'
+            options:
+              responses:
+                '200':
+                  description: Success
+                  headers:
+                    Access-Control-Allow-Origin:
+                      schema:
+                        type: string
+                    Access-Control-Allow-Methods:
+                      schema:
+                        type: string
+                    Access-Control-Allow-Headers:
+                      schema:
+                        type: string
+              x-amazon-apigateway-integration:
+                httpMethod: POST
+                type: aws_proxy
+                uri: !Sub 'arn:aws:apigateway:${AWS::Region}:lambda:path/2015-03-31/functions/${HealthFunction.Arn}/invocations'
+
+Outputs:
+  ApiGatewayUrl:
+    Description: API Gateway endpoint URL
+    Value: !Sub 'https://${BrewPostApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}'
+    Export:
+      Name: !Sub '${AWS::StackName}-ApiGatewayUrl'
+  
+  S3BucketName:
+    Description: S3 bucket for generated images
+    Value: !Ref GeneratedImagesBucket
+    Export:
+      Name: !Sub '${AWS::StackName}-S3Bucket'
+  
+  LambdaRoleArn:
+    Description: Lambda execution role ARN
+    Value: !GetAtt LambdaExecutionRole.Arn
+    Export:
+      Name: !Sub '${AWS::StackName}-LambdaRole'

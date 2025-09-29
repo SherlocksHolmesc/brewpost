@@ -1,0 +1,21 @@
+{
+  "name": "brewpost-ai-backend",
+  "version": "1.0.0",
+  "description": "AWS Lambda functions for BrewPost AI chatbot backend",
+  "main": "lambda-ai-generate.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "dependencies": {
+    "aws-sdk": "^2.1691.0"
+  },
+  "keywords": [
+    "aws",
+    "lambda",
+    "bedrock",
+    "ai",
+    "chatbot"
+  ],
+  "author": "BrewPost Team",
+  "license": "MIT"
+}

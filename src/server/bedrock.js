@@ -1,7 +1,7 @@
 import fetch from "node-fetch";
 
 export async function invokeModelViaHttp(region, modelId, bodyJson, accept = "application/json") {
-  const API_KEY = process.env.BEARER_TOKEN_BEDROCK;
+  const API_KEY = process.env.AWS_BEARER_TOKEN_BEDROCK;
   if (!API_KEY) throw new Error("Missing AWS_BEARER_TOKEN_BEDROCK env var");
 
   const encodedModel = encodeURIComponent(modelId);
