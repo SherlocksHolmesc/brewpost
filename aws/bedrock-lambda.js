@@ -3,7 +3,7 @@ const AWS = require('aws-sdk');
 
 // Initialize Bedrock Runtime client with automatic IAM role credentials
 const bedrock = new AWS.BedrockRuntime({
-  region: process.env.AWS_REGION || 'us-east-1'
+  region: process.env.REGION || 'us-east-1'
 });
 
 /**
@@ -99,7 +99,7 @@ async function invokeModelViaHttp(region, modelId, bodyJson, accept = "applicati
  */
 function invokeModel(region, modelId, bodyJson, accept = "application/json") {
   // Check if we're in a Lambda environment (AWS_LAMBDA_FUNCTION_NAME is set in Lambda)
-  if (process.env.AWS_LAMBDA_FUNCTION_NAME) {
+  if (process.env.LAMBDA_FUNCTION_NAME) {
     console.log('Using AWS SDK for Bedrock invocation (Lambda environment)');
     return invokeModelViaAWS(region, modelId, bodyJson, accept);
   } else {

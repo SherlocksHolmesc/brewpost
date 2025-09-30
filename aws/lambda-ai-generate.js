@@ -3,7 +3,7 @@ const AWS = require('aws-sdk');
 const { invokeModel } = require('./bedrock-lambda');
 
 // Environment variables
-const REGION = process.env.AWS_REGION || 'us-east-1';
+const REGION = process.env.REGION || 'us-east-1';
 const TEXT_MODEL = process.env.TEXT_MODEL;
 const IMAGE_MODEL = process.env.IMAGE_MODEL;
 const S3_BUCKET = process.env.S3_BUCKET;

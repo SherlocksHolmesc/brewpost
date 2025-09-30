@@ -3,7 +3,7 @@ const AWS = require('aws-sdk');
 const DDB = new AWS.DynamoDB.DocumentClient();
 const SNS = new AWS.SNS();
 const TABLE = process.env.SCHEDULES_TABLE || 'Schedules';
-const REGION = process.env.REGION || process.env.AWS_DEFAULT_REGION || 'us-east-1';
+const REGION = process.env.REGION || process.env.DEFAULT_REGION || 'us-east-1';
 
 exports.handler = async (event) => {
   // ...basic diagnostics

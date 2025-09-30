@@ -24,7 +24,7 @@ exports.handler = async (event) => {
     body: JSON.stringify({ 
       ok: true, 
       timestamp: new Date().toISOString(),
-      region: process.env.AWS_REGION || 'unknown'
+      region: process.env.REGION || 'unknown'
     })
   };
 };
