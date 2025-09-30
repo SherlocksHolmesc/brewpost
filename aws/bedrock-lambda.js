@@ -59,7 +59,7 @@ async function invokeModelViaAWS(region, modelId, bodyJson, accept = "applicatio
  */
 async function invokeModelViaHttp(region, modelId, bodyJson, accept = "application/json") {
   const fetch = require("node-fetch");
-  const API_KEY = process.env.AWS_BEARER_TOKEN_BEDROCK;
+  const API_KEY = process.env.BEARER_TOKEN_BEDROCK;
   
   if (!API_KEY) {
     throw new Error("Missing AWS_BEARER_TOKEN_BEDROCK env var");
