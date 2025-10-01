@@ -423,7 +423,12 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch('/generate', {
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://qecqy76j6l6qnyyghff4b3elcy0yolws.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: refinementPrompt }),
@@ -484,7 +489,12 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch('/generate', {
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://qecqy76j6l6qnyyghff4b3elcy0yolws.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messagesForBackend }),
