@@ -8,8 +8,8 @@ export const API_CONFIG = {
   
   // Production (AWS Lambda)
   production: {
-    // Use same domain for API calls (unified server running on same instance)
-    baseUrl: '',
+    // Use the Lambda function URL from your .env
+    baseUrl: 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws',
     generateEndpoint: '/generate'
   }
 };
