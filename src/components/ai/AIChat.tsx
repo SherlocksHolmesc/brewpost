@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
+import { getApiUrl } from '@/config/api';
 
 const cleanField = (s?: string) =>
   (s ?? '')
@@ -423,7 +424,7 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch('/generate', {
+      const resp = await fetch(getApiUrl('/generate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: refinementPrompt }),
@@ -484,7 +485,7 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch('/generate', {
+      const resp = await fetch(getApiUrl('/generate'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messagesForBackend }),

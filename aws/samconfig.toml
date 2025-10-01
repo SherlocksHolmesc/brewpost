@@ -1,0 +1,34 @@
+# SAM configuration file for BrewPost AI Chatbot
+version = 0.1
+
+[default]
+[default.global]
+[default.global.parameters]
+stack_name = "brewpost-ai-chatbot"
+region = "us-east-1"
+confirm_changeset = false
+capabilities = "CAPABILITY_IAM"
+parameter_overrides = [
+    "Environment=dev",
+    "FrontendBaseUrl=https://main.d3rq5op2806z3.amplifyapp.com",
+    "S3BucketName=brewpost-generated-images-dev"
+]
+
+[default.build]
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.deploy]
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM"
+confirm_changeset = false
+fail_on_empty_changeset = false
+stack_name = "brewpost-ai-chatbot"
+s3_prefix = "brewpost-ai-chatbot"
+region = "us-east-1"
+parameter_overrides = [
+    "Environment=dev",
+    "FrontendBaseUrl=https://main.d3rq5op2806z3.amplifyapp.com",
+    "S3BucketName=brewpost-generated-images-dev"
+]

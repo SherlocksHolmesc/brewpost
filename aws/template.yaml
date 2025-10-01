@@ -16,12 +16,12 @@ Parameters:
   
   TextModel:
     Type: String
-    Default: anthropic.claude-3-5-sonnet-20241022-v2:0
-    Description: Bedrock text model ID
+    Default: arn:aws:bedrock:us-east-1:339924580670:inference-profile/us.amazon.nova-pro-v1:0
+    Description: Bedrock text model ARN
   
   ImageModel:
     Type: String
-    Default: amazon.nova-canvas-v1-0
+    Default: amazon.nova-canvas-v1:0
     Description: Bedrock image model ID
   
   S3BucketName:
@@ -86,8 +86,9 @@ Resources:
                   - bedrock:InvokeModel
                   - bedrock:InvokeModelWithResponseStream
                 Resource:
-                  - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${TextModel}'
+                  - !Ref TextModel
                   - !Sub 'arn:aws:bedrock:${AWS::Region}::foundation-model/${ImageModel}'
+                  - 'arn:aws:bedrock:*::foundation-model/*'
         - PolicyName: S3Access
           PolicyDocument:
             Version: '2012-10-17'
