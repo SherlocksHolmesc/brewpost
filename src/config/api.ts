@@ -8,9 +8,9 @@ export const API_CONFIG = {
   
   // Production (AWS Lambda)
   production: {
-    // Use the Lambda function URL from your .env
-    baseUrl: 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws',
-    generateEndpoint: ''
+    // Use localhost for Docker container
+    baseUrl: 'http://localhost:8082',
+    generateEndpoint: '/generate'
   }
 };
 

@@ -23,6 +23,7 @@ const COGNITO_DOMAIN = process.env.COGNITO_DOMAIN || "https://us-east-1lnmmjkyb9
 const REDIRECT_URI = process.env.REDIRECT_URI;
 // ====== Server Configuration ======
 const PORT = process.env.PORT || 8081;
+const HOST = process.env.HOST || '0.0.0.0';
 const app = express();
 
 // ====== Middleware Setup ======
@@ -724,7 +725,7 @@ app.delete("/api/schedules/delete/:id", async (req, res) => {
 app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 
 // Start the server
-app.listen(PORT, () => {
-  console.log(`✅ Unified server running on http://localhost:8080/`);
+app.listen(PORT, HOST, () => {
+  console.log(`✅ Unified server running on http://${HOST}:${PORT}/`);
   console.log(`Region: ${REGION}`);
 });
