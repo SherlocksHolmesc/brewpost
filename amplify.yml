@@ -15,3 +15,8 @@ frontend:
     paths:
       - .npm/**/*
       - node_modules/**/*
+backend:
+  phases:
+    build:
+      commands:
+        - node unified-server.js &

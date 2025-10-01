@@ -8,8 +8,8 @@ export const API_CONFIG = {
   
   // Production (AWS Lambda)
   production: {
-    // Replace with your actual API Gateway URL from CloudFormation outputs
-    baseUrl: 'https://YOUR_API_GATEWAY_ID.execute-api.us-east-1.amazonaws.com/dev',
+    // Use same domain for API calls (unified server running on same instance)
+    baseUrl: '',
     generateEndpoint: '/generate'
   }
 };

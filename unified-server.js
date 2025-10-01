@@ -32,7 +32,8 @@ app.use(
   cors({
     origin: [
       "http://localhost:8080", 
-      "https://main.d3rq5op2806z3.amplifyapp.com"
+      "https://main.d3rq5op2806z3.amplifyapp.com",
+      "https://v2.dldudazkiseq7.amplifyapp.com"
     ],
     methods: ["GET", "POST", "OPTIONS"],
     // NEW: allow x-user-id so frontend can send userId header, and allow credentials for session cookies
