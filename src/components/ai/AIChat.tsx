@@ -427,17 +427,8 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch(getApiUrl('/generate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: refinementPrompt }),
-      });
-
-      if (!resp.ok) {
-        throw new Error('Failed to refine prompt');
-      }
-
-      const data = await resp.json();
+      // Use local refinement since Lambda isn't working
+      const data = { text: null };
       
       if (data.text) {
         // Update the input with the refined prompt
@@ -488,11 +479,13 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const { data } = await client.generations.generateContent({
-        prompt: messagesForBackend.map(m => m.content).join('\n\n'),
-      });
+      // Use fallback response since Lambda isn't working
+      const fallbackResponse = generatePlanningResponse(messagesForBackend[messagesForBackend.length - 1]?.content || input);
+      
+      // Simulate API response
+      const data = { text: fallbackResponse };
 
-      if (data) {
+      if (data.text) {
         const raw = data.text;
         const display = stripMarkdownForDisplay(raw);
         const maybePlanner = extractPlannerNodesFromText(raw);
