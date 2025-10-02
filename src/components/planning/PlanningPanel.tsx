@@ -51,6 +51,8 @@ interface PlanningPanelProps {
   nodes: ContentNode[];
   setNodes: React.Dispatch<React.SetStateAction<ContentNode[]>>;
   onNodeSelect?: (node: ContentNode) => void;
+  onNodeDoubleClick?: (node: ContentNode) => void;
+  onCanvasClick?: () => void;
 }
 
 export interface PlanningPanelRef {
@@ -59,7 +61,7 @@ export interface PlanningPanelRef {
   handlePostNode: (node: ContentNode) => void;
 }
 
-export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelProps>(({ nodes, setNodes, onNodeSelect }, ref) => {
+export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelProps>(({ nodes, setNodes, onNodeSelect, onNodeDoubleClick, onCanvasClick }, ref) => {
   const navigate = useNavigate();
   const projectId = 'demo-project-123'; // using a more realistic demo project ID
   const [edgesByKey, setEdgesByKey] = useState<Record<string,string>>({}); // "from->to" : edgeId
@@ -197,6 +199,16 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       // Fallback to modal for backward compatibility
       setSelectedNode(node);
       setShowModal(true);
+    }
+  };
+
+  const handleNodeDoubleClick = (node: ContentNode) => {
+    // If onNodeDoubleClick is provided, use it for canvas mode
+    if (onNodeDoubleClick) {
+      onNodeDoubleClick(node);
+    } else {
+      // Fallback to single click behavior
+      handleNodeClick(node);
     }
   };
 
@@ -672,11 +684,13 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         <DraggableNodeCanvas 
           nodes={nodes} 
           onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
           onNodeUpdate={handleNodeUpdate}
           onAddNode={() => setShowAddModal(true)}
           onDeleteNode={handleDeleteNode}
           onEditNode={handleEditNode}
           createOrDeleteEdge={createOrDeleteEdge}
+          onCanvasClick={onCanvasClick}
         />
       </div>
 

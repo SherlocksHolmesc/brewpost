@@ -35,21 +35,25 @@ interface ContentNode {
 interface NodeCanvasProps {
   nodes: ContentNode[];
   onNodeClick: (node: ContentNode) => void;
+  onNodeDoubleClick?: (node: ContentNode) => void;
   onNodeUpdate: (nodes: ContentNode[]) => void;
   onAddNode: () => void;
   onDeleteNode?: (nodeId: string) => void;
   onEditNode?: (node: ContentNode) => void;
   createOrDeleteEdge?: (from: string, to: string) => Promise<void>;
+  onCanvasClick?: () => void;
 }
 
 export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({ 
   nodes, 
   onNodeClick, 
+  onNodeDoubleClick,
   onNodeUpdate,
   onAddNode,
   onDeleteNode,
   onEditNode,
-  createOrDeleteEdge 
+  createOrDeleteEdge,
+  onCanvasClick 
 }) => {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
@@ -288,9 +292,13 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     
     // Only open node if not in connecting mode and not being dragged
     if (!connectingMode && !draggedNode) {
-      onNodeClick(node);
+      if (onNodeDoubleClick) {
+        onNodeDoubleClick(node);
+      } else {
+        onNodeClick(node);
+      }
     }
-  }, [clickTimeout, connectingMode, draggedNode, onNodeClick]);
+  }, [clickTimeout, connectingMode, draggedNode, onNodeClick, onNodeDoubleClick]);
 
   // Handle single click (for selection/connection only)
   const handleNodeSingleClick = useCallback((e: React.MouseEvent, node: ContentNode) => {
@@ -382,6 +390,13 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     };
   }, [helpDragging, onHelpMouseMove]);
 
+  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
+    // Only trigger canvas click if clicking on the canvas background (not on nodes or other elements)
+    if (e.target === e.currentTarget && onCanvasClick) {
+      onCanvasClick();
+    }
+  }, [onCanvasClick]);
+
   return (
     <div 
       ref={canvasRef}
@@ -390,6 +405,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         cursor: isDragging ? 'grabbing' : 'default',
         willChange: isDragging ? 'transform' : 'auto',
       }}
+      onClick={handleCanvasClick}
     >
       {/* Connection Lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
