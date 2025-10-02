@@ -4,7 +4,14 @@ import bodyParser from "body-parser";
 import dotenv from "dotenv";
 import cors from "cors";
 import pkg from "aws-sdk";
+import path from "path";
+import { fileURLToPath } from "url";
+
 import { invokeModelViaHttp } from "./src/server/bedrock.js";
+
+// Fix __dirname for ES modules
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 dotenv.config();
 
@@ -711,7 +718,7 @@ app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 // ====== Serve Frontend (Vite build) ======
 app.use(express.static(path.join(__dirname, "dist")));
 
-app.get("*", (req, res) => {
+app.get(/.*/, (req, res) => {
   res.sendFile(path.join(__dirname, "dist", "index.html"));
 });
 
