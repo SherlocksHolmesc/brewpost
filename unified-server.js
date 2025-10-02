@@ -24,6 +24,8 @@ const REDIRECT_URI = process.env.REDIRECT_URI;
 // ====== Server Configuration ======
 const PORT = process.env.PORT || 8081;
 const HOST = process.env.HOST || '0.0.0.0';
+const IS_PRODUCTION = process.env.NODE_ENV === 'production' || process.env.VITE_ENVIRONMENT === 'production';
+const FRONTEND_BASE_URL = process.env.FRONTEND_BASE_URL || (IS_PRODUCTION ? 'https://v2.dldudazkiseq7.amplifyapp.com' : 'http://localhost:8080');
 const app = express();
 
 // ====== Middleware Setup ======
@@ -33,11 +35,10 @@ app.use(
   cors({
     origin: [
       "http://localhost:8080", 
-      "https://main.d3rq5op2806z3.amplifyapp.com",
-      "https://v2.dldudazkiseq7.amplifyapp.com"
-    ],
-    methods: ["GET", "POST", "OPTIONS"],
-    // NEW: allow x-user-id so frontend can send userId header, and allow credentials for session cookies
+      "https://v2.dldudazkiseq7.amplifyapp.com",
+      FRONTEND_BASE_URL
+    ].filter(Boolean),
+    methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
     allowedHeaders: ["Content-Type", "Authorization", "x-user-id"],
     credentials: true,
   })

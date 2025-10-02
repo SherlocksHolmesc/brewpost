@@ -4,31 +4,37 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 
 // https://vitejs.dev/config/
-export default defineConfig(({ mode }) => ({
-  server: {
-    host: '::',
-    port: 8080,
-    proxy: {
-      '/generate': {
-        target: 'http://localhost:8081',
-        changeOrigin: true,
-        rewrite: (path) => path, // keep path /generate
-      },
-      '/api': {
-        target: 'http://localhost:8081',
-        changeOrigin: true,
-        // rewrite: (path) => path.replace(/^\/api/, ''),
+export default defineConfig(({ mode }) => {
+  const isProduction = mode === 'production';
+  
+  return {
+    server: {
+      host: '::',
+      port: 8080,
+      proxy: !isProduction ? {
+        '/generate': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+          rewrite: (path) => path,
+        },
+        '/api': {
+          target: 'http://localhost:8081',
+          changeOrigin: true,
+        },
+      } : undefined,
+    },
+    plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
       },
     },
-  },
-  plugins: [react(), mode === "development" && componentTagger()].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    build: {
+      outDir: 'dist',
+      sourcemap: false,
     },
-  },
-  build: {
-    outDir: 'dist', // Explicitly set output directory for Amplify
-    sourcemap: false,
-  },
-}));
+    define: {
+      __IS_PRODUCTION__: isProduction,
+    },
+  };
+});
