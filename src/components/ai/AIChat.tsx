@@ -424,7 +424,16 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
+<<<<<<< HEAD
       const resp = await fetch(getApiUrl('/generate'), {
+=======
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
+>>>>>>> 0d0effb2e596d27e2f1a614f02e98950790babce
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: refinementPrompt }),
@@ -485,7 +494,16 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
+<<<<<<< HEAD
       const resp = await fetch(getApiUrl('/generate'), {
+=======
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
+>>>>>>> 0d0effb2e596d27e2f1a614f02e98950790babce
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messagesForBackend }),
