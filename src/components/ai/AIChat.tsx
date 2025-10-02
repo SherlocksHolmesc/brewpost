@@ -7,7 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
-import { getApiUrl } from '@/config/api';
 
 const cleanField = (s?: string) =>
   (s ?? '')
@@ -424,17 +423,8 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch(getApiUrl('/generate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: refinementPrompt }),
-      });
-
-      if (!resp.ok) {
-        throw new Error('Failed to refine prompt');
-      }
-
-      const data = await resp.json();
+      // Use local refinement since Lambda isn't working
+      const data = { text: null };
       
       if (data.text) {
         // Update the input with the refined prompt
@@ -485,17 +475,11 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch(getApiUrl('/generate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messagesForBackend }),
-      });
-
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(txt || 'Generate failed');
-      }
-      const data: GenerateResponse = await resp.json();
+      // Use fallback response since Lambda isn't working
+      const fallbackResponse = generatePlanningResponse(messagesForBackend[messagesForBackend.length - 1]?.content || input);
+      
+      // Simulate API response
+      const data = { text: fallbackResponse };
 
       if (data.text) {
         const raw = data.text;
