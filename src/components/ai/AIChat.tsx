@@ -7,10 +7,6 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
-import { generateClient } from 'aws-amplify/data';
-import type { Schema } from '@/amplify/data/resource';
-
-const client = generateClient<Schema>();
 
 const cleanField = (s?: string) =>
   (s ?? '')
