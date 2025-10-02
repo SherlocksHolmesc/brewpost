@@ -6,10 +6,9 @@ export const API_CONFIG = {
     generateEndpoint: '/generate'
   },
   
-  // Production (AWS Lambda)
+  // Production (Amplify)
   production: {
-    // Use localhost for Docker container
-    baseUrl: 'http://localhost:8082',
+    baseUrl: 'https://v2.dldudazkiseq7.amplifyapp.com',
     generateEndpoint: '/generate'
   }
 };
