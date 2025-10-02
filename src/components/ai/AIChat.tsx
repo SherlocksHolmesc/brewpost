@@ -7,7 +7,10 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
-import { getApiUrl } from '@/config/api';
+import { generateClient } from 'aws-amplify/data';
+import type { Schema } from '@/amplify/data/resource';
+
+const client = generateClient<Schema>();
 
 const cleanField = (s?: string) =>
   (s ?? '')
@@ -485,19 +488,11 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch(getApiUrl('/generate'), {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: messagesForBackend }),
+      const { data } = await client.generations.generateContent({
+        prompt: messagesForBackend.map(m => m.content).join('\n\n'),
       });
 
-      if (!resp.ok) {
-        const txt = await resp.text();
-        throw new Error(txt || 'Generate failed');
-      }
-      const data: GenerateResponse = await resp.json();
-
-      if (data.text) {
+      if (data) {
         const raw = data.text;
         const display = stripMarkdownForDisplay(raw);
         const maybePlanner = extractPlannerNodesFromText(raw);
