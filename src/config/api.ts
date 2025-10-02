@@ -6,10 +6,10 @@ export const API_CONFIG = {
     generateEndpoint: '/generate'
   },
   
-  // Production (Amplify)
+  // Production (Lambda Function URL)
   production: {
-    baseUrl: 'https://v2.dldudazkiseq7.amplifyapp.com',
-    generateEndpoint: '/generate'
+    baseUrl: 'https://2oecunoueu3ke5zrtquduibkuy0mfbnf.lambda-url.us-east-1.on.aws',
+    generateEndpoint: ''
   }
 };
 
