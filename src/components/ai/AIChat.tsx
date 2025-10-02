@@ -425,7 +425,7 @@ Return only the refined prompt, nothing else.`
 
       const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
       const apiUrl = isProduction 
-        ? 'https://qecqy76j6l6qnyyghff4b3elcy0yolws.lambda-url.us-east-1.on.aws' 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
         : '/generate';
       
       const resp = await fetch(apiUrl, {
@@ -491,7 +491,7 @@ Return only the refined prompt, nothing else.`
     try {
       const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
       const apiUrl = isProduction 
-        ? 'https://qecqy76j6l6qnyyghff4b3elcy0yolws.lambda-url.us-east-1.on.aws' 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
         : '/generate';
       
       const resp = await fetch(apiUrl, {
