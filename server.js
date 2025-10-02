@@ -708,8 +708,15 @@ app.delete("/api/schedules/delete/:id", async (req, res) => {
 // ====== Health Check Route ======
 app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 
+// ====== Serve Frontend (Vite build) ======
+app.use(express.static(path.join(__dirname, "dist")));
+
+app.get("*", (req, res) => {
+  res.sendFile(path.join(__dirname, "dist", "index.html"));
+});
+
 // Start the server
 app.listen(PORT, () => {
-  console.log(`✅ Unified server running on http://localhost:8080/`);
+  console.log(`✅ Unified server running on port ${PORT}`);
   console.log(`Region: ${REGION}`);
 });
