@@ -120,7 +120,7 @@ but no items appear in the Schedules table, this usually means the Lambda execut
 What to check in the Lambda:
 
 - Logs: open CloudWatch Logs for the function (ScheduleDispatcherFn) and inspect the invocation for validation errors, missing environment variables, or unhandled exceptions.
-- Environment variables: ensure the Lambda has the correct SCHEDULES_TABLE and SNS_TOPIC_ARN (or equivalent) set.
+- Environment variables: ensure the Lambda has the correct SCHEDULES_TABLE
 - IAM role: Lambda's execution role must have dynamodb:PutItem on the table and sns:Publish on the topic.
 - Return shape: The server expects the Lambda to return JSON like:
 

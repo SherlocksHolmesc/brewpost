@@ -50,9 +50,18 @@ export type ContentNode = {
 interface PlanningPanelProps {
   nodes: ContentNode[];
   setNodes: React.Dispatch<React.SetStateAction<ContentNode[]>>;
+  onNodeSelect?: (node: ContentNode) => void;
+  onNodeDoubleClick?: (node: ContentNode) => void;
+  onCanvasClick?: () => void;
 }
 
-export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes }) => {
+export interface PlanningPanelRef {
+  handleEditNode: (node: ContentNode) => void;
+  handleSaveNode: (node: ContentNode) => void;
+  handlePostNode: (node: ContentNode) => void;
+}
+
+export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelProps>(({ nodes, setNodes, onNodeSelect, onNodeDoubleClick, onCanvasClick }, ref) => {
   const navigate = useNavigate();
   const projectId = 'demo-project-123'; // using a more realistic demo project ID
   const [edgesByKey, setEdgesByKey] = useState<Record<string,string>>({}); // "from->to" : edgeId
@@ -183,8 +192,24 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
   }, [projectId]);
 
   const handleNodeClick = (node: ContentNode) => {
-    setSelectedNode(node);
-    setShowModal(true);
+    // If onNodeSelect is provided, use it to switch to details tab
+    if (onNodeSelect) {
+      onNodeSelect(node);
+    } else {
+      // Fallback to modal for backward compatibility
+      setSelectedNode(node);
+      setShowModal(true);
+    }
+  };
+
+  const handleNodeDoubleClick = (node: ContentNode) => {
+    // If onNodeDoubleClick is provided, use it for canvas mode
+    if (onNodeDoubleClick) {
+      onNodeDoubleClick(node);
+    } else {
+      // Fallback to single click behavior
+      handleNodeClick(node);
+    }
   };
 
   const handleEditNode = (node: ContentNode) => {
@@ -192,7 +217,26 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
     setShowEditModal(true);
   };
 
-  const handleSaveEditedNode = async (updatedNode: ContentNode) => {
+  const handlePostNode = async (node: ContentNode) => {
+    // Update node status to published and set posted timestamp
+    const updatedNode = {
+      ...node,
+      status: 'published' as const,
+      postedAt: new Date(),
+      postedTo: ['Twitter', 'LinkedIn'] // Default platforms
+    };
+    
+    await handleSaveNode(updatedNode);
+  };
+
+  // Expose methods through ref
+  React.useImperativeHandle(ref, () => ({
+    handleEditNode,
+    handleSaveNode,
+    handlePostNode
+  }));
+
+  const handleSaveNode = async (updatedNode: ContentNode) => {
     // Optimistic update - update UI immediately
     setNodes(prevNodes => 
       prevNodes.map(node => 
@@ -384,7 +428,7 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
   };
 
   // Ensure frontend has a usable backend URL at runtime
-  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8080/';
+  const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8080';
 
   // Open the schedule confirmation modal
   const handleScheduleAll = () => {
@@ -640,11 +684,13 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
         <DraggableNodeCanvas 
           nodes={nodes} 
           onNodeClick={handleNodeClick}
+          onNodeDoubleClick={handleNodeDoubleClick}
           onNodeUpdate={handleNodeUpdate}
           onAddNode={() => setShowAddModal(true)}
           onDeleteNode={handleDeleteNode}
           onEditNode={handleEditNode}
           createOrDeleteEdge={createOrDeleteEdge}
+          onCanvasClick={onCanvasClick}
         />
       </div>
 
@@ -707,8 +753,10 @@ export const PlanningPanel: React.FC<PlanningPanelProps> = ({ nodes, setNodes })
         open={showEditModal}
         onOpenChange={setShowEditModal}
         node={editingNode}
-        onSave={handleSaveEditedNode}
+        onSave={handleSaveNode}
       />
     </div>
   );
-};
+});
+
+PlanningPanel.displayName = 'PlanningPanel';

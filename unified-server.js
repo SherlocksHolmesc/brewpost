@@ -314,9 +314,7 @@ app.post("/generate", async (req, res) => {
 
 // ====== Schedules / Calendar endpoints ======
 const DDB = new pkg.DynamoDB.DocumentClient({ region: REGION });
-const SNS = new pkg.SNS({ region: REGION });
 const SCHEDULES_TABLE = process.env.SCHEDULES_TABLE || "Schedules";
-const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || process.env.SNS_TOPIC_ARN || null;
 
 // small helper: retry with exponential backoff
 async function retryable(fn, attempts = 3, baseDelay = 200) {
@@ -699,18 +697,6 @@ app.delete("/api/schedules/delete/:id", async (req, res) => {
   try {
     // delete by scheduleId (PK)
     await DDB.delete({ TableName: SCHEDULES_TABLE, Key: { scheduleId: id } }).promise();
-
-    // Notify SNS to remove the EventBridge rule / scheduler if your Lambda handles deletion
-    if (SNS_TOPIC_ARN) {
-      try {
-        await SNS.publish({
-          TopicArn: SNS_TOPIC_ARN,
-          Message: JSON.stringify({ action: "delete-schedule", scheduleId: id }),
-        }).promise();
-      } catch (snsErr) {
-        console.warn("SNS publish failed on delete for scheduleId", id, snsErr);
-      }
-    }
 
     return res.json({ ok: true });
   } catch (err) {
