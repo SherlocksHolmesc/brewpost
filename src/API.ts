@@ -122,14 +122,6 @@ export type DeleteNodeMutation = {
     __typename: "Node",
     projectId: string,
     nodeId: string,
-    title: string,
-    description?: string | null,
-    x?: number | null,
-    y?: number | null,
-    status?: string | null,
-    contentId?: string | null,
-    createdAt: string,
-    updatedAt: string,
   },
 };
 
