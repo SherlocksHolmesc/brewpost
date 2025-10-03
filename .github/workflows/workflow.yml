@@ -1,0 +1,38 @@
+name: React Build Workflow
+
+on:
+  push:
+    branches:
+      - main   # change if your default branch is different
+  pull_request:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      # Step 1: Checkout your code
+      - name: Checkout repository
+        uses: actions/checkout@v3
+
+      # Step 2: Setup Node.js
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: 20   # or the version you’re using
+
+      # Step 3: Install dependencies
+      - name: Install dependencies
+        run: npm install
+
+      # Step 4: Build React project
+      - name: Build project
+        run: npm run build
+
+      # (Optional) Step 5: Upload build as artifact for inspection
+      - name: Upload production-ready build
+        uses: actions/upload-artifact@v3
+        with:
+          name: build
+          path: build
+ 
