@@ -1,9 +1,13 @@
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
+import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AIChat } from '@/components/ai/AIChat';
-import { PlanningPanel } from '@/components/planning/PlanningPanel';
-import { Sparkles, Calendar, Network, LogOut } from 'lucide-react';
+import { NodeDetails } from '@/components/ai/NodeDetails';
+import { PlanningPanel, type PlanningPanelRef } from '@/components/planning/PlanningPanel';
+import { CircleCanvas } from '@/components/canvas/CircleCanvas';
+import { ComponentSidebar } from '@/components/canvas/ComponentSidebar';
+import { Sparkles, Calendar, Network, LogOut, FileText, X } from 'lucide-react';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
 interface MainLayoutProps {
@@ -12,25 +16,67 @@ interface MainLayoutProps {
 
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
-  const [showPlanning, setShowPlanning] = useState(true); // Default to open
   const [showCalendar, setShowCalendar] = useState(false);
   const [nodes, setNodes] = useState<ContentNode[]>([]);
+  const [activeTab, setActiveTab] = useState('ai');
+  const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
+  const [viewMode, setViewMode] = useState<'nodes' | 'canvas'>('nodes'); // New state for view mode
+  const [canvasNodeId, setCanvasNodeId] = useState<string | null>(null); // Store node ID for canvas mode
+  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
+  const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
+  const planningPanelRef = useRef<PlanningPanelRef>(null);
   // Wrap setNodes to add debug logging when nodes change
   const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
     if (typeof next === 'function') {
       setNodes(prev => {
         const updated = (next as (p: ContentNode[]) => ContentNode[])(prev);
         console.info('MainLayout: nodes updated (from function) ->', updated.length);
+        // Update selected node if it exists, or clear if it no longer exists
+        if (selectedNode) {
+          const updatedSelectedNode = updated.find(n => n.id === selectedNode.id);
+          if (updatedSelectedNode) {
+            setSelectedNode(updatedSelectedNode);
+          } else {
+            setSelectedNode(null);
+            setActiveTab('ai');
+          }
+        }
         return updated;
       });
     } else {
       console.info('MainLayout: nodes replaced ->', next.length);
+      // Update selected node if it exists, or clear if it no longer exists
+      if (selectedNode) {
+        const updatedSelectedNode = next.find(n => n.id === selectedNode.id);
+        if (updatedSelectedNode) {
+          setSelectedNode(updatedSelectedNode);
+        } else {
+          setSelectedNode(null);
+          setActiveTab('ai');
+        }
+      }
       setNodes(next);
     }
   };
 
-  const togglePlanning = () => {
-    setShowPlanning(!showPlanning);
+  const handleNodeSelect = (node: ContentNode) => {
+    setSelectedNode(node);
+    setActiveTab('details');
+    setViewMode('nodes'); // Switch to nodes view when a node is selected
+    setCanvasNodeId(null); // Clear canvas node ID when switching to nodes view
+  };
+
+  const handleNodeDoubleClick = (node: ContentNode) => {
+    setSelectedNode(node);
+    setActiveTab('details');
+    setViewMode('canvas'); // Switch to canvas view on double-click
+    setCanvasNodeId(node.id); // Store node ID for future reference if needed
+  };
+
+  const handleCanvasClick = () => {
+    setViewMode('canvas'); // Switch to canvas view
+    setSelectedNode(null); // Clear selected node
+    setCanvasNodeId(null); // Clear canvas node ID
   };
 
   const handleCalendarPage = () => {
@@ -57,15 +103,39 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           </div>
           
           <div className="flex items-center gap-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={togglePlanning}
-              className="border-primary/20 hover:border-primary/40 glow-hover"
-            >
-              <Network className="w-4 h-4 mr-2" />
-              {showPlanning ? 'Hide Planning' : 'Show Planning'}
-            </Button>
+            {/* View Toggle Button */}
+            <div className="flex items-center bg-card border border-border/30 rounded-lg p-1 glow-hover">
+              <button
+                onClick={() => {
+                  setViewMode('nodes');
+                  if (canvasNodeId) {
+                    setCanvasNodeId(null); // Clear canvas node when switching to nodes mode
+                  }
+                }}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                  viewMode === 'nodes'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Nodes
+              </button>
+              <button
+                onClick={() => {
+                  setViewMode('canvas');
+                  setCanvasNodeId(null); // Clear canvas node ID when manually switching
+                }}
+                className={`px-3 py-1 text-sm font-medium rounded-md transition-all duration-200 ${
+                  viewMode === 'canvas'
+                    ? 'bg-primary text-primary-foreground shadow-sm'
+                    : 'text-muted-foreground hover:text-foreground'
+                }`}
+              >
+                Canvas
+              </button>
+            </div>
+            
+
             <Button 
               size="sm" 
               className="bg-gradient-primary hover:opacity-90 glow-hover"
@@ -89,20 +159,521 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
       {/* Main Content Area */}
       <div className="flex h-[calc(100vh-80px)] relative">
-        {/* AI Chat - Main Area (30% when planning is open) */}
-        <div className={`transition-all duration-500 ease-in-out ${
-          showPlanning ? 'w-[30%]' : 'w-full'
-        }`}>
-          <AIChat setPlanningNodes={debugSetNodes} />
+        {/* Left Sidebar with Tabs - Main Area (always 30% width) */}
+        <div className="w-[30%] transition-all duration-500 ease-in-out opacity-100">
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="h-full flex flex-col">
+            <div className="border-b border-border/20 px-6 pt-4 pb-2">
+              <TabsList className="grid w-full grid-cols-2">
+                <TabsTrigger value="ai" className="flex items-center gap-2 text-sm">
+                  <Sparkles className="w-4 h-4" />
+                  AI Generator
+                </TabsTrigger>
+                <TabsTrigger value="details" className="flex items-center gap-2 text-sm">
+                  <FileText className="w-4 h-4" />
+                  {selectedNode ? (selectedNode.title.length > 12 ? selectedNode.title.slice(0, 12) + '...' : selectedNode.title) : 'Details'}
+                </TabsTrigger>
+              </TabsList>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              {activeTab === 'ai' && (
+                <div className="h-full">
+                  <AIChat setPlanningNodes={debugSetNodes} />
+                </div>
+              )}
+              {activeTab === 'details' && (
+                <div className="h-full">
+                  <NodeDetails 
+                    node={selectedNode} 
+                    onSaveNode={(node) => {
+                      if (planningPanelRef.current?.handleSaveNode) {
+                        planningPanelRef.current.handleSaveNode(node);
+                      }
+                    }}
+                    onPostNode={(node) => {
+                      if (planningPanelRef.current?.handlePostNode) {
+                        planningPanelRef.current.handlePostNode(node);
+                      }
+                    }}
+                  />
+                </div>
+              )}
+            </div>
+          </Tabs>
         </div>
 
-        {/* Planning Panel - Sliding Sidebar (70% when open) */}
-        <div className={`fixed right-0 top-[80px] h-[calc(100vh-80px)] bg-card border-l border-border/50 backdrop-blur-xl transition-all duration-500 ease-in-out z-40 ${
-          showPlanning 
-            ? 'w-[70%] translate-x-0 opacity-100' 
-            : 'w-[70%] translate-x-full opacity-0 pointer-events-none'
-        }`}>
-          <PlanningPanel nodes={nodes} setNodes={setNodes} />
+        {/* Right Side - Planning Panel in nodes mode, empty in canvas mode */}
+        <div className="w-[70%] h-[calc(100vh-80px)] transition-all duration-500 ease-in-out">
+          {viewMode === 'nodes' ? (
+            <div className="h-full bg-card border-l border-border/50 backdrop-blur-xl">
+              <PlanningPanel 
+                nodes={nodes} 
+                setNodes={setNodes} 
+                onNodeSelect={handleNodeSelect}
+                onNodeDoubleClick={handleNodeDoubleClick}
+                onCanvasClick={handleCanvasClick}
+                ref={planningPanelRef}
+              />
+            </div>
+          ) : (
+            <div className="h-full bg-gradient-subtle relative">
+              <CircleCanvas 
+                selectedComponents={selectedCanvasComponents}
+                isGenerating={isGenerating}
+                onGenerate={(status) => {
+                  console.log('Generate status:', status);
+                  setIsGenerating(status);
+                }}
+                onAddComponent={(component) => {
+                  const newComponent = {
+                    id: component.id,
+                    name: component.name,
+                    category: component.category,
+                    color: component.color,
+                    position: { x: 0, y: 0 }
+                  };
+                  setSelectedCanvasComponents(prev => {
+                    if (prev.find(c => c.id === component.id)) {
+                      return prev; // Don't add duplicates
+                    }
+                    return [...prev, newComponent];
+                  });
+                }}
+                onRemoveComponent={(id) => {
+                  setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
+                }}
+                generatedComponents={[
+                  // Local Data Components
+                  {
+                    id: "demo-1",
+                    type: "local_data",
+                    title: "Local Coffee Trends",
+                    description: "Trending coffee preferences in your area",
+                    data: {},
+                    relevanceScore: 85,
+                    category: "Local Data",
+                    keywords: ["coffee", "local", "trends"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-4",
+                    type: "local_data",
+                    title: "Regional Demographics",
+                    description: "Local customer demographics and behavior patterns",
+                    data: {},
+                    relevanceScore: 79,
+                    category: "Local Data",
+                    keywords: ["demographics", "local", "customers"],
+                    impact: "medium"
+                  },
+                  {
+                    id: "demo-5",
+                    type: "local_data",
+                    title: "Competitor Analysis",
+                    description: "Local competitor pricing and offerings",
+                    data: {},
+                    relevanceScore: 73,
+                    category: "Local Data",
+                    keywords: ["competitors", "pricing", "local"],
+                    impact: "medium"
+                  },
+                  {
+                    id: "demo-6",
+                    type: "local_data",
+                    title: "Weather Impact",
+                    description: "How local weather affects customer behavior",
+                    data: {},
+                    relevanceScore: 68,
+                    category: "Local Data",
+                    keywords: ["weather", "behavior", "seasonal"],
+                    impact: "low"
+                  },
+                  {
+                    id: "demo-7",
+                    type: "local_data",
+                    title: "Peak Hours Analysis",
+                    description: "Busiest times and customer flow patterns",
+                    data: {},
+                    relevanceScore: 88,
+                    category: "Local Data",
+                    keywords: ["peak", "hours", "traffic"],
+                    impact: "high"
+                  },
+
+                  // Online Trend Data Components
+                  {
+                    id: "demo-2", 
+                    type: "online_trend",
+                    title: "Social Media Buzz",
+                    description: "Latest social media trends and engagement",
+                    data: {},
+                    relevanceScore: 92,
+                    category: "Online trend data",
+                    keywords: ["social", "engagement", "viral"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-8",
+                    type: "online_trend",
+                    title: "Hashtag Performance",
+                    description: "Trending hashtags in your industry",
+                    data: {},
+                    relevanceScore: 84,
+                    category: "Online trend data",
+                    keywords: ["hashtags", "trending", "social"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-9",
+                    type: "online_trend",
+                    title: "Viral Content Types",
+                    description: "Most shared content formats this week",
+                    data: {},
+                    relevanceScore: 76,
+                    category: "Online trend data",
+                    keywords: ["viral", "content", "formats"],
+                    impact: "medium"
+                  },
+                  {
+                    id: "demo-10",
+                    type: "online_trend",
+                    title: "Influencer Mentions",
+                    description: "Key influencers talking about your niche",
+                    data: {},
+                    relevanceScore: 81,
+                    category: "Online trend data",
+                    keywords: ["influencers", "mentions", "niche"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-11",
+                    type: "online_trend",
+                    title: "Search Trends",
+                    description: "Rising search queries related to your business",
+                    data: {},
+                    relevanceScore: 87,
+                    category: "Online trend data",
+                    keywords: ["search", "queries", "trending"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-12",
+                    type: "online_trend",
+                    title: "Platform Analytics",
+                    description: "Cross-platform engagement metrics",
+                    data: {},
+                    relevanceScore: 72,
+                    category: "Online trend data",
+                    keywords: ["analytics", "platforms", "engagement"],
+                    impact: "medium"
+                  },
+
+                  // Campaign Type Components
+                  {
+                    id: "demo-3",
+                    type: "campaign_type",
+                    title: "Seasonal Campaign",
+                    description: "Autumn-themed promotional campaign",
+                    data: {},
+                    relevanceScore: 78,
+                    category: "Campaign Type", 
+                    keywords: ["autumn", "seasonal", "promotion"],
+                    impact: "medium"
+                  },
+                  {
+                    id: "demo-13",
+                    type: "campaign_type",
+                    title: "Flash Sale Event",
+                    description: "Limited-time promotional offers",
+                    data: {},
+                    relevanceScore: 89,
+                    category: "Campaign Type",
+                    keywords: ["flash", "sale", "limited"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-14",
+                    type: "campaign_type",
+                    title: "Brand Awareness",
+                    description: "Build recognition and recall campaigns",
+                    data: {},
+                    relevanceScore: 75,
+                    category: "Campaign Type",
+                    keywords: ["brand", "awareness", "recognition"],
+                    impact: "medium"
+                  },
+                  {
+                    id: "demo-15",
+                    type: "campaign_type",
+                    title: "Customer Loyalty",
+                    description: "Reward and retain existing customers",
+                    data: {},
+                    relevanceScore: 82,
+                    category: "Campaign Type",
+                    keywords: ["loyalty", "retention", "rewards"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-16",
+                    type: "campaign_type",
+                    title: "Product Launch",
+                    description: "Introduce new products or services",
+                    data: {},
+                    relevanceScore: 91,
+                    category: "Campaign Type",
+                    keywords: ["launch", "new", "product"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-17",
+                    type: "campaign_type",
+                    title: "Holiday Special",
+                    description: "Holiday-themed promotional content",
+                    data: {},
+                    relevanceScore: 86,
+                    category: "Campaign Type",
+                    keywords: ["holiday", "special", "themed"],
+                    impact: "high"
+                  },
+                  {
+                    id: "demo-18",
+                    type: "campaign_type",
+                    title: "User Generated Content",
+                    description: "Encourage customers to create content",
+                    data: {},
+                    relevanceScore: 77,
+                    category: "Campaign Type",
+                    keywords: ["ugc", "user", "generated"],
+                    impact: "medium"
+                  }
+                ]}
+              />
+              
+              {/* ComponentSidebar positioned at bottom */}
+              <div className="absolute bottom-0 left-0 right-0">
+                <ComponentSidebar 
+                  onAddComponent={(component) => {
+                    const newComponent = {
+                      id: component.id,
+                      name: component.name,
+                      category: component.category,
+                      color: component.color,
+                      position: { x: 0, y: 0 }
+                    };
+                    setSelectedCanvasComponents(prev => {
+                      if (prev.find(c => c.id === component.id)) {
+                        return prev; // Don't add duplicates
+                      }
+                      return [...prev, newComponent];
+                    });
+                  }}
+                  onRemoveFromCanvas={(id) => {
+                    setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
+                  }}
+                  generatedComponents={[
+                    // Same demo components as CircleCanvas for consistency
+                    {
+                      id: "demo-1",
+                      type: "local_data",
+                      title: "Local Coffee Trends",
+                      description: "Trending coffee preferences in your area",
+                      data: {},
+                      relevanceScore: 85,
+                      category: "Local Data",
+                      keywords: ["coffee", "local", "trends"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-4",
+                      type: "local_data",
+                      title: "Regional Demographics", 
+                      description: "Local customer demographics and behavior patterns",
+                      data: {},
+                      relevanceScore: 79,
+                      category: "Local Data",
+                      keywords: ["demographics", "local", "customers"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-5",
+                      type: "local_data",
+                      title: "Competitor Analysis",
+                      description: "Local competitor pricing and offerings",
+                      data: {},
+                      relevanceScore: 73,
+                      category: "Local Data",
+                      keywords: ["competitors", "pricing", "local"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-6",
+                      type: "local_data",
+                      title: "Weather Impact",
+                      description: "How local weather affects customer behavior",
+                      data: {},
+                      relevanceScore: 68,
+                      category: "Local Data",
+                      keywords: ["weather", "behavior", "seasonal"],
+                      impact: "low"
+                    },
+                    {
+                      id: "demo-7",
+                      type: "local_data",
+                      title: "Peak Hours Analysis",
+                      description: "Busiest times and customer flow patterns",
+                      data: {},
+                      relevanceScore: 88,
+                      category: "Local Data",
+                      keywords: ["peak", "hours", "traffic"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-2", 
+                      type: "online_trend",
+                      title: "Social Media Buzz",
+                      description: "Latest social media trends and engagement",
+                      data: {},
+                      relevanceScore: 92,
+                      category: "Online trend data",
+                      keywords: ["social", "engagement", "viral"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-8",
+                      type: "online_trend",
+                      title: "Hashtag Performance",
+                      description: "Trending hashtags in your industry",
+                      data: {},
+                      relevanceScore: 84,
+                      category: "Online trend data",
+                      keywords: ["hashtags", "trending", "social"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-9",
+                      type: "online_trend", 
+                      title: "Viral Content Types",
+                      description: "Most shared content formats this week",
+                      data: {},
+                      relevanceScore: 76,
+                      category: "Online trend data",
+                      keywords: ["viral", "content", "formats"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-10",
+                      type: "online_trend",
+                      title: "Influencer Mentions",
+                      description: "Key influencers talking about your niche", 
+                      data: {},
+                      relevanceScore: 81,
+                      category: "Online trend data",
+                      keywords: ["influencers", "mentions", "niche"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-11",
+                      type: "online_trend",
+                      title: "Search Trends",
+                      description: "Rising search queries related to your business",
+                      data: {},
+                      relevanceScore: 87,
+                      category: "Online trend data",
+                      keywords: ["search", "queries", "trending"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-12",
+                      type: "online_trend",
+                      title: "Platform Analytics",
+                      description: "Cross-platform engagement metrics",
+                      data: {},
+                      relevanceScore: 72,
+                      category: "Online trend data", 
+                      keywords: ["analytics", "platforms", "engagement"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-3",
+                      type: "campaign_type",
+                      title: "Seasonal Campaign",
+                      description: "Autumn-themed promotional campaign",
+                      data: {},
+                      relevanceScore: 78,
+                      category: "Campaign Type",
+                      keywords: ["autumn", "seasonal", "promotion"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-13",
+                      type: "campaign_type",
+                      title: "Flash Sale Event",
+                      description: "Limited-time promotional offers",
+                      data: {},
+                      relevanceScore: 89,
+                      category: "Campaign Type",
+                      keywords: ["flash", "sale", "limited"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-14", 
+                      type: "campaign_type",
+                      title: "Brand Awareness",
+                      description: "Build recognition and recall campaigns",
+                      data: {},
+                      relevanceScore: 75,
+                      category: "Campaign Type",
+                      keywords: ["brand", "awareness", "recognition"],
+                      impact: "medium"
+                    },
+                    {
+                      id: "demo-15",
+                      type: "campaign_type",
+                      title: "Customer Loyalty",
+                      description: "Reward and retain existing customers",
+                      data: {},
+                      relevanceScore: 82,
+                      category: "Campaign Type",
+                      keywords: ["loyalty", "retention", "rewards"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-16",
+                      type: "campaign_type",
+                      title: "Product Launch",
+                      description: "Introduce new products or services",
+                      data: {},
+                      relevanceScore: 91,
+                      category: "Campaign Type",
+                      keywords: ["launch", "new", "product"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-17",
+                      type: "campaign_type",
+                      title: "Holiday Special",
+                      description: "Holiday-themed promotional content",
+                      data: {},
+                      relevanceScore: 86,
+                      category: "Campaign Type",
+                      keywords: ["holiday", "special", "themed"],
+                      impact: "high"
+                    },
+                    {
+                      id: "demo-18",
+                      type: "campaign_type",
+                      title: "User Generated Content",
+                      description: "Encourage customers to create content",
+                      data: {},
+                      relevanceScore: 77,
+                      category: "Campaign Type",
+                      keywords: ["ugc", "user", "generated"],
+                      impact: "medium"
+                    }
+                  ]}
+                />
+              </div>
+            </div>
+          )}
         </div>
       </div>
 

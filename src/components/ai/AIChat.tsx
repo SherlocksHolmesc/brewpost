@@ -423,7 +423,12 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const resp = await fetch('/generate', {
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: refinementPrompt }),
@@ -484,7 +489,12 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const resp = await fetch('/generate', {
+      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
+      const apiUrl = isProduction 
+        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
+        : '/generate';
+      
+      const resp = await fetch(apiUrl, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ messages: messagesForBackend }),
@@ -585,38 +595,22 @@ Return only the refined prompt, nothing else.`
   return (
     <div className="flex flex-col h-full bg-gradient-subtle">
       {/* Chat Header */}
-      <div className="p-6 border-b border-border/20">
-        <div className="flex items-center gap-3 mb-4">
+      <div className="p-4 border-b border-border/20">
+        <div className="flex items-center gap-3 mb-2">
           <Sparkles className="w-6 h-6 text-primary" />
           <h2 className="text-xl font-semibold">AI Content Generator</h2>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="flex gap-3">
-          {quickPrompts.map((prompt, index) => (
-            <Button
-              key={index}
-              variant="outline"
-              size="sm"
-              className="border-primary/20 hover:border-primary/40 glow-hover"
-              onClick={() => setInput(prompt.text.toLowerCase())}
-            >
-              <prompt.icon className="w-4 h-4 mr-2" />
-              {prompt.text}
-            </Button>
-          ))}
         </div>
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-6 space-y-4 scrollbar-hide">
+      <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-hide">
         {messages.map((message) => (
           <div
             key={message.id}
             className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <Card
-              className={`max-w-[80%] p-4 ${
+              className={`max-w-[80%] p-3 ${
                 message.type === 'user' ? 'bg-gradient-primary text-white' : 'bg-[#77958E] text-white'
               }`}
             >
@@ -716,7 +710,7 @@ Return only the refined prompt, nothing else.`
 
         {isGenerating && (
           <div className="flex justify-start">
-            <Card className="max-w-[80%] p-4 bg-card/50 backdrop-blur-sm border-border/50">
+            <Card className="max-w-[80%] p-3 bg-card/50 backdrop-blur-sm border-border/50">
               <div className="flex items-center gap-2">
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse"></div>
                 <div className="w-2 h-2 bg-primary rounded-full animate-pulse" style={{ animationDelay: '0.2s' }}></div>
@@ -729,14 +723,14 @@ Return only the refined prompt, nothing else.`
       </div>
 
       {/* Input Area */}
-      <div className="p-6 border-t border-border/20">
+      <div className="p-4 border-t border-border/20">
         <div className="flex gap-3">
           <div className="relative flex-1">
             <Textarea
               value={input}
               onChange={(e) => setInput(e.target.value)}
               placeholder="Describe the content you want to create..."
-              className="min-h-[60px] resize-none glow-focus border-primary/20 focus:border-primary/40 pr-12"
+              className="h-11 min-h-11 max-h-11 resize-none glow-focus border-primary/20 focus:border-primary/40 pr-12 py-2"
               onKeyDown={(e) => {
                 if (e.key === 'Enter' && !e.shiftKey) {
                   e.preventDefault();

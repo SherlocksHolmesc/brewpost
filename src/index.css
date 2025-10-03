@@ -80,11 +80,11 @@
     --accent: 191 19% 38%;
     --accent-foreground: 0 0% 100%;
 
-    /* Theme gradients with #354F52 */
+    /* Theme gradients with BrewPost logo colors */
     --gradient-primary: linear-gradient(
       135deg,
-      hsl(191 19% 33%),
-      hsl(191 25% 40%)
+      #78FFD6,
+      #3BC6FF
     );
     --gradient-secondary: linear-gradient(
       135deg,
