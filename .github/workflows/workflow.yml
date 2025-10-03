@@ -1,38 +1,35 @@
-name: React Build Workflow
+name: React Build & Upload to S3
 
 on:
   push:
     branches:
-      - main   # change if your default branch is different
-  pull_request:
+      - main # adjust if using another branch
 
 jobs:
-  build:
+  build-and-upload:
     runs-on: ubuntu-latest
 
     steps:
-      # Step 1: Checkout your code
-      - name: Checkout repository
+      - name: Checkout repo
         uses: actions/checkout@v3
 
-      # Step 2: Setup Node.js
       - name: Setup Node.js
         uses: actions/setup-node@v3
         with:
-          node-version: 20   # or the version you’re using
+          node-version: 20
 
-      # Step 3: Install dependencies
       - name: Install dependencies
         run: npm install
 
-      # Step 4: Build React project
       - name: Build project
         run: npm run build
 
-      # (Optional) Step 5: Upload build as artifact for inspection
-      - name: Upload production-ready build
-        uses: actions/upload-artifact@v3
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          name: build
-          path: build
- 
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ secrets.AWS_REGION }}
+
+      - name: Upload dist to S3
+        run: aws s3 sync dist/ s3://my-react-deploy-bucket --delete

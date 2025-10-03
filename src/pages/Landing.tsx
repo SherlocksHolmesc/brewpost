@@ -26,11 +26,11 @@ export const Landing: React.FC = () => {
 
   const handleAuthRedirect = () => {
     // Instead of /api/auth/login, go to your Node server
-    window.location.href = "https://main.d3rq5op2806z3.amplifyapp.com";
+    window.location.href = "app";
   };
 
   const features = [
-    { icon: Sparkles, title: 'AI-Powered Content', description: 'Generate stunning social media posts, blog headers, and marketing content with AI.' },
+    { icon: Sparkles, title: 'AI-Powered', description: 'Generate stunning social media posts, blog headers, and marketing content with AI.' },
     { icon: Target,   title: 'Visual Planning',    description: 'Connect and organize your content with intuitive drag-and-drop node planning.' },
     { icon: Calendar, title: 'Smart Scheduling',   description: 'Schedule your content across platforms with intelligent timing suggestions.' }
   ];
