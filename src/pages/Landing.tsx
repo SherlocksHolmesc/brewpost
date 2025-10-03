@@ -155,7 +155,7 @@ export const Landing: React.FC = () => {
               </div>
 
               <p className="text-lg md:text-xl lg:text-2xl text-muted-foreground mb-12 leading-relaxed max-w-4xl mx-auto">
-                Create, plan, testing  and schedule stunning content with AI-powered tools.
+                Create, plan,and schedule stunning content with AI-powered tools.
                 Connect your ideas visually and watch your content strategy come to life with intelligent automation.
               </p>
 
