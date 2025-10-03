@@ -34,27 +34,28 @@ jobs:
       - name: Upload dist to S3
         run: aws s3 sync dist/ s3://my-react-deploy-bucket --delete
 
-      - name: Trigger EC2 update via SSM
-        run: |
-          COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
-            --document-name "AWS-RunShellScript" \
-            --parameters 'commands=[
-              "aws s3 sync s3://my-react-deploy-bucket /home/brewpost/brewpost/dist --delete",
-              "sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/",
-              "sudo chmod -R 755 /home/brewpost/brewpost/",
-              "sudo systemctl restart nginx"
-            ]' \
-            --region ${{ secrets.AWS_REGION }} \
-            --query 'Command.CommandId' \
-            --output text)
-          
-          echo "Command ID: $COMMAND_ID"
-          echo "Waiting for command to complete..."
-          
-          aws ssm wait command-executed \
-            --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --region ${{ secrets.AWS_REGION }}
-          
-          echo "Command completed successfully!"
+      # NEW STEP: Trigger EC2 to pull from S3
+      - name: Deploy to EC2 from S3
+        uses: appleboy/ssh-action@v0.1.7
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ubuntu
+          key: ${{ secrets.EC2_SSH_KEY }}
+          script: |
+            echo "Syncing from S3 to EC2..."
+            aws s3 sync s3://my-react-deploy-bucket /home/brewpost/brewpost/dist --delete
+            
+            echo "Fixing permissions..."
+            sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/
+            sudo chmod -R 755 /home/brewpost/brewpost/
+            
+            echo "Verifying files..."
+            ls -lh /home/brewpost/brewpost/dist/index.html
+            
+            echo "Testing Nginx config..."
+            sudo nginx -t
+            
+            echo "Restarting Nginx..."
+            sudo systemctl restart nginx
+            
+            echo "Deployment complete!"
