@@ -31,7 +31,7 @@ export const Landing: React.FC = () => {
 
   const features = [
     { icon: Sparkles, title: 'AI-Powered Content', description: 'Generate stunning social media posts, blog headers, and marketing content with AI.' },
-    { icon: Target,   title: 'Visual Planning again again',    description: 'Connect and organize your content with intuitive drag-and-drop node planning.' },
+    { icon: Target,   title: 'Visual Planning',    description: 'Connect and organize your content with intuitive drag-and-drop node planning.' },
     { icon: Calendar, title: 'Smart Scheduling',   description: 'Schedule your content across platforms with intelligent timing suggestions.' }
   ];
 
