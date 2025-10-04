@@ -25,12 +25,12 @@ export const Landing: React.FC = () => {
   const navigate = useNavigate();
 
   const handleAuthRedirect = () => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8081';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://54.242.36.109';
     window.location.href = `${backendUrl}/api/auth/login`;
   };
 
   const handleSignIn = () => {
-    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8081';
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://54.242.36.109';
     window.location.href = `${backendUrl}/api/auth/login`;
   };
 

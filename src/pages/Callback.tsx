@@ -19,7 +19,7 @@ export default function Callback() {
 
     const exchangeToken = async () => {
       try {
-        const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+        const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'https://54.242.36.109';
         const res = await fetch(`${BACKEND_URL}/api/auth/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
