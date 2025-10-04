@@ -10,7 +10,7 @@ dotenv.config();
 
 const { S3 } = pkg;
 const app = express();
-const PORT = process.env.PORT || 8081;
+const PORT = process.env.PORT || 8080;
 const REGION = process.env.REGION || "us-east-1";
 const TEXT_MODEL = process.env.TEXT_MODEL;
 const IMAGE_MODEL = process.env.IMAGE_MODEL;
