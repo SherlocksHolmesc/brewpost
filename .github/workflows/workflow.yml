@@ -2,13 +2,8 @@ name: React Build & Deploy to S3 and EC2
 
 on:
   push:
-    branches: [ main ]
-
-env:
-  NODE_VERSION: "20"
-  S3_BUCKET: ${{ secrets.S3_BUCKET }}
-  AWS_REGION: ${{ secrets.AWS_REGION }}
-  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
+    branches:
+      - main
 
 jobs:
   build-and-deploy:
@@ -16,15 +11,15 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v4
+        uses: actions/checkout@v3
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v3
         with:
-          node-version: ${{ env.NODE_VERSION }}
-          cache: "npm"
+          node-version: 20
 
-      - name: Install deps (repo)
+      # CHANGED: prefer ci when lockfile exists (more reliable), else install
+      - name: Install dependencies
         run: |
           if [ -f package-lock.json ]; then
             npm ci
@@ -32,7 +27,7 @@ jobs:
             npm install
           fi
 
-      - name: Build frontend
+      - name: Build project
         run: npm run build
 
       - name: Configure AWS credentials
@@ -40,72 +35,69 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ env.AWS_REGION }}
+          aws-region: ${{ secrets.AWS_REGION }}
 
-      - name: Upload dist (frontend) to S3
-        run: |
-          aws s3 sync dist/ s3://${{ env.S3_BUCKET }}/frontend --delete
+      - name: Upload dist to S3
+        run: aws s3 sync dist/ s3://my-react-deploy-bucket/frontend --delete
 
-      - name: Upload server sources to S3 (no node_modules, no dist)
-        run: |
-          aws s3 sync . s3://${{ env.S3_BUCKET }}/server \
-            --exclude "dist/*" \
-            --exclude "node_modules/*" \
-            --exclude ".git/*" \
-            --delete
+      - name: Upload server files to S3
+        run: aws s3 sync . s3://my-react-deploy-bucket/server --exclude "dist/*" --exclude "node_modules/*" --exclude ".git/*" --delete
 
       - name: Trigger EC2 update via SSM
         run: |
-          set -e
-
+          set -e  # CHANGED: fail fast if the SSM call itself fails
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
+            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
-              "set -e",
+              "set -e",  # CHANGED: fail fast on the instance too
 
-              "# 1) Go to app directory",
+              # stop any running server (accept both patterns)
+              "pkill -f unified-server.js || pkill -f unified-server || true",
+
+              # go to app folder
               "cd /home/brewpost/brewpost",
 
-              "# 2) Pull latest server files from S3",
-              "aws s3 sync s3://${{ env.S3_BUCKET }}/server . --exclude dist/* --exclude node_modules/* --delete",
+              # sync server sources (no dist, no node_modules)
+              "aws s3 sync s3://my-react-deploy-bucket/server /home/brewpost/brewpost --exclude dist/* --exclude node_modules/* --delete",
 
-              "# 3) Ensure package files exist",
-              "[ -f package.json ] || { echo \"package.json missing in /home/brewpost/brewpost\"; exit 1; }",
-
-              "# 4) Install production deps",
+              # CHANGED: install production deps (prefer ci when lockfile exists)
               "if [ -f package-lock.json ]; then NODE_ENV=production npm ci --omit=dev; else NODE_ENV=production npm install --omit=dev; fi",
 
-              "# 5) Refresh .env from Secrets Manager (SecretId = env)",
+              # pull .env from Secrets Manager
               "aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env",
 
-              "# 6) Sync built frontend into ./dist",
-              "rm -rf dist/*",
-              "aws s3 sync s3://${{ env.S3_BUCKET }}/frontend dist --delete",
+              # refresh built frontend
+              "rm -rf /home/brewpost/brewpost/dist/*",
+              "aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist --delete",
 
-              "# 7) Restart the node app",
-              "pkill -f unified-server.js || true",
-              "nohup node unified-server.js > server.log 2>&1 &",
+              # start server in background
+              "PORT=8080 nohup node unified-server.js > server.log 2>&1 &",
 
-              "# 8) Reload Nginx if present (non-fatal)",
+              # keep your chown but make it non-fatal
+              "sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/ || true",
+
+              # reload nginx if present
               "sudo systemctl reload nginx || true"
             ]' \
-            --region "${{ env.AWS_REGION }}" \
+            --region ${{ secrets.AWS_REGION }} \
             --query 'Command.CommandId' \
             --output text)
-
-          echo "SSM Command ID: $COMMAND_ID"
-          echo "Waiting for command to finish…"
-
+          
+          echo "Command ID: $COMMAND_ID"
+          echo "Waiting for command to complete..."
+          
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
-            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
-            --region "${{ env.AWS_REGION }}"
+            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
+            --region ${{ secrets.AWS_REGION }}
 
-          echo "---- SSM Output ----"
+          echo "---- SSM Output (first plugin) ----"
           aws ssm list-command-invocations \
             --command-id "$COMMAND_ID" \
             --details \
-            --region "${{ env.AWS_REGION }}" \
-            --query "CommandInvocations[0].CommandPlugins[].{Name:Name,Output:Output,Status:Status}" \
+            --region "${{ secrets.AWS_REGION }}" \
+            --query "CommandInvocations[0].CommandPlugins[0].{Name:Name,Status:Status,Output:Output}" \
             --output table
+          
+          echo "Command completed successfully!"
