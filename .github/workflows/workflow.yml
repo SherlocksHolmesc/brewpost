@@ -21,6 +21,18 @@ jobs:
       - name: Install dependencies
         run: npm install
 
+      - name: Create .env for build
+        run: |
+          echo "VITE_BACKEND_URL=${{ secrets.VITE_BACKEND_URL }}" >> .env
+          echo "VITE_REDIRECT_URI=${{ secrets.VITE_REDIRECT_URI }}" >> .env
+          echo "VITE_FRONTEND_URL=${{ secrets.VITE_FRONTEND_URL }}" >> .env
+          echo "VITE_COGNITO_DOMAIN=${{ secrets.VITE_COGNITO_DOMAIN }}" >> .env
+          echo "VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}" >> .env
+          echo "VITE_APPSYNC2_URL=${{ secrets.VITE_APPSYNC2_URL }}" >> .env
+          echo "VITE_APPSYNC2_API_KEY=${{ secrets.VITE_APPSYNC2_API_KEY }}" >> .env
+          echo "VITE_PUBLIC_MEDIA_BASE=${{ secrets.VITE_PUBLIC_MEDIA_BASE }}" >> .env
+          echo "VITE_MEDIA_BUCKET=${{ secrets.VITE_MEDIA_BUCKET }}" >> .env
+
       - name: Build project
         run: npm run build
 
