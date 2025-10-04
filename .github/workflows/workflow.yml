@@ -44,7 +44,9 @@ jobs:
           aws-region: ${{ secrets.AWS_REGION }}
 
       - name: Upload dist to S3
-        run: aws s3 sync dist/ s3://my-react-deploy-bucket/frontend --delete
+        run: |
+          aws s3 rm s3://my-react-deploy-bucket/frontend --recursive
+          aws s3 sync dist/ s3://my-react-deploy-bucket/frontend
 
       - name: Upload server files to S3
         run: aws s3 sync . s3://my-react-deploy-bucket/server --exclude "dist/*" --exclude "node_modules/*" --exclude ".git/*" --delete
