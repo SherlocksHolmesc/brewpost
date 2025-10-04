@@ -42,7 +42,7 @@ jobs:
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters 'commands=["pkill -f unified-server || true","cd /home/brewpost/brewpost","aws s3 sync s3://my-react-deploy-bucket/server /home/brewpost/brewpost --exclude dist/* --exclude node_modules/* --delete","rm -rf node_modules","npm install --production","aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env","rm -rf dist/*","aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist --delete","PORT=8080 nohup node unified-server.js > server.log 2>&1 &","sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/ || true","sudo systemctl reload nginx || true"]' \
+            --parameters 'commands=["pkill -f unified-server || true","cd /home/brewpost/brewpost/server","aws s3 sync s3://my-react-deploy-bucket/server /home/brewpost/brewpost/server --exclude dist/* --exclude node_modules/* --delete","rm -rf node_modules","npm install --production","aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env","rm -rf ../dist/*","aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist --delete","PORT=8080 nohup node unified-server.js > server.log 2>&1 &","sudo chown -R ssm-user:ssm-user /home/brewpost/brewpost/ || true","sudo systemctl reload nginx || true"]' \
             --region ${{ secrets.AWS_REGION }} \
             --query 'Command.CommandId' \
             --output text)
