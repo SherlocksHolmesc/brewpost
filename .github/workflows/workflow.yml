@@ -44,6 +44,8 @@ jobs:
               "aws s3 sync s3://my-react-deploy-bucket /home/brewpost/brewpost/dist --delete",
               "sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/",
               "sudo chmod -R 755 /home/brewpost/brewpost/",
+              "cd /home/brewpost/brewpost && npm install",
+              "cd /home/brewpost/brewpost && pm2 restart unified-server || pm2 start unified-server.js --name unified-server",
               "sudo systemctl reload nginx"
             ]' \
             --region ${{ secrets.AWS_REGION }} \

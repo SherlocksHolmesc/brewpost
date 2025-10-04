@@ -25,8 +25,13 @@ export const Landing: React.FC = () => {
   const navigate = useNavigate();
 
   const handleAuthRedirect = () => {
-    // Instead of /api/auth/login, go to your Node server
-    window.location.href = "app";
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8081';
+    window.location.href = `${backendUrl}/api/auth/login`;
+  };
+
+  const handleSignIn = () => {
+    const backendUrl = import.meta.env.VITE_BACKEND_URL || 'http://localhost:8081';
+    window.location.href = `${backendUrl}/api/auth/login`;
   };
 
   const features = [
@@ -106,7 +111,7 @@ export const Landing: React.FC = () => {
             <h1 className="text-xl font-bold bg-gradient-primary bg-clip-text text-transparent">BrewPost</h1>
           </div>
 
-          <Button onClick={handleAuthRedirect} size="sm" variant="outline" className="...">
+          <Button onClick={handleSignIn} size="sm" variant="outline" className="border-primary/30 hover:border-primary/60 bg-card/50 backdrop-blur-sm">
             Sign In
           </Button>
         </div>

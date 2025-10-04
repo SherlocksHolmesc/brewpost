@@ -19,12 +19,12 @@ export default function Callback() {
 
     const exchangeToken = async () => {
       try {
-        const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8080/';
+        const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
         const res = await fetch(`${BACKEND_URL}/api/auth/exchange`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({ code }),
-          credentials: "include", // ensure session cookie is set on the backend
+          credentials: "include",
         });
 
         if (res.ok) {
