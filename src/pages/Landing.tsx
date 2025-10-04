@@ -50,7 +50,7 @@ export const Landing: React.FC = () => {
   ];
 
   const sampleNodes = [
-    { id: '1', title: 'Marketing Campaign',     type: 'post' as const,  status: 'published' as const, content: 'Launch our new product line with engaging social media content', connections: ['2'] },
+    { id: '1', title: 'Marketing Campaigns',     type: 'post' as const,  status: 'published' as const, content: 'Launch our new product line with engaging social media content', connections: ['2'] },
     { id: '2', title: 'Brand Story',            type: 'image' as const, status: 'scheduled' as const, content: 'Visual storytelling through compelling brand imagery',           connections: ['3'] },
     { id: '3', title: 'User Generated Content', type: 'story' as const, status: 'draft' as const,     content: 'Curate and share customer success stories',                   connections: []  },
   ];
