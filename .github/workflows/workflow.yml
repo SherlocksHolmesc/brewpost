@@ -2,8 +2,13 @@ name: React Build & Deploy to S3 and EC2
 
 on:
   push:
-    branches:
-      - main
+    branches: [ main ]
+
+env:
+  NODE_VERSION: "20"
+  S3_BUCKET: ${{ secrets.S3_BUCKET }}
+  AWS_REGION: ${{ secrets.AWS_REGION }}
+  EC2_INSTANCE_ID: ${{ secrets.EC2_INSTANCE_ID }}
 
 jobs:
   build-and-deploy:
@@ -11,17 +16,23 @@ jobs:
 
     steps:
       - name: Checkout repo
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
 
       - name: Setup Node.js
-        uses: actions/setup-node@v3
+        uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: ${{ env.NODE_VERSION }}
+          cache: "npm"
 
-      - name: Install dependencies
-        run: npm install
+      - name: Install deps (repo)
+        run: |
+          if [ -f package-lock.json ]; then
+            npm ci
+          else
+            npm install
+          fi
 
-      - name: Build project
+      - name: Build frontend
         run: npm run build
 
       - name: Configure AWS credentials
@@ -29,41 +40,72 @@ jobs:
         with:
           aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
           aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
-          aws-region: ${{ secrets.AWS_REGION }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - name: Upload dist to S3
-        run: aws s3 sync dist/ s3://my-react-deploy-bucket/frontend --delete
+      - name: Upload dist (frontend) to S3
+        run: |
+          aws s3 sync dist/ s3://${{ env.S3_BUCKET }}/frontend --delete
 
-      - name: Upload server files to S3
-        run: aws s3 sync . s3://my-react-deploy-bucket/server --exclude "dist/*" --exclude "node_modules/*" --exclude ".git/*" --delete
+      - name: Upload server sources to S3 (no node_modules, no dist)
+        run: |
+          aws s3 sync . s3://${{ env.S3_BUCKET }}/server \
+            --exclude "dist/*" \
+            --exclude "node_modules/*" \
+            --exclude ".git/*" \
+            --delete
 
       - name: Trigger EC2 update via SSM
         run: |
+          set -e
+
           COMMAND_ID=$(aws ssm send-command \
-            --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
+            --instance-ids "${{ env.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
             --parameters 'commands=[
-              "pkill -f unified-server || true",
+              "set -e",
+
+              "# 1) Go to app directory",
               "cd /home/brewpost/brewpost",
-              "aws s3 sync s3://my-react-deploy-bucket/server /home/brewpost/brewpost --exclude dist/* --exclude node_modules/* --delete",
-              "npm install --omit=dev",
+
+              "# 2) Pull latest server files from S3",
+              "aws s3 sync s3://${{ env.S3_BUCKET }}/server . --exclude dist/* --exclude node_modules/* --delete",
+
+              "# 3) Ensure package files exist",
+              "[ -f package.json ] || { echo \"package.json missing in /home/brewpost/brewpost\"; exit 1; }",
+
+              "# 4) Install production deps",
+              "if [ -f package-lock.json ]; then NODE_ENV=production npm ci --omit=dev; else NODE_ENV=production npm install --omit=dev; fi",
+
+              "# 5) Refresh .env from Secrets Manager (SecretId = env)",
               "aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env",
-              "rm -rf /home/brewpost/brewpost/dist/*",
-              "aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist --delete",
-              "PORT=8080 nohup node unified-server.js > server.log 2>&1 &",
-              "sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/",
-              "sudo systemctl reload nginx"
+
+              "# 6) Sync built frontend into ./dist",
+              "rm -rf dist/*",
+              "aws s3 sync s3://${{ env.S3_BUCKET }}/frontend dist --delete",
+
+              "# 7) Restart the node app",
+              "pkill -f unified-server.js || true",
+              "nohup node unified-server.js > server.log 2>&1 &",
+
+              "# 8) Reload Nginx if present (non-fatal)",
+              "sudo systemctl reload nginx || true"
             ]' \
-            --region ${{ secrets.AWS_REGION }} \
+            --region "${{ env.AWS_REGION }}" \
             --query 'Command.CommandId' \
             --output text)
-          
-          echo "Command ID: $COMMAND_ID"
-          echo "Waiting for command to complete..."
-          
+
+          echo "SSM Command ID: $COMMAND_ID"
+          echo "Waiting for command to finish…"
+
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
-            --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
-            --region ${{ secrets.AWS_REGION }}
-          
-          echo "Command completed successfully!"
+            --instance-id "${{ env.EC2_INSTANCE_ID }}" \
+            --region "${{ env.AWS_REGION }}"
+
+          echo "---- SSM Output ----"
+          aws ssm list-command-invocations \
+            --command-id "$COMMAND_ID" \
+            --details \
+            --region "${{ env.AWS_REGION }}" \
+            --query "CommandInvocations[0].CommandPlugins[].{Name:Name,Output:Output,Status:Status}" \
+            --output table
