@@ -18,14 +18,8 @@ jobs:
         with:
           node-version: 20
 
-      # safer install (fail-fast + reproducible if lockfile exists)
       - name: Install dependencies
-        run: |
-          if [ -f package-lock.json ]; then
-            npm ci
-          else
-            npm install
-          fi
+        run: npm install
 
       - name: Build project
         run: npm run build
@@ -45,29 +39,18 @@ jobs:
 
       - name: Trigger EC2 update via SSM
         run: |
-          set -e
           COMMAND_ID=$(aws ssm send-command \
             --instance-ids "${{ secrets.EC2_INSTANCE_ID }}" \
             --document-name "AWS-RunShellScript" \
-            --parameters '{"commands":["set -e","pkill -f unified-server.js || pkill -f unified-server || true","cd /home/brewpost/brewpost","aws s3 sync s3://my-react-deploy-bucket/server /home/brewpost/brewpost --exclude dist/* --exclude node_modules/* --delete","if [ -f package-lock.json ]; then NODE_ENV=production npm ci --omit=dev; else NODE_ENV=production npm install --omit=dev; fi","aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env","rm -rf /home/brewpost/brewpost/dist/*","aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist --delete","PORT=8080 nohup node unified-server.js > server.log 2>&1 &","sudo chown -R ubuntu:ubuntu /home/brewpost/brewpost/ || true","sudo systemctl reload nginx || true"]}' \
+            --parameters 'commands=["bash /home/brewpost/brewpost/deploy.sh"]' \
             --region ${{ secrets.AWS_REGION }} \
             --query 'Command.CommandId' \
             --output text)
-
+          
           echo "Command ID: $COMMAND_ID"
-          echo "Waiting for command to complete..."
-
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
             --region ${{ secrets.AWS_REGION }}
-
-          echo "---- SSM Output ----"
-          aws ssm list-command-invocations \
-            --command-id "$COMMAND_ID" \
-            --details \
-            --region "${{ secrets.AWS_REGION }}" \
-            --query "CommandInvocations[0].CommandPlugins[0].{Name:Name,Status:Status,Output:Output}" \
-            --output table
-
-          echo "Command completed successfully!"
+          
+          echo "Deployment completed!"
