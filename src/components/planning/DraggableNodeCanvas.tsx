@@ -391,11 +391,12 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   }, [helpDragging, onHelpMouseMove]);
 
   const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    // Only trigger canvas click if clicking on the canvas background (not on nodes or other elements)
-    if (e.target === e.currentTarget && onCanvasClick) {
-      onCanvasClick();
+    // Canvas background click no longer switches to canvas mode
+    // Only clear connecting mode if active
+    if (e.target === e.currentTarget && connectingMode) {
+      setConnectingMode(null);
     }
-  }, [onCanvasClick]);
+  }, [connectingMode]);
 
   return (
     <div 
@@ -414,28 +415,84 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
             <stop offset="100%" stopColor="hsl(var(--primary))" stopOpacity="0.7" />
           </linearGradient>
+          <filter id="connectionGlow">
+            <feGaussianBlur stdDeviation="2" result="coloredBlur"/>
+            <feMerge> 
+              <feMergeNode in="coloredBlur"/>
+              <feMergeNode in="SourceGraphic"/> 
+            </feMerge>
+          </filter>
         </defs>
         {nodes.map(node => 
           node.connections.map(connectedId => {
             const connectedNode = nodes.find(n => n.id === connectedId);
-            if (!connectedNode) return null;
+            if (!connectedNode) {
+              console.warn(`Connected node not found: ${connectedId} for node ${node.id}`);
+              return null;
+            }
+            
+            // Calculate connection points (center of nodes)
+            const startX = (draggedNode === node.id ? draggedPosition.x : node.position.x) + 120;
+            const startY = (draggedNode === node.id ? draggedPosition.y : node.position.y) + 100;
+            const endX = (draggedNode === connectedNode.id ? draggedPosition.x : connectedNode.position.x) + 120;
+            const endY = (draggedNode === connectedNode.id ? draggedPosition.y : connectedNode.position.y) + 100;
             
             return (
-              <line
-                key={`${node.id}-${connectedId}`}
-                x1={node.position.x + 120}
-                y1={node.position.y + 60}
-                x2={connectedNode.position.x + 120}
-                y2={connectedNode.position.y + 60}
-                stroke="url(#connectionGradient)"
-                strokeWidth="2"
-                strokeDasharray="5,5"
-                className="transition-all duration-300"
-              />
+              <g key={`${node.id}-${connectedId}`}>
+                {/* Glow effect */}
+                <line
+                  x1={startX}
+                  y1={startY}
+                  x2={endX}
+                  y2={endY}
+                  stroke="hsl(var(--primary))"
+                  strokeWidth="4"
+                  strokeOpacity="0.2"
+                  filter="url(#connectionGlow)"
+                />
+                {/* Main line */}
+                <line
+                  x1={startX}
+                  y1={startY}
+                  x2={endX}
+                  y2={endY}
+                  stroke="url(#connectionGradient)"
+                  strokeWidth="2"
+                  strokeDasharray="8,4"
+                  className="transition-all duration-300"
+                  style={{
+                    animation: 'dash 2s linear infinite'
+                  }}
+                />
+                {/* Connection points */}
+                <circle
+                  cx={startX}
+                  cy={startY}
+                  r="3"
+                  fill="hsl(var(--primary))"
+                  opacity="0.8"
+                />
+                <circle
+                  cx={endX}
+                  cy={endY}
+                  r="3"
+                  fill="hsl(var(--primary))"
+                  opacity="0.8"
+                />
+              </g>
             );
           })
         )}
       </svg>
+      
+      {/* CSS for animated dashes */}
+      <style>{`
+        @keyframes dash {
+          to {
+            stroke-dashoffset: -12;
+          }
+        }
+      `}</style>
 
       {/* Nodes */}
       {nodes.map(node => {
@@ -591,21 +648,26 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                     <ArrowRight className="w-3 h-3" />
                     <span>{node.connections.length} connection(s)</span>
                   </div>
-                  <div className="flex gap-1">
-                    {node.connections.map(connId => (
-                      <Button
-                        key={connId}
-                        size="sm"
-                        variant="ghost"
-                        className="h-4 w-4 p-0 text-destructive hover:text-destructive"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeConnection(node.id, connId);
-                        }}
-                      >
-                        <X className="w-2 h-2" />
-                      </Button>
-                    ))}
+                  <div className="flex gap-1 flex-wrap">
+                    {node.connections.map(connId => {
+                      const connectedNode = nodes.find(n => n.id === connId);
+                      return (
+                        <Button
+                          key={connId}
+                          size="sm"
+                          variant="ghost"
+                          className="h-5 px-1 text-xs text-destructive hover:text-destructive hover:bg-destructive/10"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeConnection(node.id, connId);
+                          }}
+                          title={`Disconnect from: ${connectedNode?.title || connId}`}
+                        >
+                          <X className="w-2 h-2 mr-1" />
+                          {connectedNode?.title?.slice(0, 8) || connId.slice(0, 8)}
+                        </Button>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

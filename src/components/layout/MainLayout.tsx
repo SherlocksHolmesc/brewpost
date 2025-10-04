@@ -25,6 +25,67 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const planningPanelRef = useRef<PlanningPanelRef>(null);
+
+  // Shared save function that works in both modes
+  const handleSaveNode = (updatedNode: ContentNode) => {
+    if (viewMode === 'nodes' && planningPanelRef.current?.handleSaveNode) {
+      // Use PlanningPanel's save function in nodes mode
+      planningPanelRef.current.handleSaveNode(updatedNode);
+    } else {
+      // Direct save in canvas mode
+      console.log('Canvas mode: handleSaveNode called with:', updatedNode);
+      
+      // Update nodes state immediately
+      debugSetNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === updatedNode.id ? updatedNode : node
+        )
+      );
+      
+      // Also update selectedNode directly if it's the same node
+      if (selectedNode && selectedNode.id === updatedNode.id) {
+        console.log('Canvas mode: Updating selectedNode directly:', updatedNode);
+        setSelectedNode(updatedNode);
+      }
+      
+      // Import and call NodeAPI directly
+      import('@/services/nodeService').then(({ NodeAPI }) => {
+        const updateData = {
+          projectId: 'demo-project-123',
+          nodeId: updatedNode.id,
+          title: updatedNode.title,
+          description: updatedNode.content,
+          status: updatedNode.status,
+          type: updatedNode.type,
+          day: updatedNode.day,
+          imageUrl: updatedNode.imageUrl,
+          imagePrompt: updatedNode.imagePrompt,
+          scheduledDate: updatedNode.scheduledDate ? updatedNode.scheduledDate.toISOString() : null,
+        };
+        console.log('Canvas mode: Sending update to NodeAPI:', updateData);
+        
+        NodeAPI.update(updateData)
+          .then(() => console.log('Canvas mode: Node updated successfully'))
+          .catch(error => console.error('Canvas mode: Failed to update node:', error));
+      });
+    }
+  };
+
+  // Shared post function that works in both modes
+  const handlePostNode = (node: ContentNode) => {
+    if (viewMode === 'nodes' && planningPanelRef.current?.handlePostNode) {
+      planningPanelRef.current.handlePostNode(node);
+    } else {
+      // Handle posting in canvas mode
+      const updatedNode = {
+        ...node,
+        status: 'published' as const,
+        postedAt: new Date(),
+        postedTo: ['Twitter', 'LinkedIn']
+      };
+      handleSaveNode(updatedNode);
+    }
+  };
   // Wrap setNodes to add debug logging when nodes change
   const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
     if (typeof next === 'function') {
@@ -35,6 +96,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         if (selectedNode) {
           const updatedSelectedNode = updated.find(n => n.id === selectedNode.id);
           if (updatedSelectedNode) {
+            console.log('Updating selectedNode with new data:', updatedSelectedNode);
             setSelectedNode(updatedSelectedNode);
           } else {
             setSelectedNode(null);
@@ -49,6 +111,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       if (selectedNode) {
         const updatedSelectedNode = next.find(n => n.id === selectedNode.id);
         if (updatedSelectedNode) {
+          console.log('MainLayout: Updating selectedNode with new data:', updatedSelectedNode);
           setSelectedNode(updatedSelectedNode);
         } else {
           setSelectedNode(null);
@@ -74,9 +137,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   const handleCanvasClick = () => {
-    setViewMode('canvas'); // Switch to canvas view
-    setSelectedNode(null); // Clear selected node
-    setCanvasNodeId(null); // Clear canvas node ID
+    // Remove canvas switching on background click
+    // Canvas mode only accessible via node selection or manual toggle
   };
 
   const handleCalendarPage = () => {
@@ -183,17 +245,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {activeTab === 'details' && (
                 <div className="h-full">
                   <NodeDetails 
-                    node={selectedNode} 
-                    onSaveNode={(node) => {
-                      if (planningPanelRef.current?.handleSaveNode) {
-                        planningPanelRef.current.handleSaveNode(node);
-                      }
-                    }}
-                    onPostNode={(node) => {
-                      if (planningPanelRef.current?.handlePostNode) {
-                        planningPanelRef.current.handlePostNode(node);
-                      }
-                    }}
+                    node={selectedNode}
+                    nodes={nodes}
+                    onSaveNode={handleSaveNode}
+                    onPostNode={handlePostNode}
                   />
                 </div>
               )}

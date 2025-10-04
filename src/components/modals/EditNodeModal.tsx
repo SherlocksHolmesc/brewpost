@@ -51,7 +51,14 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
   }, [node]);
 
   const handleSave = () => {
-    if (!node) return;
+    console.log('EditNodeModal handleSave called');
+    console.log('Current formData:', formData);
+    console.log('Original node:', node);
+    
+    if (!node) {
+      console.log('No node found, returning');
+      return;
+    }
     
     const updatedNode: ContentNode = {
       ...node,
@@ -64,6 +71,7 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
       imageUrl: formData.imageUrl
     };
 
+    console.log('Calling onSave with updatedNode:', updatedNode);
     onSave(updatedNode);
     onOpenChange(false);
   };

@@ -50,6 +50,14 @@ export const deleteNode = /* GraphQL */ `mutation DeleteNode($projectId: ID!, $n
   deleteNode(projectId: $projectId, nodeId: $nodeId) {
     projectId
     nodeId
+    title
+    description
+    x
+    y
+    status
+    contentId
+    createdAt
+    updatedAt
     __typename
   }
 }

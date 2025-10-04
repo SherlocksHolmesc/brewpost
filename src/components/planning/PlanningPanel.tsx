@@ -100,11 +100,13 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
           setNodes(n.map(x => ({
             id: x.nodeId,
             title: x.title,
-            type: 'post',              // map if you store type in description/status/etc.
+            type: (x.type as any) ?? 'post',
             status: (x.status as any) ?? 'draft',
-            scheduledDate: undefined,
+            scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
             content: x.description ?? '',
-            imageUrl: undefined,
+            imageUrl: x.imageUrl ?? undefined,
+            imagePrompt: x.imagePrompt ?? undefined,
+            day: x.day ?? undefined,
             connections: [],           // we'll fill from edges below
             position: { x: x.x ?? 0, y: x.y ?? 0 },
           })));
@@ -128,13 +130,14 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         try {
           const edges = await NodeAPI.listEdges(projectId);
           console.log('Loaded edges:', edges);
+          const edgesArray = Array.isArray(edges) ? edges : [];
           setNodes(curr => curr.map(nd => ({
             ...nd,
-            connections: edges.filter(e => e.from === nd.id).map(e => e.to),
+            connections: edgesArray.filter(e => e.from === nd.id).map(e => e.to),
           })));
           
           // Update edge map
-          setEdgesByKey(Object.fromEntries(edges.map(e => [`${e.from}->${e.to}`, e.edgeId])));
+          setEdgesByKey(Object.fromEntries(edgesArray.map(e => [`${e.from}->${e.to}`, e.edgeId])));
         } catch (edgeError) {
           console.warn('Failed to load edges:', edgeError);
         }
@@ -237,6 +240,8 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
   }));
 
   const handleSaveNode = async (updatedNode: ContentNode) => {
+    console.log('handleSaveNode called with:', updatedNode);
+    
     // Optimistic update - update UI immediately
     setNodes(prevNodes => 
       prevNodes.map(node => 
@@ -245,13 +250,21 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
     );
     
     try {
-      await NodeAPI.update({
+      const updateData = {
         projectId,
         nodeId: updatedNode.id,
         title: updatedNode.title,
         description: updatedNode.content,
         status: updatedNode.status,
-      });
+        type: updatedNode.type,
+        day: updatedNode.day,
+        imageUrl: updatedNode.imageUrl,
+        imagePrompt: updatedNode.imagePrompt,
+        scheduledDate: updatedNode.scheduledDate?.toISOString(),
+      };
+      console.log('Sending update to NodeAPI:', updateData);
+      
+      await NodeAPI.update(updateData);
       console.log('Node updated successfully');
       
       // If the node was posted, also log the posting information
@@ -273,26 +286,22 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
     // Update UI immediately for smooth dragging
     setNodes(updated);
     
-    // Debounce AWS position updates with longer delay
+    // Debounce AWS position updates with shorter delay
     if (persistPositions.current) clearTimeout(persistPositions.current);
     persistPositions.current = setTimeout(() => {
-      // Only update positions that have actually changed
+      // Save all node positions (no change detection)
       updated.forEach(n => {
-        const originalNode = nodes.find(orig => orig.id === n.id);
-        if (originalNode && 
-            (originalNode.position.x !== n.position.x || originalNode.position.y !== n.position.y)) {
-          NodeAPI.update({ 
-            projectId, 
-            nodeId: n.id, 
-            x: n.position.x, 
-            y: n.position.y 
-          }).catch(error => {
-            // Silently handle position update errors during dragging
-            console.warn(`Position update failed for node ${n.id}:`, error.message || 'Unknown error');
-          });
-        }
+        NodeAPI.update({ 
+          projectId, 
+          nodeId: n.id, 
+          x: n.position.x, 
+          y: n.position.y 
+        }).catch(error => {
+          // Silently handle position update errors during dragging
+          console.warn(`Position update failed for node ${n.id}:`, error.message || 'Unknown error');
+        });
       });
-    }, 500); // Increased debounce delay for better performance
+    }, 200); // Reduced debounce delay for more responsive saving
   };
 
   const handleAddNode = async (nodeData: Omit<ContentNode,'id'|'connections'>) => {
@@ -314,6 +323,11 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         x: nodeData.position?.x ?? 0,
         y: nodeData.position?.y ?? 0,
         status: nodeData.status,
+        type: nodeData.type,
+        day: nodeData.day,
+        imageUrl: nodeData.imageUrl,
+        imagePrompt: nodeData.imagePrompt,
+        scheduledDate: nodeData.scheduledDate?.toISOString(),
         contentId: undefined,
       });
       
@@ -324,13 +338,15 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
             ? {
                 id: res.nodeId,
                 title: res.title,
-                type: 'post',
+                type: (res.type as any) ?? 'post',
                 status: (res.status as any) ?? 'draft',
                 content: res.description ?? '',
-                imageUrl: undefined,
+                imageUrl: res.imageUrl ?? undefined,
+                imagePrompt: res.imagePrompt ?? undefined,
+                day: res.day ?? undefined,
                 connections: [],
                 position: { x: res.x ?? 0, y: res.y ?? 0 },
-                scheduledDate: undefined
+                scheduledDate: res.scheduledDate ? new Date(res.scheduledDate) : undefined
               }
             : node
         )
@@ -374,37 +390,58 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
 
   const createOrDeleteEdge = async (from: string, to: string) => {
     const key = `${from}->${to}`;
+    const reverseKey = `${to}->${from}`;
     const existing = edgesByKey[key];
+    const existingReverse = edgesByKey[reverseKey];
     
-    if (existing) {
+    // Check if connection already exists in either direction
+    const fromNode = nodes.find(n => n.id === from);
+    const connectionExists = fromNode?.connections.includes(to);
+    
+    if (existing || connectionExists) {
+      // Remove existing connection
+      const edgeIdToDelete = existing || existingReverse;
+      
       // Optimistic removal
-      setEdgesByKey(m => { const { [key]:_, ...rest } = m; return rest; });
+      setEdgesByKey(m => {
+        const { [key]: _, [reverseKey]: __, ...rest } = m;
+        return rest;
+      });
       setNodes(prevNodes => prevNodes.map(node => 
         node.id === from 
           ? { ...node, connections: node.connections.filter(c => c !== to) }
+          : node.id === to
+          ? { ...node, connections: node.connections.filter(c => c !== from) }
           : node
       ));
       
       try {
-        await NodeAPI.deleteEdge(projectId, existing);
+        if (edgeIdToDelete && !edgeIdToDelete.startsWith('temp-')) {
+          await NodeAPI.deleteEdge(projectId, edgeIdToDelete);
+        }
         console.log('Edge deleted successfully');
       } catch (error) {
         console.error('Failed to delete edge:', error);
         // Revert optimistic update
-        setEdgesByKey(m => ({ ...m, [key]: existing }));
+        if (existing) setEdgesByKey(m => ({ ...m, [key]: existing }));
+        if (existingReverse) setEdgesByKey(m => ({ ...m, [reverseKey]: existingReverse }));
         setNodes(prevNodes => prevNodes.map(node => 
           node.id === from 
-            ? { ...node, connections: [...node.connections, to] }
+            ? { ...node, connections: Array.from(new Set([...node.connections, to])) }
+            : node.id === to
+            ? { ...node, connections: Array.from(new Set([...node.connections, from])) }
             : node
         ));
       }
     } else {
-      // Optimistic addition
+      // Create new bidirectional connection
       const tempEdgeId = `temp-edge-${Date.now()}`;
       setEdgesByKey(m => ({ ...m, [key]: tempEdgeId }));
       setNodes(prevNodes => prevNodes.map(node => 
         node.id === from 
           ? { ...node, connections: Array.from(new Set([...node.connections, to])) }
+          : node.id === to
+          ? { ...node, connections: Array.from(new Set([...node.connections, from])) }
           : node
       ));
       
@@ -415,11 +452,13 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       } catch (error) {
         console.error('Failed to create edge:', error);
         // Revert optimistic update
-        setEdgesByKey(m => { const { [key]:_, ...rest } = m; return rest; });
+        setEdgesByKey(m => { const { [key]: _, ...rest } = m; return rest; });
         setNodes(prevNodes => 
           prevNodes.map(node => 
             node.id === from 
               ? { ...node, connections: node.connections.filter(c => c !== to) }
+              : node.id === to
+              ? { ...node, connections: node.connections.filter(c => c !== from) }
               : node
           )
         );

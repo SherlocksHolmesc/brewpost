@@ -5,27 +5,37 @@ import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Calendar as CalendarComponent } from '@/components/ui/calendar';
 import { Calendar, Clock, Eye, Target, Zap, Send, Save } from 'lucide-react';
+import { format } from 'date-fns';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
 interface NodeDetailsProps {
   node: ContentNode | null;
+  nodes?: ContentNode[]; // Add nodes array to show connected node details
   onSaveNode?: (node: ContentNode) => void;
   onPostNode?: (node: ContentNode) => void;
 }
 
-export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, onSaveNode, onPostNode }) => {
+export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSaveNode, onPostNode }) => {
   console.log('NodeDetails rendering with node:', node?.title);
   
   const [isEditing, setIsEditing] = useState(false);
   const [editedNode, setEditedNode] = useState<ContentNode | null>(null);
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedTime, setSelectedTime] = useState('09:00');
   
   React.useEffect(() => {
     if (node) {
+      console.log('NodeDetails: node prop changed, updating editedNode:', node);
       setEditedNode({ ...node });
       setIsEditing(false);
     }
   }, [node]);
+
+  // Use the latest node data for display (either from props or editedNode)
+  const displayNode = node;
   
   if (!node) {
     return (
@@ -114,43 +124,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, onSaveNode, onPo
           )}
         </Card>
 
-        {/* Image Preview */}
-        {node.imageUrl && (
-          <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-            <h3 className="text-sm font-medium mb-2">Image</h3>
-            <img 
-              src={node.imageUrl} 
-              alt={node.title}
-              className="w-full max-h-64 object-contain rounded-md border border-border/20"
-            />
-          </Card>
-        )}
 
-        {/* Image Prompt */}
-        {node.imagePrompt && (
-          <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-            <h3 className="text-sm font-medium mb-2">Image Prompt</h3>
-            <div className="text-sm text-muted-foreground">
-              {node.imagePrompt}
-            </div>
-          </Card>
-        )}
-
-        {/* Schedule Information */}
-        {node.scheduledDate && (
-          <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-            <h3 className="text-sm font-medium mb-2 flex items-center gap-2">
-              <Calendar className="w-4 h-4" />
-              Schedule
-            </h3>
-            <div className="text-sm text-muted-foreground">
-              <div className="flex items-center gap-2 mb-2">
-                <Clock className="w-3 h-3" />
-                {node.scheduledDate.toLocaleDateString()} at {node.scheduledDate.toLocaleTimeString()}
-              </div>
-            </div>
-          </Card>
-        )}
 
         {/* Posted Information */}
         {node.postedAt && node.postedTo && (
@@ -173,8 +147,34 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, onSaveNode, onPo
         {node.connections && node.connections.length > 0 && (
           <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
             <h3 className="text-sm font-medium mb-2">Connected Nodes</h3>
-            <div className="text-sm text-muted-foreground">
-              {node.connections.length} connection{node.connections.length !== 1 ? 's' : ''}
+            <div className="space-y-3">
+              <div className="text-sm text-muted-foreground">
+                {node.connections.length} connection{node.connections.length !== 1 ? 's' : ''}
+              </div>
+              <div className="space-y-2">
+                {node.connections.map((connectedId, index) => {
+                  // Find the connected node to show its title
+                  const connectedNode = nodes.find(n => n.id === connectedId);
+                  return (
+                    <div key={connectedId} className="flex items-center gap-2 text-xs p-2 bg-muted/30 rounded border">
+                      <div className="w-2 h-2 bg-primary rounded-full"></div>
+                      <div className="flex-1">
+                        <div className="font-medium text-foreground">
+                          {connectedNode?.title || 'Unknown Node'}
+                        </div>
+                        <div className="text-muted-foreground font-mono text-xs">
+                          {connectedId}
+                        </div>
+                      </div>
+                      {connectedNode && (
+                        <Badge variant="outline" className="text-xs">
+                          {connectedNode.type}
+                        </Badge>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </Card>
         )}
@@ -266,7 +266,25 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, onSaveNode, onPo
               placeholder="https://example.com/image.jpg"
             />
           ) : (
-            <div className="text-sm text-muted-foreground">{node.imageUrl || 'No image URL'}</div>
+            <div className="text-sm text-muted-foreground break-all">
+              {node.imageUrl ? (
+                node.imageUrl.length > 50 ? (
+                  <button
+                    onClick={() => navigator.clipboard.writeText(node.imageUrl!)}
+                    className="text-blue-500 hover:text-blue-600 underline cursor-pointer w-full text-left"
+                    title="Click to copy full URL"
+                  >
+                    <span className="block truncate">{node.imageUrl.substring(0, 47)}...</span>
+                  </button>
+                ) : (
+                  <a href={node.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 underline break-all">
+                    {node.imageUrl}
+                  </a>
+                )
+              ) : (
+                'No image URL'
+              )}
+            </div>
           )}
         </Card>
 
@@ -291,11 +309,122 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, onSaveNode, onPo
         <Card className="p-4 bg-card/50 backdrop-blur-sm border-border/50">
           <h3 className="font-medium mb-3">Scheduled Date</h3>
           {isEditing ? (
-            <Input
-              type="datetime-local"
-              value={editedNode?.scheduledDate ? new Date(editedNode.scheduledDate.getTime() - editedNode.scheduledDate.getTimezoneOffset() * 60000).toISOString().slice(0, 16) : ''}
-              onChange={(e) => setEditedNode(prev => prev ? { ...prev, scheduledDate: e.target.value ? new Date(e.target.value) : undefined } : null)}
-            />
+            <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  className="w-full justify-start text-left font-normal"
+                >
+                  <Calendar className="mr-2 h-4 w-4" />
+                  {editedNode?.scheduledDate ? (
+                    format(editedNode.scheduledDate, "PPP 'at' p")
+                  ) : (
+                    <span>Pick a date and time</span>
+                  )}
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-auto p-0" align="start">
+                <div className="p-3 space-y-3">
+                  <CalendarComponent
+                    mode="single"
+                    selected={editedNode?.scheduledDate}
+                    onSelect={(date) => {
+                      if (date) {
+                        const [hours, minutes] = selectedTime.split(':');
+                        const newDate = new Date(date);
+                        newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                        setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
+                      }
+                    }}
+                    initialFocus
+                  />
+                  <div className="border-t pt-3">
+                    <label className="text-sm font-medium mb-2 block">Time</label>
+                    <div className="grid grid-cols-3 gap-2 mb-3">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTime('09:00');
+                          if (editedNode?.scheduledDate) {
+                            const newDate = new Date(editedNode.scheduledDate);
+                            newDate.setHours(9, 0, 0, 0);
+                            setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
+                          }
+                        }}
+                        className={selectedTime === '09:00' ? 'bg-primary text-primary-foreground' : ''}
+                      >
+                        9:00 AM
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTime('12:00');
+                          if (editedNode?.scheduledDate) {
+                            const newDate = new Date(editedNode.scheduledDate);
+                            newDate.setHours(12, 0, 0, 0);
+                            setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
+                          }
+                        }}
+                        className={selectedTime === '12:00' ? 'bg-primary text-primary-foreground' : ''}
+                      >
+                        12:00 PM
+                      </Button>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setSelectedTime('18:00');
+                          if (editedNode?.scheduledDate) {
+                            const newDate = new Date(editedNode.scheduledDate);
+                            newDate.setHours(18, 0, 0, 0);
+                            setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
+                          }
+                        }}
+                        className={selectedTime === '18:00' ? 'bg-primary text-primary-foreground' : ''}
+                      >
+                        6:00 PM
+                      </Button>
+                    </div>
+                    <Input
+                      type="time"
+                      value={selectedTime}
+                      onChange={(e) => {
+                        setSelectedTime(e.target.value);
+                        if (editedNode?.scheduledDate) {
+                          const [hours, minutes] = e.target.value.split(':');
+                          const newDate = new Date(editedNode.scheduledDate);
+                          newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                          setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
+                        }
+                      }}
+                      className="mb-3"
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          setEditedNode(prev => prev ? { ...prev, scheduledDate: undefined } : null);
+                          setCalendarOpen(false);
+                        }}
+                        className="flex-1"
+                      >
+                        Clear
+                      </Button>
+                      <Button
+                        size="sm"
+                        onClick={() => setCalendarOpen(false)}
+                        className="flex-1"
+                      >
+                        Done
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </PopoverContent>
+            </Popover>
           ) : (
             <div className="text-sm text-muted-foreground">
               {node.scheduledDate ? node.scheduledDate.toLocaleString() : 'No scheduled date'}

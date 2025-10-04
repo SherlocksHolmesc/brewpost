@@ -38,6 +38,8 @@ export const AddNodeModal: React.FC<AddNodeModalProps> = ({
   const [type, setType] = useState<'post' | 'image' | 'story'>('post');
   const [status, setStatus] = useState<'draft' | 'scheduled' | 'published'>('draft');
   const [scheduledDate, setScheduledDate] = useState<Date>();
+  const [calendarOpen, setCalendarOpen] = useState(false);
+  const [selectedTime, setSelectedTime] = useState('09:00');
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
@@ -64,6 +66,8 @@ export const AddNodeModal: React.FC<AddNodeModalProps> = ({
     setType('post');
     setStatus('draft');
     setScheduledDate(undefined);
+    setCalendarOpen(false);
+    setSelectedTime('09:00');
     onOpenChange(false);
   };
 
@@ -159,24 +163,121 @@ export const AddNodeModal: React.FC<AddNodeModalProps> = ({
 
           {status === 'scheduled' && (
             <div>
-              <Label>Schedule Date</Label>
-              <Popover>
+              <Label>Schedule Date & Time</Label>
+              <Popover open={calendarOpen} onOpenChange={setCalendarOpen}>
                 <PopoverTrigger asChild>
                   <Button
                     variant="outline"
                     className="w-full mt-1 justify-start text-left font-normal"
                   >
                     <CalendarIcon className="mr-2 h-4 w-4" />
-                    {scheduledDate ? format(scheduledDate, "PPP") : "Pick a date"}
+                    {scheduledDate ? (
+                      format(scheduledDate, "PPP 'at' p")
+                    ) : (
+                      <span>Pick a date and time</span>
+                    )}
                   </Button>
                 </PopoverTrigger>
                 <PopoverContent className="w-auto p-0" align="start">
-                  <Calendar
-                    mode="single"
-                    selected={scheduledDate}
-                    onSelect={setScheduledDate}
-                    initialFocus
-                  />
+                  <div className="p-3 space-y-3">
+                    <Calendar
+                      mode="single"
+                      selected={scheduledDate}
+                      onSelect={(date) => {
+                        if (date) {
+                          const [hours, minutes] = selectedTime.split(':');
+                          const newDate = new Date(date);
+                          newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                          setScheduledDate(newDate);
+                        }
+                      }}
+                      initialFocus
+                    />
+                    <div className="border-t pt-3">
+                      <label className="text-sm font-medium mb-2 block">Time</label>
+                      <div className="grid grid-cols-3 gap-2 mb-3">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTime('09:00');
+                            if (scheduledDate) {
+                              const newDate = new Date(scheduledDate);
+                              newDate.setHours(9, 0, 0, 0);
+                              setScheduledDate(newDate);
+                            }
+                          }}
+                          className={selectedTime === '09:00' ? 'bg-primary text-primary-foreground' : ''}
+                        >
+                          9:00 AM
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTime('12:00');
+                            if (scheduledDate) {
+                              const newDate = new Date(scheduledDate);
+                              newDate.setHours(12, 0, 0, 0);
+                              setScheduledDate(newDate);
+                            }
+                          }}
+                          className={selectedTime === '12:00' ? 'bg-primary text-primary-foreground' : ''}
+                        >
+                          12:00 PM
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setSelectedTime('18:00');
+                            if (scheduledDate) {
+                              const newDate = new Date(scheduledDate);
+                              newDate.setHours(18, 0, 0, 0);
+                              setScheduledDate(newDate);
+                            }
+                          }}
+                          className={selectedTime === '18:00' ? 'bg-primary text-primary-foreground' : ''}
+                        >
+                          6:00 PM
+                        </Button>
+                      </div>
+                      <Input
+                        type="time"
+                        value={selectedTime}
+                        onChange={(e) => {
+                          setSelectedTime(e.target.value);
+                          if (scheduledDate) {
+                            const [hours, minutes] = e.target.value.split(':');
+                            const newDate = new Date(scheduledDate);
+                            newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                            setScheduledDate(newDate);
+                          }
+                        }}
+                        className="mb-3"
+                      />
+                      <div className="flex gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => {
+                            setScheduledDate(undefined);
+                            setCalendarOpen(false);
+                          }}
+                          className="flex-1"
+                        >
+                          Clear
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => setCalendarOpen(false)}
+                          className="flex-1"
+                        >
+                          Done
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
                 </PopoverContent>
               </Popover>
             </div>
