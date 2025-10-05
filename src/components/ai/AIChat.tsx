@@ -211,7 +211,7 @@ function extractPlannerNodesFromText(raw: string): PlannerNode[] {
       }
     }
   }
-  console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, hasImagePrompt: !!n.imagePrompt })));
+
   return nodes;
 }
 
