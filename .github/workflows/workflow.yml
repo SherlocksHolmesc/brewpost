@@ -30,6 +30,7 @@ jobs:
           echo "VITE_COGNITO_CLIENT_ID=${{ secrets.VITE_COGNITO_CLIENT_ID }}" >> .env
           echo "VITE_APPSYNC2_URL=${{ secrets.VITE_APPSYNC2_URL }}" >> .env
           echo "VITE_APPSYNC2_API_KEY=${{ secrets.VITE_APPSYNC2_API_KEY }}" >> .env
+          echo "VITE_APPSYNC_API_KEY=${{ secrets.VITE_APPSYNC_API_KEY }}" >> .env
           echo "VITE_PUBLIC_MEDIA_BASE=${{ secrets.VITE_PUBLIC_MEDIA_BASE }}" >> .env
           echo "VITE_MEDIA_BUCKET=${{ secrets.VITE_MEDIA_BUCKET }}" >> .env
 
