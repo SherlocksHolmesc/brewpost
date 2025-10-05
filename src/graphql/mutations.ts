@@ -8,8 +8,9 @@ type GeneratedMutation<InputType, OutputType> = string & {
   __generatedMutationOutput: OutputType;
 };
 
-export const createNode = /* GraphQL */ `mutation CreateNode($input: CreateNodeInput!) {
-  createNode(input: $input) {
+export const createNode = /* GraphQL */ `mutation CreateNode($input: CreateNodeInput!, $condition: ModelNodeConditionInput) {
+  createNode(input: $input, condition: $condition) {
+    id
     projectId
     nodeId
     title
@@ -18,17 +19,22 @@ export const createNode = /* GraphQL */ `mutation CreateNode($input: CreateNodeI
     y
     status
     contentId
+    type
+    day
+    imageUrl
+    imagePrompt
+    scheduledDate
     createdAt
     updatedAt
     __typename
   }
-}
-` as GeneratedMutation<
+}` as GeneratedMutation<
   APITypes.CreateNodeMutationVariables,
   APITypes.CreateNodeMutation
 >;
-export const updateNode = /* GraphQL */ `mutation UpdateNode($input: UpdateNodeInput!) {
-  updateNode(input: $input) {
+export const updateNode = /* GraphQL */ `mutation UpdateNode($input: UpdateNodeInput!, $condition: ModelNodeConditionInput) {
+  updateNode(input: $input, condition: $condition) {
+    id
     projectId
     nodeId
     title
@@ -37,55 +43,70 @@ export const updateNode = /* GraphQL */ `mutation UpdateNode($input: UpdateNodeI
     y
     status
     contentId
+    type
+    day
+    imageUrl
+    imagePrompt
+    scheduledDate
     createdAt
     updatedAt
     __typename
   }
-}
-` as GeneratedMutation<
+}` as GeneratedMutation<
   APITypes.UpdateNodeMutationVariables,
   APITypes.UpdateNodeMutation
 >;
-export const deleteNode = /* GraphQL */ `mutation DeleteNode($projectId: ID!, $nodeId: ID!) {
-  deleteNode(projectId: $projectId, nodeId: $nodeId) {
+export const deleteNode = /* GraphQL */ `mutation DeleteNode($input: DeleteNodeInput!, $condition: ModelNodeConditionInput) {
+  deleteNode(input: $input, condition: $condition) {
+    id
     projectId
     nodeId
+    title
+    description
+    x
+    y
+    status
+    contentId
+    type
+    day
+    imageUrl
+    imagePrompt
+    scheduledDate
+    createdAt
+    updatedAt
     __typename
   }
-}
-` as GeneratedMutation<
+}` as GeneratedMutation<
   APITypes.DeleteNodeMutationVariables,
   APITypes.DeleteNodeMutation
 >;
-export const createEdge = /* GraphQL */ `mutation CreateEdge($projectId: ID!, $from: ID!, $to: ID!, $label: String) {
-  createEdge(projectId: $projectId, from: $from, to: $to, label: $label) {
+export const createEdge = /* GraphQL */ `mutation CreateEdge($input: CreateEdgeInput!, $condition: ModelEdgeConditionInput) {
+  createEdge(input: $input, condition: $condition) {
+    id
     projectId
     edgeId
     from
     to
-    label
     createdAt
     updatedAt
     __typename
   }
-}
-` as GeneratedMutation<
+}` as GeneratedMutation<
   APITypes.CreateEdgeMutationVariables,
   APITypes.CreateEdgeMutation
 >;
-export const deleteEdge = /* GraphQL */ `mutation DeleteEdge($projectId: ID!, $edgeId: ID!) {
-  deleteEdge(projectId: $projectId, edgeId: $edgeId) {
+export const deleteEdge = /* GraphQL */ `mutation DeleteEdge($input: DeleteEdgeInput!, $condition: ModelEdgeConditionInput) {
+  deleteEdge(input: $input, condition: $condition) {
+    id
     projectId
     edgeId
     from
     to
-    label
     createdAt
     updatedAt
     __typename
   }
-}
-` as GeneratedMutation<
+}` as GeneratedMutation<
   APITypes.DeleteEdgeMutationVariables,
   APITypes.DeleteEdgeMutation
 >;

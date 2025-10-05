@@ -7,20 +7,24 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
+import { NodeAPI } from '@/services/nodeService';
 
 const cleanField = (s?: string) =>
   (s ?? '')
-    .replace(/^\s*(\*{1,}|[-•])\s*/,'')   // **** or * or bullet at start
-    .replace(/^\s*["'`]+|["'`]+$/g,'')    // trim surrounding quotes
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/^\s*(\*{1,}|[-•])\s*/,'')
+    .replace(/^\s*["'`]+|["'`]+$/g,'') 
     .replace(/\s+/g,' ')
     .trim();
 
 const stripMarkdownForDisplay = (s: string = "") =>
   s
-    .replace(/^#{1,6}\s+/gm, "")        // remove markdown headings like ####
-    .replace(/\*\*(.*?)\*\*/g, "$1")    // **bold** -> plain
-    .replace(/^\s*[-*_]{3,}\s*$/gm, "") // --- or *** rules
-    .replace(/```([\s\S]*?)```/g, "$1") // code fences
+    .replace(/^#{1,6}\s+/gm, "")       
+    .replace(/\*\*(.*?)\*\*/g, "$1")   
+    .replace(/^\s*[-*_]{3,}\s*$/gm, "") 
+    .replace(/```([\s\S]*?)```/g, "$1") 
     .trim();
 
 
@@ -77,13 +81,11 @@ function extractPlannerNodesFromText(raw: string): PlannerNode[] {
   const nodes: PlannerNode[] = [];
 
   blocks.forEach((b, idx) => {
-    // Extract day from heading (e.g., 'Monday: The Rise of DeFi' or '**Monday: ...')
     const heading = b.heading.replace(/\*+/g, '').trim();
     const dayMatch = heading.match(dayNamesRe);
     const day = dayMatch ? dayMatch[0] : '';
 
-    // If heading contains a title after the day (e.g., 'Monday: The Rise...'), use it as title fallback
-    const headingTitle = heading.replace(dayNamesRe, '').replace(/^[:\s-]+/, '').trim();
+    const headingTitle = heading.replace(dayNamesRe, '').replace(/^\s*\([^)]*\)\s*[:\s-]+/, '').replace(/^[:\s-]+/, '').trim();
 
     const content = b.content;
     const titleInlineRe = /(?:\*\*Title\*\*|Title)\s*[:-]?/i;
@@ -211,17 +213,40 @@ function extractPlannerNodesFromText(raw: string): PlannerNode[] {
       }
     }
   }
-  console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, hasImagePrompt: !!n.imagePrompt })));
+  console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, caption: n.caption.substring(0, 50), hasImagePrompt: !!n.imagePrompt })));
   return nodes;
 }
 
 function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode[] {
-  const ids = plannerNodes.map((_, i) => Date.now().toString() + '-' + i + '-' + Math.floor(Math.random() * 1000));
+  const timestamp = Date.now();
+  const ids = plannerNodes.map((_, i) => `planner-${timestamp}-${i}-${Math.floor(Math.random() * 10000)}`);
   const count = plannerNodes.length;
-  const spacing = 320; // increased horizontal spacing between nodes
-  const startX = 40; // left padding
-  const topY = 60; // top row Y
-  const bottomY = topY + 220; // bottom row Y (zig-zag)
+  const spacing = 320;
+  // Position planner nodes to the right to avoid overlap with existing nodes
+  const startX = 600;
+  const topY = 60;
+  const bottomY = topY + 220;
+
+  const detectPostType = (title: string, caption: string) => {
+    const content = `${title} ${caption}`.toLowerCase();
+    console.log(`🔍 DETECTING POST TYPE for: "${title}" + "${caption.substring(0, 50)}..."`); 
+    
+    // 🔵 PROMOTIONAL: Drive direct action (purchase, signup, visit, conversion)
+    if (content.match(/\b(shop|order|buy|get yours|discount|available now|limited|offer|sale|use code|sign up|join|link in bio|free shipping|diy|recipe|create|make|try|get|start)\b/)) {
+      console.log(`🎯 DETECTED: promotional`);
+      return 'promotional';
+    }
+    
+    // 🟡 BRANDING: Build brand identity, trust, and values
+    if (content.match(/\b(crafted|behind the scenes|heritage|tradition|quality|meet|farmer|team|values|trust|story of|our process|secret|day in the life|art of|history|unveiling|science|grading|special)\b/)) {
+      console.log(`🎯 DETECTED: branding`);
+      return 'branding';
+    }
+    
+    // 🟢 ENGAGING: Spark conversation, curiosity, or sharing (default for questions/discussions)
+    console.log(`🎯 DETECTED: engaging (default)`);
+    return 'engaging';
+  };
 
   return plannerNodes.map((node, index) => {
     const isBottom = index % 2 === 1;
@@ -235,6 +260,8 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
     }
     cleanedCaption = cleanedCaption.replace(/^\*+\s*/, '').trim();
 
+    const postType = detectPostType(node.title, cleanedCaption);
+    
     let titleCandidate = (node.title || '').replace(/\*+/g, '').trim();
     if (!titleCandidate) {
       const firstLine = (cleanedCaption.split(/\r?\n/).find(l => l.trim()) || '').trim();
@@ -250,6 +277,7 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
       content: cleanedCaption,
       imagePrompt: node.imagePrompt || undefined,
       day: node.day,
+      postType,
       connections: index < count - 1 ? [ids[index + 1]] : [],
       imageUrl: undefined,
       position: {
@@ -363,25 +391,33 @@ export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
     { icon: Wand2, text: 'Marketing campaign' },
   ];
 
-  // keep your old local planner as fallback when backend isn't used
+  // Check if user specified content category
+  const detectContentCategory = (input: string) => {
+    const lower = input.toLowerCase();
+    if (lower.includes('engaging') || lower.includes('engagement')) return 'engaging';
+    if (lower.includes('promotional') || lower.includes('promotion') || lower.includes('promo')) return 'promotional';
+    if (lower.includes('branding') || lower.includes('brand')) return 'branding';
+    return null;
+  };
+
+
+
+
+
+  // Clean AI response to keep only the weekly plan
+  const cleanAIResponse = (aiResponse: string) => {
+    // Find the end of the weekly plan (Sunday) and remove everything after
+    const sundayMatch = aiResponse.match(/(Sunday[\s\S]*?)(?=\n\n[A-Z][A-Z ]+:|$)/i);
+    if (sundayMatch) {
+      const endIndex = aiResponse.indexOf(sundayMatch[0]) + sundayMatch[0].length;
+      return aiResponse.substring(0, endIndex).trim();
+    }
+    return aiResponse;
+  };
+
+  // Smart content planning fallback
   const generatePlanningResponse = (userInput: string) => {
     const lowerInput = userInput.toLowerCase();
-    if (lowerInput.includes('plan') || lowerInput.includes('structure') || lowerInput.includes('organize')) {
-      return `I can help you plan your content structure! Here are some suggestions:
-
-**Content Flow Strategy:**
-• Start with a main announcement post
-• Follow with behind-the-scenes content
-• Create supporting visual content
-• End with user engagement posts
-
-**Node Connections:**
-• Link related content pieces
-• Create content series with sequential flow
-• Connect different formats (post → story → image)
-
-Would you like me to suggest specific content nodes for your "${userInput}" campaign?`;
-    }
 
     if (lowerInput.includes('connect') || lowerInput.includes('link')) {
       return `Great! I can help you connect your content nodes strategically:
@@ -394,8 +430,23 @@ Would you like me to suggest specific content nodes for your "${userInput}" camp
 Click the link icon on any node to start connecting them. What type of content flow are you planning?`;
     }
 
-    return `I'll help you create content based on: "${userInput}". I can also help you plan the structure and connections between your content pieces. Would you like me to suggest a content planning strategy?`;
+    return `I'll create a smart content plan for: "${userInput}"
+
+**How it works:**
+• I automatically assign the best post type for each day
+• Each post is tailored to your specific topic
+• Strategic mix of engaging, promotional, and branding content
+
+Just tell me what you want to create content about!`;
   };
+
+
+
+
+
+
+
+
 
   // NEW: helper to append a message safely
   const appendMessage = (m: Message) => setMessages(prev => [...prev, m]);
@@ -507,7 +558,11 @@ Return only the refined prompt, nothing else.`
       const data: GenerateResponse = await resp.json();
 
       if (data.text) {
-        const raw = data.text;
+        let raw = data.text;
+        // If it's a planner response, clean it
+        if (isPlannerMessage(raw)) {
+          raw = cleanAIResponse(raw);
+        }
         const display = stripMarkdownForDisplay(raw);
         const maybePlanner = extractPlannerNodesFromText(raw);
         appendMessage({
@@ -521,7 +576,7 @@ Return only the refined prompt, nothing else.`
           imagePrompt: maybePlanner[0]?.imagePrompt,
         });
       } else {
-        const raw = generatePlanningResponse(input);
+        const raw = generatePlanningResponse(userMessage.content);
         const display = stripMarkdownForDisplay(raw);
         const maybePlanner = extractPlannerNodesFromText(raw);
         appendMessage({
@@ -664,7 +719,7 @@ Return only the refined prompt, nothing else.`
                         console.debug('AIChat: planner parsed details:', planner);
 
                         const contentNodes = mapPlannerNodesToContentNodes(planner);
-                        console.info('AIChat: contentNodes (before apply) ->', contentNodes.map(n => ({ id: n.id, title: n.title, hasImagePrompt: !!n.imagePrompt, imagePrompt: n.imagePrompt }))); 
+                        console.info('AIChat: contentNodes (before apply) ->', contentNodes.map(n => ({ id: n.id, title: n.title, postType: n.postType, hasImagePrompt: !!n.imagePrompt }))); 
                         // If extraction produced no nodes, create a single fallback node using the full message
                         if (contentNodes.length === 0) {
                           console.warn('AIChat: planner extraction returned 0 nodes, creating a fallback node');
@@ -681,14 +736,115 @@ Return only the refined prompt, nothing else.`
                           }];
                           contentNodes.push(...fallback);
                         }
-                        // If a setter was provided by the parent (MainLayout) update it.
+                        // Update UI immediately, then save to AppSync in background
                         if (typeof setPlanningNodes === 'function') {
-                          console.info('AIChat: applying planner nodes', contentNodes.length);
+                          console.info('AIChat: adding planner nodes to UI', contentNodes.length);
+                          
+                          // Replace all nodes with new ones
                           setPlanningNodes(contentNodes);
-                          console.info('AIChat: applied planner nodes -> parent setter called');
+                          console.info('AIChat: UI replaced with', contentNodes.length, 'new nodes');
+                          
+                          // Delete old nodes and save new ones to AppSync
+                          const replaceInAppSync = async () => {
+                            try {
+                              console.log('🔄 Starting AppSync replacement...');
+                              
+                              // Delete all existing nodes and edges first
+                              const existingNodes = await NodeAPI.list('demo-project-123');
+                              const existingEdges = await NodeAPI.listEdges('demo-project-123');
+                              console.log('📋 Found', existingNodes.length, 'nodes and', existingEdges.length, 'edges to delete');
+                              
+                              // Delete all edges first
+                              await Promise.all(existingEdges.map(async (edge) => {
+                                try {
+                                  await NodeAPI.deleteEdge('demo-project-123', edge.edgeId);
+                                  console.log('🗑️ Deleted edge:', edge.edgeId);
+                                } catch (error) {
+                                  console.warn('⚠️ Edge delete failed:', edge.edgeId, error);
+                                }
+                              }));
+                              
+                              // Then delete all nodes
+                              await Promise.all(existingNodes.map(async (oldNode) => {
+                                try {
+                                  await NodeAPI.remove('demo-project-123', oldNode.nodeId);
+                                  console.log('🗑️ Deleted node:', oldNode.title);
+                                } catch (error) {
+                                  console.warn('⚠️ Node delete failed:', oldNode.title, error);
+                                }
+                              }));
+                              
+                              console.log('✅ All deletions completed. Creating', contentNodes.length, 'new nodes...');
+                              
+                              // Create all new nodes and track ID mapping
+                              const idMapping = new Map();
+                              const nodeResults = [];
+                              
+                              for (let i = 0; i < contentNodes.length; i++) {
+                                const node = contentNodes[i];
+                                try {
+                                  const result = await NodeAPI.create({
+                                    projectId: 'demo-project-123',
+                                    title: node.title,
+                                    description: node.content,
+                                    x: node.position.x,
+                                    y: node.position.y,
+                                    status: node.status,
+                                    type: node.type,
+                                    day: node.day,
+                                    imageUrl: node.imageUrl,
+                                    imagePrompt: node.imagePrompt,
+                                    scheduledDate: node.scheduledDate?.toISOString(),
+                                  });
+                                  
+                                  idMapping.set(node.id, result.nodeId);
+                                  nodeResults.push({ status: 'fulfilled', value: result });
+                                  console.log('✅ Created:', node.title, '| Old ID:', node.id, '-> New ID:', result.nodeId);
+                                } catch (error) {
+                                  nodeResults.push({ status: 'rejected', reason: error });
+                                  console.error('❌ Failed to create:', node.title, error);
+                                }
+                              }
+                              
+                              const successful = nodeResults.filter(r => r.status === 'fulfilled').length;
+                              const failed = nodeResults.filter(r => r.status === 'rejected').length;
+                              console.log(`🎯 Node creation complete: ${successful} created, ${failed} failed`);
+                              
+                              // Create edges using the new IDs
+                              console.log('🔗 Creating connections with mapped IDs...');
+                              const edgePromises = [];
+                              
+                              for (const node of contentNodes) {
+                                const newFromId = idMapping.get(node.id);
+                                if (!newFromId) continue;
+                                
+                                for (const oldConnectionId of node.connections) {
+                                  const newToId = idMapping.get(oldConnectionId);
+                                  if (!newToId) continue;
+                                  
+                                  edgePromises.push(
+                                    NodeAPI.createEdge('demo-project-123', newFromId, newToId)
+                                      .then(() => console.log('🔗 Connected:', newFromId, '->', newToId))
+                                      .catch(error => console.warn('⚠️ Connection failed:', newFromId, '->', newToId, error))
+                                  );
+                                }
+                              }
+                              
+                              if (edgePromises.length > 0) {
+                                await Promise.allSettled(edgePromises);
+                                console.log('✅ All connections processed:', edgePromises.length, 'edges');
+                              } else {
+                                console.log('ℹ️ No connections to create');
+                              }
+                            } catch (error) {
+                              console.error('❌ AppSync replacement failed:', error);
+                            }
+                          };
+                          
+                          // Execute background replace (non-blocking)
+                          replaceInAppSync();
                         } else {
-                          // Defensive: don't throw if the prop wasn't provided (some modals render AIChat without it)
-                          console.warn('AIChat: setPlanningNodes not provided, skipping applying planner nodes');
+                          console.warn('AIChat: setPlanningNodes not provided, skipping planner nodes');
                         }
                       }}
                     >

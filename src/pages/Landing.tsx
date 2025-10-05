@@ -24,6 +24,12 @@ import { useNavigate } from 'react-router-dom';
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
 
+  // COMMENTED OUT: Original authentication redirect
+  // const handleAuthRedirect = () => {
+  //   window.location.href = "https://main.d3rq5op2806z3.amplifyapp.com";
+  // };
+
+  // NEW: Direct redirect to /app (bypass authentication)
   const handleAuthRedirect = () => {
     const backendUrl = import.meta.env.VITE_BACKEND_URL || 'https://98.91.68.101';
     window.location.href = `${backendUrl}/api/auth/login`;

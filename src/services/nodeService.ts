@@ -1,13 +1,14 @@
 // src/services/nodeService.ts
 import '../amplify-config';
 import { generateClient } from '@aws-amplify/api';
-import { listNodes, listEdges } from '../graphql/queries';
-import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../graphql/mutations';
-import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions';
+import { listNodes, listEdges } from '../graphql/queries.ts';
+import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../graphql/mutations.ts';
+// import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions.js';
 
 const client = generateClient();
 
 export type NodeDTO = {
+  id: string;
   projectId: string;
   nodeId: string;
   title: string;
@@ -16,6 +17,11 @@ export type NodeDTO = {
   y?: number | null;
   status?: string | null;
   contentId?: string | null;
+  type?: string | null;
+  day?: string | null;
+  imageUrl?: string | null;
+  imagePrompt?: string | null;
+  scheduledDate?: string | null;
   createdAt: string;
   updatedAt: string;
 };
@@ -25,10 +31,12 @@ export const NodeAPI = {
   async list(projectId: string) {
     try {
       console.log('Fetching nodes for project:', projectId);
-      const response = await client.graphql({ query: listNodes, variables: { projectId } });
+      const filter = { projectId: { eq: projectId } };
+      const response = await client.graphql({ query: listNodes, variables: { filter } });
       console.log('List nodes response:', response);
-      console.log('List nodes data:', (response as any).data.listNodes);
-      return (response as any).data.listNodes as NodeDTO[];
+      const items = (response as any).data.listNodes.items || [];
+      console.log('List nodes data:', items);
+      return items as NodeDTO[];
     } catch (error) {
       console.error('Error listing nodes:', error);
       throw error;
@@ -36,10 +44,26 @@ export const NodeAPI = {
   },
   async create(input: {
     projectId: string; title: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
+    type?: string; day?: string; imageUrl?: string; imagePrompt?: string; scheduledDate?: string;
   }) { 
     try {
       console.log('Creating node:', input);
-      const response = await client.graphql({ query: createNode, variables: { input } }); 
+      const nodeInput = {
+        projectId: input.projectId,
+        nodeId: `node-${Date.now()}`, // Generate unique nodeId
+        title: input.title,
+        description: input.description,
+        x: input.x,
+        y: input.y,
+        status: input.status,
+        contentId: input.contentId,
+        type: input.type,
+        day: input.day,
+        imageUrl: input.imageUrl,
+        imagePrompt: input.imagePrompt,
+        scheduledDate: input.scheduledDate
+      };
+      const response = await client.graphql({ query: createNode, variables: { input: nodeInput } }); 
       console.log('Create node response:', response);
       console.log('Create node data:', (response as any).data.createNode);
       return (response as any).data.createNode as NodeDTO;
@@ -49,16 +73,28 @@ export const NodeAPI = {
     }
   },
   async update(input: {
-    projectId: string; nodeId: string; title?: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
+    id?: string; projectId: string; nodeId: string; title?: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
+    type?: string; day?: string; imageUrl?: string; imagePrompt?: string; scheduledDate?: string;
   }) { 
     try {
       console.log('Updating node:', input);
-      const response = await client.graphql({ query: updateNode, variables: { input } }); 
+      // If no id provided, try to find the node first
+      let updateInput = input;
+      if (!input.id) {
+        const filter = { projectId: { eq: input.projectId }, nodeId: { eq: input.nodeId } };
+        const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+        const items = (listResponse as any).data.listNodes.items || [];
+        if (items.length > 0) {
+          updateInput = { ...input, id: items[0].id };
+        } else {
+          throw new Error(`Node not found: ${input.nodeId}`);
+        }
+      }
+      const response = await client.graphql({ query: updateNode, variables: { input: updateInput } }); 
       console.log('Update node response:', response);
       return (response as any).data.updateNode as NodeDTO;
     } catch (error) {
       console.error('Error updating node:', error);
-      // Log detailed error information
       if (error && typeof error === 'object' && 'errors' in error) {
         console.error('GraphQL errors:', (error as any).errors);
         (error as any).errors?.forEach((err: any, index: number) => {
@@ -73,29 +109,35 @@ export const NodeAPI = {
   async remove(projectId: string, nodeId: string) {
     try {
       console.log('Deleting node:', { projectId, nodeId });
-      const response = await client.graphql({ query: deleteNode, variables: { projectId, nodeId } });
+      // Find the node first to get the database id
+      const filter = { projectId: { eq: projectId }, nodeId: { eq: nodeId } };
+      const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+      const items = (listResponse as any).data.listNodes.items || [];
+      
+      if (items.length === 0) {
+        throw new Error(`Node not found: ${nodeId}`);
+      }
+      
+      const nodeToDelete = items[0];
+      const deleteInput = { id: nodeToDelete.id };
+      
+      const response = await client.graphql({ query: deleteNode, variables: { input: deleteInput } });
       console.log('Delete node response:', response);
       return response;
     } catch (error) {
       console.error('Error deleting node:', error);
-      // Log detailed error information
       if (error && typeof error === 'object' && 'errors' in error) {
         console.error('GraphQL errors:', (error as any).errors);
         const errors = (error as any).errors;
         let hasNullFieldErrors = false;
-        
         errors?.forEach((err: any, index: number) => {
           console.error(`Error ${index + 1}:`, err.message);
           if (err.locations) console.error('Locations:', err.locations);
           if (err.path) console.error('Path:', err.path);
-          
-          // Check if this is just a "null field" error after successful deletion
           if (err.message && err.message.includes('Cannot return null for non-nullable type')) {
             hasNullFieldErrors = true;
           }
         });
-        
-        // If it's just null field errors, the deletion probably succeeded
         if (hasNullFieldErrors && errors.length <= 3) {
           console.log('Deletion likely succeeded despite GraphQL schema issues');
           return { data: { deleteNode: { projectId, nodeId } } };
@@ -109,10 +151,12 @@ export const NodeAPI = {
   async listEdges(projectId: string) {
     try {
       console.log('Fetching edges for project:', projectId);
-      const response = await client.graphql({ query: listEdges, variables: { projectId } });
+      const filter = { projectId: { eq: projectId } };
+      const response = await client.graphql({ query: listEdges, variables: { filter } });
       console.log('List edges response:', response);
-      console.log('List edges data:', (response as any).data.listEdges);
-      return (response as any).data.listEdges as { edgeId:string; from:string; to:string }[];
+      const items = (response as any).data.listEdges.items || [];
+      console.log('List edges data:', items);
+      return items as { edgeId:string; from:string; to:string }[];
     } catch (error) {
       console.error('Error listing edges:', error);
       throw error;
@@ -121,7 +165,31 @@ export const NodeAPI = {
   async createEdge(projectId: string, from: string, to: string, label?: string) {
     try {
       console.log('Creating edge:', { projectId, from, to, label });
-      const response = await client.graphql({ query: createEdge, variables: { projectId, from, to, label } });
+      
+      // Check if edge already exists in either direction
+      const filter = { 
+        projectId: { eq: projectId },
+        or: [
+          { and: [{ from: { eq: from } }, { to: { eq: to } }] },
+          { and: [{ from: { eq: to } }, { to: { eq: from } }] }
+        ]
+      };
+      
+      const existingResponse = await client.graphql({ query: listEdges, variables: { filter } });
+      const existingEdges = (existingResponse as any).data.listEdges.items || [];
+      
+      if (existingEdges.length > 0) {
+        console.log('Edge already exists:', existingEdges[0]);
+        return existingEdges[0]; // Return existing edge
+      }
+      
+      const edgeInput = {
+        projectId,
+        edgeId: `edge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+        from,
+        to
+      };
+      const response = await client.graphql({ query: createEdge, variables: { input: edgeInput } });
       console.log('Create edge response:', response);
       return (response as any).data.createEdge;
     } catch (error) {
@@ -132,90 +200,32 @@ export const NodeAPI = {
   async deleteEdge(projectId: string, edgeId: string) {
     try {
       console.log('Deleting edge:', { projectId, edgeId });
-      const response = await client.graphql({ query: deleteEdge, variables: { projectId, edgeId } });
+      
+      // First find the edge to get the database ID
+      const filter = { projectId: { eq: projectId }, edgeId: { eq: edgeId } };
+      const listResponse = await client.graphql({ query: listEdges, variables: { filter } });
+      const items = (listResponse as any).data.listEdges.items || [];
+      
+      if (items.length === 0) {
+        console.warn(`Edge not found: ${edgeId}`);
+        return; // Edge doesn't exist, consider it deleted
+      }
+      
+      const edgeToDelete = items[0];
+      const deleteInput = { id: edgeToDelete.id };
+      
+      const response = await client.graphql({ query: deleteEdge, variables: { input: deleteInput } });
       console.log('Delete edge response:', response);
+      return response;
     } catch (error) {
       console.error('Error deleting edge:', error);
       throw error;
     }
   },
 
-  // Subs
+  // Subscriptions temporarily disabled
   subscribe(projectId: string, onEvent: (evt: { type:'created'|'updated'|'deleted'|'edge'; payload: any }) => void) {
-    if (!projectId) {
-      console.error('ProjectId is required for subscriptions');
-      return () => {};
-    }
-
-    // Check if we want to disable subscriptions (useful for debugging)
-    if (import.meta.env.VITE_DISABLE_SUBSCRIPTIONS === 'true') {
-      console.log('Subscriptions disabled via environment variable');
-      return () => {};
-    }
-
-    console.log('Setting up subscriptions for project:', projectId);
-
-    const subs = [
-      (client.graphql({ 
-        query: onNodeCreated, 
-        variables: { projectId } 
-      }) as any).subscribe({
-        next: ({ data }: any) => {
-          console.log('OnNodeCreated received:', data);
-          if (data?.onNodeCreated) {
-            onEvent({ type: 'created', payload: data.onNodeCreated });
-          }
-        },
-        error: (error: any) => {
-          console.warn('OnNodeCreated subscription error (this is expected if resolvers are not set up):', error);
-        },
-      }),
-      (client.graphql({ 
-        query: onNodeUpdated, 
-        variables: { projectId } 
-      }) as any).subscribe({
-        next: ({ data }: any) => {
-          console.log('OnNodeUpdated received:', data);
-          if (data?.onNodeUpdated) {
-            onEvent({ type: 'updated', payload: data.onNodeUpdated });
-          }
-        },
-        error: (error: any) => {
-          console.warn('OnNodeUpdated subscription error (this is expected if resolvers are not set up):', error);
-        },
-      }),
-      (client.graphql({ 
-        query: onNodeDeleted, 
-        variables: { projectId } 
-      }) as any).subscribe({
-        next: ({ data }: any) => {
-          console.log('OnNodeDeleted received:', data);
-          if (data?.onNodeDeleted) {
-            onEvent({ type: 'deleted', payload: data.onNodeDeleted });
-          }
-        },
-        error: (error: any) => {
-          console.warn('OnNodeDeleted subscription error (this is expected if resolvers are not set up):', error);
-        },
-      }),
-      (client.graphql({ 
-        query: onEdgeChanged, 
-        variables: { projectId } 
-      }) as any).subscribe({
-        next: ({ data }: any) => {
-          console.log('OnEdgeChanged received:', data);
-          if (data?.onEdgeChanged) {
-            onEvent({ type: 'edge', payload: data.onEdgeChanged });
-          }
-        },
-        error: (error: any) => {
-          console.warn('OnEdgeChanged subscription error (this is expected if resolvers are not set up):', error);
-        },
-      }),
-    ];
-    return () => {
-      console.log('Unsubscribing from all subscriptions');
-      subs.forEach(s => s.unsubscribe());
-    };
+    console.log('Subscriptions temporarily disabled');
+    return () => {};
   },
 };

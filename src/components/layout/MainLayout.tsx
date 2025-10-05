@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -25,6 +25,129 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const planningPanelRef = useRef<PlanningPanelRef>(null);
+
+  // Shared save function that works in both modes
+  const handleSaveNode = (updatedNode: ContentNode) => {
+    if (viewMode === 'nodes' && planningPanelRef.current?.handleSaveNode) {
+      // Use PlanningPanel's save function in nodes mode
+      planningPanelRef.current.handleSaveNode(updatedNode);
+    } else {
+      // Direct save in canvas mode
+      console.log('Canvas mode: handleSaveNode called with:', updatedNode);
+      
+      // Update nodes state immediately
+      debugSetNodes(prevNodes => 
+        prevNodes.map(node => 
+          node.id === updatedNode.id ? updatedNode : node
+        )
+      );
+      
+      // Also update selectedNode directly if it's the same node
+      if (selectedNode && selectedNode.id === updatedNode.id) {
+        console.log('Canvas mode: Updating selectedNode directly:', updatedNode);
+        setSelectedNode(updatedNode);
+      }
+      
+      // Import and call NodeAPI directly
+      import('@/services/nodeService').then(({ NodeAPI }) => {
+        const updateData = {
+          projectId: 'demo-project-123',
+          nodeId: updatedNode.id,
+          title: updatedNode.title,
+          description: updatedNode.content,
+          status: updatedNode.status,
+          type: updatedNode.type,
+          day: updatedNode.day,
+          imageUrl: updatedNode.imageUrl,
+          imagePrompt: updatedNode.imagePrompt,
+          scheduledDate: updatedNode.scheduledDate ? updatedNode.scheduledDate.toISOString() : null,
+        };
+        console.log('Canvas mode: Sending update to NodeAPI:', updateData);
+        
+        NodeAPI.update(updateData)
+          .then(() => console.log('Canvas mode: Node updated successfully'))
+          .catch(error => console.error('Canvas mode: Failed to update node:', error));
+      });
+    }
+  };
+
+  // Shared post function that works in both modes
+  const handlePostNode = (node: ContentNode) => {
+    if (viewMode === 'nodes' && planningPanelRef.current?.handlePostNode) {
+      planningPanelRef.current.handlePostNode(node);
+    } else {
+      // Handle posting in canvas mode
+      const updatedNode = {
+        ...node,
+        status: 'published' as const,
+        postedAt: new Date(),
+        postedTo: ['Twitter', 'LinkedIn']
+      };
+      handleSaveNode(updatedNode);
+    }
+  };
+  // Load nodes from AppSync only - no localStorage fallback
+  useEffect(() => {
+    const loadNodes = async () => {
+      try {
+        const { NodeAPI } = await import('@/services/nodeService');
+        const apiNodes = await NodeAPI.list('demo-project-123');
+        const detectPostType = (title: string, content: string) => {
+          const text = `${title} ${content}`.toLowerCase();
+          if (text.match(/\b(shop|order|buy|get yours|discount|available now|limited|offer|sale|use code|sign up|join|link in bio|free shipping|diy|recipe|create|make|try|get|start)\b/)) {
+            return 'promotional';
+          }
+          if (text.match(/\b(crafted|behind the scenes|heritage|tradition|quality|meet|farmer|team|values|trust|story of|our process|secret|day in the life|art of|history|unveiling|science|grading|special)\b/)) {
+            return 'branding';
+          }
+          return 'engaging';
+        };
+        
+        const transformedNodes = apiNodes.map(x => ({
+          id: x.nodeId,
+          title: x.title,
+          type: (x.type as any) ?? 'post',
+          status: (x.status as any) ?? 'draft',
+          scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
+          content: x.description ?? '',
+          imageUrl: x.imageUrl ?? undefined,
+          imagePrompt: x.imagePrompt ?? undefined,
+          day: x.day ?? undefined,
+          postType: detectPostType(x.title, x.description ?? ''),
+          connections: [],
+          position: { x: x.x ?? 0, y: x.y ?? 0 },
+          postedAt: x.createdAt ? new Date(x.createdAt) : undefined
+        }));
+        
+        // Load edges and populate connections
+        try {
+          const { NodeAPI: EdgeAPI } = await import('@/services/nodeService');
+          const edges = await EdgeAPI.listEdges('demo-project-123');
+          console.log('Loaded edges:', edges.length);
+          
+          // Add connections to nodes based on edges
+          const nodesWithConnections = transformedNodes.map(node => ({
+            ...node,
+            connections: edges.filter(edge => edge.from === node.id).map(edge => edge.to)
+          }));
+          
+          setNodes(nodesWithConnections);
+        } catch (edgeError) {
+          console.warn('Failed to load edges:', edgeError);
+          setNodes(transformedNodes);
+        }
+      } catch (error) {
+        console.warn('Failed to load from AppSync, starting with empty nodes:', error);
+        setNodes([]);
+      }
+    };
+    loadNodes();
+  }, []);
+
+
+
+
+
   // Wrap setNodes to add debug logging when nodes change
   const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
     if (typeof next === 'function') {
@@ -35,6 +158,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
         if (selectedNode) {
           const updatedSelectedNode = updated.find(n => n.id === selectedNode.id);
           if (updatedSelectedNode) {
+            console.log('Updating selectedNode with new data:', updatedSelectedNode);
             setSelectedNode(updatedSelectedNode);
           } else {
             setSelectedNode(null);
@@ -49,6 +173,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       if (selectedNode) {
         const updatedSelectedNode = next.find(n => n.id === selectedNode.id);
         if (updatedSelectedNode) {
+          console.log('MainLayout: Updating selectedNode with new data:', updatedSelectedNode);
           setSelectedNode(updatedSelectedNode);
         } else {
           setSelectedNode(null);
@@ -74,9 +199,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   };
 
   const handleCanvasClick = () => {
-    setViewMode('canvas'); // Switch to canvas view
-    setSelectedNode(null); // Clear selected node
-    setCanvasNodeId(null); // Clear canvas node ID
+    // Remove canvas switching on background click
+    // Canvas mode only accessible via node selection or manual toggle
   };
 
   const handleCalendarPage = () => {
@@ -183,17 +307,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               {activeTab === 'details' && (
                 <div className="h-full">
                   <NodeDetails 
-                    node={selectedNode} 
-                    onSaveNode={(node) => {
-                      if (planningPanelRef.current?.handleSaveNode) {
-                        planningPanelRef.current.handleSaveNode(node);
-                      }
-                    }}
-                    onPostNode={(node) => {
-                      if (planningPanelRef.current?.handlePostNode) {
-                        planningPanelRef.current.handlePostNode(node);
-                      }
-                    }}
+                    node={selectedNode}
+                    nodes={nodes}
+                    onSaveNode={handleSaveNode}
+                    onPostNode={handlePostNode}
                   />
                 </div>
               )}
