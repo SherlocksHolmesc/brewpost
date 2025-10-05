@@ -114,7 +114,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
               imageUrl: x.imageUrl ?? undefined,
               imagePrompt: x.imagePrompt ?? undefined,
               day: x.day ?? undefined,
-              postType: x.postType ?? undefined,
+              postType: (x as any).postType ?? undefined,
               connections: [],           // we'll fill from edges below
               position: { x: x.x ?? 0, y: x.y ?? 0 },
             })));
@@ -591,7 +591,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       }
 
       // resObj.ok === true -> proceed
-      let data = resObj.data;
+      const data = resObj.data;
 
       // If backend responded with partial failures, surface them to the user and offer retry
       if (data.partial) {
