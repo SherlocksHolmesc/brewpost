@@ -9,7 +9,7 @@ import Landing from "./pages/Landing";
 import Callback from "./pages/Callback";
 import NotFound from "./pages/NotFound";
 import { CalendarPage } from "./pages/CalendarPage";
-import { AppSyncTest } from "./components/testing/AppSyncTest";
+
 
 const queryClient = new QueryClient();
 
@@ -23,7 +23,7 @@ const App = () => (
           <Route path="/" element={<Landing />} />
           <Route path="/app" element={<Index />} />
           <Route path="/calendar" element={<CalendarPage />} />
-          <Route path="/test" element={<AppSyncTest />} />
+
           <Route path="/Callback" element={<Callback />} />
           {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
           <Route path="*" element={<NotFound />} />

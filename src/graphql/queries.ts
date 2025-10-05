@@ -8,35 +8,47 @@ type GeneratedQuery<InputType, OutputType> = string & {
   __generatedQueryOutput: OutputType;
 };
 
-export const listNodes = /* GraphQL */ `query ListNodes($projectId: ID!) {
-  listNodes(projectId: $projectId) {
-    projectId
-    nodeId
-    title
-    description
-    x
-    y
-    status
-    contentId
-    createdAt
-    updatedAt
+export const listNodes = /* GraphQL */ `query ListNodes($filter: ModelNodeFilterInput, $limit: Int, $nextToken: String) {
+  listNodes(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      projectId
+      nodeId
+      title
+      description
+      x
+      y
+      status
+      contentId
+      type
+      day
+      imageUrl
+      imagePrompt
+      scheduledDate
+      createdAt
+      updatedAt
+      __typename
+    }
+    nextToken
     __typename
   }
-}
-` as GeneratedQuery<APITypes.ListNodesQueryVariables, APITypes.ListNodesQuery>;
-export const listEdges = /* GraphQL */ `query ListEdges($projectId: ID!) {
-  listEdges(projectId: $projectId) {
-    projectId
-    edgeId
-    from
-    to
-    label
-    createdAt
-    updatedAt
+}` as GeneratedQuery<APITypes.ListNodesQueryVariables, APITypes.ListNodesQuery>;
+export const listEdges = /* GraphQL */ `query ListEdges($filter: ModelEdgeFilterInput, $limit: Int, $nextToken: String) {
+  listEdges(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      projectId
+      edgeId
+      from
+      to
+      createdAt
+      updatedAt
+      __typename
+    }
+    nextToken
     __typename
   }
-}
-` as GeneratedQuery<APITypes.ListEdgesQueryVariables, APITypes.ListEdgesQuery>;
+}` as GeneratedQuery<APITypes.ListEdgesQueryVariables, APITypes.ListEdgesQuery>;
 export const getContent = /* GraphQL */ `query GetContent($contentId: ID!) {
   getContent(contentId: $contentId) {
     contentId

@@ -95,7 +95,10 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         // Try to load nodes
         try {
           const n = await NodeAPI.list(projectId);
-          console.log('Loaded nodes:', n);
+          console.log('Loaded nodes from database:', n.length, 'nodes');
+          if (n.length === 0) {
+            console.log('No nodes found in database for project:', projectId);
+          }
           // transform NodeDTO -> ContentNode used by your UI
           setNodes(n.map(x => ({
             id: x.nodeId,
@@ -111,22 +114,23 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
             position: { x: x.x ?? 0, y: x.y ?? 0 },
           })));
         } catch (nodeError) {
-          console.warn('Failed to load nodes, using fallback data:', nodeError);
-          // Use fallback demo data if API fails
-          setNodes([
-            {
-              id: 'demo-1',
-              title: 'Demo Post',
-              type: 'post',
-              status: 'draft',
-              content: 'This is a demo post while API is being set up.',
-              connections: [],
-              position: { x: 100, y: 100 }
-            }
-          ]);
+          console.error('Failed to load nodes from database:', nodeError);
+          if (nodeError && typeof nodeError === 'object' && 'errors' in nodeError) {
+            console.error('GraphQL errors:', (nodeError as any).errors);
+            (nodeError as any).errors?.forEach((err: any, index: number) => {
+              console.error(`GraphQL Error ${index + 1}:`, {
+                message: err.message,
+                locations: err.locations,
+                path: err.path,
+                extensions: err.extensions
+              });
+            });
+          }
+          // Use empty array instead of demo data to see if database is working
+          setNodes([]);
         }
 
-        // Try to load edges
+        // Try to load edges (non-blocking)
         try {
           const edges = await NodeAPI.listEdges(projectId);
           console.log('Loaded edges:', edges);
@@ -139,7 +143,8 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
           // Update edge map
           setEdgesByKey(Object.fromEntries(edgesArray.map(e => [`${e.from}->${e.to}`, e.edgeId])));
         } catch (edgeError) {
-          console.warn('Failed to load edges:', edgeError);
+          console.warn('Failed to load edges (continuing without edges):', edgeError);
+          // Continue without edges - nodes will still work
         }
 
         // Set up subscriptions (only if API calls work)

@@ -1,8 +1,8 @@
 // src/services/nodeService.ts
 import '../amplify-config';
 import { generateClient } from '@aws-amplify/api';
-import { listNodes, listEdges } from '../graphql/queries.js';
-import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../graphql/mutations.js';
+import { listNodes, listEdges } from '../graphql/queries.ts';
+import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../graphql/mutations.ts';
 // import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions.js';
 
 const client = generateClient();
