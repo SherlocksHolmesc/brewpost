@@ -474,10 +474,7 @@ Return only the refined prompt, nothing else.`
         }
       ];
 
-      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
-      const apiUrl = isProduction 
-        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
-        : '/generate';
+      const apiUrl = '/api/generate';
       
       const resp = await fetch(apiUrl, {
         method: 'POST',
@@ -540,10 +537,7 @@ Return only the refined prompt, nothing else.`
     setIsGenerating(true);
 
     try {
-      const isProduction = import.meta.env.PROD || window.location.hostname !== 'localhost';
-      const apiUrl = isProduction 
-        ? 'https://wvndszftexlju2wmhyynzb5nhq0ebgzn.lambda-url.us-east-1.on.aws' 
-        : '/generate';
+      const apiUrl = '/api/generate';
       
       const resp = await fetch(apiUrl, {
         method: 'POST',
