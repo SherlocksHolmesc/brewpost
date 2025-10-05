@@ -7,6 +7,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/u
 import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download, X, Maximize2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
+import { NodeAPI } from '@/services/nodeService';
 
 const cleanField = (s?: string) =>
   (s ?? '')
@@ -217,10 +218,12 @@ function extractPlannerNodesFromText(raw: string): PlannerNode[] {
 }
 
 function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode[] {
-  const ids = plannerNodes.map((_, i) => Date.now().toString() + '-' + i + '-' + Math.floor(Math.random() * 1000));
+  const timestamp = Date.now();
+  const ids = plannerNodes.map((_, i) => `planner-${timestamp}-${i}-${Math.floor(Math.random() * 10000)}`);
   const count = plannerNodes.length;
   const spacing = 320;
-  const startX = 40;
+  // Position planner nodes to the right to avoid overlap with existing nodes
+  const startX = 600;
   const topY = 60;
   const bottomY = topY + 220;
 
@@ -301,26 +304,16 @@ interface AIChatProps {
 }
 
 export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
-  const [messages, setMessages] = useState<Message[]>(() => {
-    const saved = localStorage.getItem('brewpost-messages');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map((msg: any) => ({
-        ...msg,
-        timestamp: new Date(msg.timestamp)
-      }));
-    }
-    return [
-      {
-        id: '1',
-        type: 'ai',
-        content:
-          'Welcome to BrewPost! 🎯 I can help you plan and create amazing content. Try asking me to "plan content structure" or "connect content pieces" to get strategic suggestions for your content flow!',
-        timestamp: new Date(),
-        contentType: 'text',
-      },
-    ];
-  });
+  const [messages, setMessages] = useState<Message[]>([
+    {
+      id: '1',
+      type: 'ai',
+      content:
+        'Welcome to BrewPost! 🎯 I can help you plan and create amazing content. Try asking me to "plan content structure" or "connect content pieces" to get strategic suggestions for your content flow!',
+      timestamp: new Date(),
+      contentType: 'text',
+    },
+  ]);
   const [input, setInput] = useState('');
   const [isGenerating, setIsGenerating] = useState(false);
   const navigate = useNavigate();
@@ -453,10 +446,7 @@ Just tell me what you want to create content about!`;
 
 
 
-  // Save messages to localStorage whenever they change
-  React.useEffect(() => {
-    localStorage.setItem('brewpost-messages', JSON.stringify(messages));
-  }, [messages]);
+
 
   // NEW: helper to append a message safely
   const appendMessage = (m: Message) => setMessages(prev => [...prev, m]);
@@ -746,14 +736,115 @@ Return only the refined prompt, nothing else.`
                           }];
                           contentNodes.push(...fallback);
                         }
-                        // If a setter was provided by the parent (MainLayout) update it.
+                        // Update UI immediately, then save to AppSync in background
                         if (typeof setPlanningNodes === 'function') {
-                          console.info('AIChat: applying planner nodes', contentNodes.length);
+                          console.info('AIChat: adding planner nodes to UI', contentNodes.length);
+                          
+                          // Replace all nodes with new ones
                           setPlanningNodes(contentNodes);
-                          console.info('AIChat: applied planner nodes -> parent setter called');
+                          console.info('AIChat: UI replaced with', contentNodes.length, 'new nodes');
+                          
+                          // Delete old nodes and save new ones to AppSync
+                          const replaceInAppSync = async () => {
+                            try {
+                              console.log('🔄 Starting AppSync replacement...');
+                              
+                              // Delete all existing nodes and edges first
+                              const existingNodes = await NodeAPI.list('demo-project-123');
+                              const existingEdges = await NodeAPI.listEdges('demo-project-123');
+                              console.log('📋 Found', existingNodes.length, 'nodes and', existingEdges.length, 'edges to delete');
+                              
+                              // Delete all edges first
+                              await Promise.all(existingEdges.map(async (edge) => {
+                                try {
+                                  await NodeAPI.deleteEdge('demo-project-123', edge.edgeId);
+                                  console.log('🗑️ Deleted edge:', edge.edgeId);
+                                } catch (error) {
+                                  console.warn('⚠️ Edge delete failed:', edge.edgeId, error);
+                                }
+                              }));
+                              
+                              // Then delete all nodes
+                              await Promise.all(existingNodes.map(async (oldNode) => {
+                                try {
+                                  await NodeAPI.remove('demo-project-123', oldNode.nodeId);
+                                  console.log('🗑️ Deleted node:', oldNode.title);
+                                } catch (error) {
+                                  console.warn('⚠️ Node delete failed:', oldNode.title, error);
+                                }
+                              }));
+                              
+                              console.log('✅ All deletions completed. Creating', contentNodes.length, 'new nodes...');
+                              
+                              // Create all new nodes and track ID mapping
+                              const idMapping = new Map();
+                              const nodeResults = [];
+                              
+                              for (let i = 0; i < contentNodes.length; i++) {
+                                const node = contentNodes[i];
+                                try {
+                                  const result = await NodeAPI.create({
+                                    projectId: 'demo-project-123',
+                                    title: node.title,
+                                    description: node.content,
+                                    x: node.position.x,
+                                    y: node.position.y,
+                                    status: node.status,
+                                    type: node.type,
+                                    day: node.day,
+                                    imageUrl: node.imageUrl,
+                                    imagePrompt: node.imagePrompt,
+                                    scheduledDate: node.scheduledDate?.toISOString(),
+                                  });
+                                  
+                                  idMapping.set(node.id, result.nodeId);
+                                  nodeResults.push({ status: 'fulfilled', value: result });
+                                  console.log('✅ Created:', node.title, '| Old ID:', node.id, '-> New ID:', result.nodeId);
+                                } catch (error) {
+                                  nodeResults.push({ status: 'rejected', reason: error });
+                                  console.error('❌ Failed to create:', node.title, error);
+                                }
+                              }
+                              
+                              const successful = nodeResults.filter(r => r.status === 'fulfilled').length;
+                              const failed = nodeResults.filter(r => r.status === 'rejected').length;
+                              console.log(`🎯 Node creation complete: ${successful} created, ${failed} failed`);
+                              
+                              // Create edges using the new IDs
+                              console.log('🔗 Creating connections with mapped IDs...');
+                              const edgePromises = [];
+                              
+                              for (const node of contentNodes) {
+                                const newFromId = idMapping.get(node.id);
+                                if (!newFromId) continue;
+                                
+                                for (const oldConnectionId of node.connections) {
+                                  const newToId = idMapping.get(oldConnectionId);
+                                  if (!newToId) continue;
+                                  
+                                  edgePromises.push(
+                                    NodeAPI.createEdge('demo-project-123', newFromId, newToId)
+                                      .then(() => console.log('🔗 Connected:', newFromId, '->', newToId))
+                                      .catch(error => console.warn('⚠️ Connection failed:', newFromId, '->', newToId, error))
+                                  );
+                                }
+                              }
+                              
+                              if (edgePromises.length > 0) {
+                                await Promise.allSettled(edgePromises);
+                                console.log('✅ All connections processed:', edgePromises.length, 'edges');
+                              } else {
+                                console.log('ℹ️ No connections to create');
+                              }
+                            } catch (error) {
+                              console.error('❌ AppSync replacement failed:', error);
+                            }
+                          };
+                          
+                          // Execute background replace (non-blocking)
+                          replaceInAppSync();
                         } else {
-                          // Defensive: don't throw if the prop wasn't provided (some modals render AIChat without it)
-                          console.warn('AIChat: setPlanningNodes not provided, skipping applying planner nodes');
+                          console.warn('AIChat: setPlanningNodes not provided, skipping planner nodes');
                         }
                       }}
                     >

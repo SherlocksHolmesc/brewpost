@@ -94,46 +94,8 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       try {
         console.log('Initializing data for project:', projectId);
         
-        // Check if we already have nodes from localStorage (via props)
-        if (nodes && nodes.length > 0) {
-          console.log('Using existing nodes from localStorage:', nodes.length);
-          // Don't override existing nodes, just load edges
-        } else {
-          // Try to load nodes from API only if no localStorage data
-          try {
-            const n = await NodeAPI.list(projectId);
-            console.log('Loaded nodes from API:', n);
-            // transform NodeDTO -> ContentNode used by your UI
-            setNodes(n.map(x => ({
-              id: x.nodeId,
-              title: x.title,
-              type: (x.type as any) ?? 'post',
-              status: (x.status as any) ?? 'draft',
-              scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
-              content: x.description ?? '',
-              imageUrl: x.imageUrl ?? undefined,
-              imagePrompt: x.imagePrompt ?? undefined,
-              day: x.day ?? undefined,
-              postType: (x as any).postType ?? undefined,
-              connections: [],           // we'll fill from edges below
-              position: { x: x.x ?? 0, y: x.y ?? 0 },
-            })));
-          } catch (nodeError) {
-            console.warn('Failed to load nodes from API, using fallback data:', nodeError);
-            // Use fallback demo data if API fails
-            setNodes([
-              {
-                id: 'demo-1',
-                title: 'Demo Post',
-                type: 'post',
-                status: 'draft',
-                content: 'This is a demo post while API is being set up.',
-                connections: [],
-                position: { x: 100, y: 100 }
-              }
-            ]);
-          }
-        }
+        // MainLayout now handles initial node loading, so PlanningPanel just loads edges
+        console.log('PlanningPanel: Using nodes from MainLayout:', nodes.length);
 
         // Try to load edges (non-blocking)
         try {
@@ -202,7 +164,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         unsubscribe();
       }
     };
-  }, [projectId, nodes.length]); // Only re-run if projectId changes or nodes array length changes
+  }, [projectId]); // Only re-run if projectId changes
 
   const handleNodeClick = (node: ContentNode) => {
     // If onNodeSelect is provided, use it to switch to details tab

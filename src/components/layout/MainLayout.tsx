@@ -17,26 +17,12 @@ interface MainLayoutProps {
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [showCalendar, setShowCalendar] = useState(false);
-  const [nodes, setNodes] = useState<ContentNode[]>(() => {
-    const saved = localStorage.getItem('brewpost-nodes');
-    if (saved) {
-      const parsed = JSON.parse(saved);
-      return parsed.map((node: any) => ({
-        ...node,
-        scheduledDate: node.scheduledDate ? new Date(node.scheduledDate) : undefined,
-        postedAt: node.postedAt ? new Date(node.postedAt) : undefined
-      }));
-    }
-    return [];
-  });
+  const [nodes, setNodes] = useState<ContentNode[]>([]);
   const [activeTab, setActiveTab] = useState('ai');
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [viewMode, setViewMode] = useState<'nodes' | 'canvas'>('nodes'); // New state for view mode
   const [canvasNodeId, setCanvasNodeId] = useState<string | null>(null); // Store node ID for canvas mode
-  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>(() => {
-    const saved = localStorage.getItem('brewpost-canvas-components');
-    return saved ? JSON.parse(saved) : [];
-  }); // State for canvas components
+  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const planningPanelRef = useRef<PlanningPanelRef>(null);
 
@@ -100,15 +86,67 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       handleSaveNode(updatedNode);
     }
   };
-  // Save nodes to localStorage whenever they change
+  // Load nodes from AppSync only - no localStorage fallback
   useEffect(() => {
-    localStorage.setItem('brewpost-nodes', JSON.stringify(nodes));
-  }, [nodes]);
+    const loadNodes = async () => {
+      try {
+        const { NodeAPI } = await import('@/services/nodeService');
+        const apiNodes = await NodeAPI.list('demo-project-123');
+        const detectPostType = (title: string, content: string) => {
+          const text = `${title} ${content}`.toLowerCase();
+          if (text.match(/\b(shop|order|buy|get yours|discount|available now|limited|offer|sale|use code|sign up|join|link in bio|free shipping|diy|recipe|create|make|try|get|start)\b/)) {
+            return 'promotional';
+          }
+          if (text.match(/\b(crafted|behind the scenes|heritage|tradition|quality|meet|farmer|team|values|trust|story of|our process|secret|day in the life|art of|history|unveiling|science|grading|special)\b/)) {
+            return 'branding';
+          }
+          return 'engaging';
+        };
+        
+        const transformedNodes = apiNodes.map(x => ({
+          id: x.nodeId,
+          title: x.title,
+          type: (x.type as any) ?? 'post',
+          status: (x.status as any) ?? 'draft',
+          scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
+          content: x.description ?? '',
+          imageUrl: x.imageUrl ?? undefined,
+          imagePrompt: x.imagePrompt ?? undefined,
+          day: x.day ?? undefined,
+          postType: detectPostType(x.title, x.description ?? ''),
+          connections: [],
+          position: { x: x.x ?? 0, y: x.y ?? 0 },
+          postedAt: x.createdAt ? new Date(x.createdAt) : undefined
+        }));
+        
+        // Load edges and populate connections
+        try {
+          const { NodeAPI: EdgeAPI } = await import('@/services/nodeService');
+          const edges = await EdgeAPI.listEdges('demo-project-123');
+          console.log('Loaded edges:', edges.length);
+          
+          // Add connections to nodes based on edges
+          const nodesWithConnections = transformedNodes.map(node => ({
+            ...node,
+            connections: edges.filter(edge => edge.from === node.id).map(edge => edge.to)
+          }));
+          
+          setNodes(nodesWithConnections);
+        } catch (edgeError) {
+          console.warn('Failed to load edges:', edgeError);
+          setNodes(transformedNodes);
+        }
+      } catch (error) {
+        console.warn('Failed to load from AppSync, starting with empty nodes:', error);
+        setNodes([]);
+      }
+    };
+    loadNodes();
+  }, []);
 
-  // Save canvas components to localStorage whenever they change
-  useEffect(() => {
-    localStorage.setItem('brewpost-canvas-components', JSON.stringify(selectedCanvasComponents));
-  }, [selectedCanvasComponents]);
+
+
+
 
   // Wrap setNodes to add debug logging when nodes change
   const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
