@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
@@ -17,12 +17,26 @@ interface MainLayoutProps {
 export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const navigate = useNavigate();
   const [showCalendar, setShowCalendar] = useState(false);
-  const [nodes, setNodes] = useState<ContentNode[]>([]);
+  const [nodes, setNodes] = useState<ContentNode[]>(() => {
+    const saved = localStorage.getItem('brewpost-nodes');
+    if (saved) {
+      const parsed = JSON.parse(saved);
+      return parsed.map((node: any) => ({
+        ...node,
+        scheduledDate: node.scheduledDate ? new Date(node.scheduledDate) : undefined,
+        postedAt: node.postedAt ? new Date(node.postedAt) : undefined
+      }));
+    }
+    return [];
+  });
   const [activeTab, setActiveTab] = useState('ai');
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [viewMode, setViewMode] = useState<'nodes' | 'canvas'>('nodes'); // New state for view mode
   const [canvasNodeId, setCanvasNodeId] = useState<string | null>(null); // Store node ID for canvas mode
-  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
+  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>(() => {
+    const saved = localStorage.getItem('brewpost-canvas-components');
+    return saved ? JSON.parse(saved) : [];
+  }); // State for canvas components
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const planningPanelRef = useRef<PlanningPanelRef>(null);
 
@@ -86,6 +100,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       handleSaveNode(updatedNode);
     }
   };
+  // Save nodes to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('brewpost-nodes', JSON.stringify(nodes));
+  }, [nodes]);
+
+  // Save canvas components to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('brewpost-canvas-components', JSON.stringify(selectedCanvasComponents));
+  }, [selectedCanvasComponents]);
+
   // Wrap setNodes to add debug logging when nodes change
   const debugSetNodes = (next: ContentNode[] | ((prev: ContentNode[]) => ContentNode[])) => {
     if (typeof next === 'function') {

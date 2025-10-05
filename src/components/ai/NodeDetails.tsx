@@ -242,19 +242,49 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
           </Card>
         </div>
 
-        {/* Day */}
-        <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-          <h3 className="text-sm font-medium mb-2">Day</h3>
-          {isEditing ? (
-            <Input
-              value={editedNode?.day || ''}
-              onChange={(e) => setEditedNode(prev => prev ? { ...prev, day: e.target.value } : null)}
-              placeholder="e.g., Monday, Tuesday..."
-            />
-          ) : (
-            <div className="text-sm text-muted-foreground">{node.day || 'No day specified'}</div>
-          )}
-        </Card>
+        {/* Day and Post Type */}
+        <div className="grid grid-cols-2 gap-2">
+          <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
+            <h3 className="text-sm font-medium mb-2">Day</h3>
+            {isEditing ? (
+              <Input
+                value={editedNode?.day || ''}
+                onChange={(e) => setEditedNode(prev => prev ? { ...prev, day: e.target.value } : null)}
+                placeholder="e.g., Monday, Tuesday..."
+              />
+            ) : (
+              <div className="text-sm text-muted-foreground">{node.day || 'No day specified'}</div>
+            )}
+          </Card>
+
+          <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
+            <h3 className="text-sm font-medium mb-2">Post Type</h3>
+            {isEditing ? (
+              <Select
+                value={editedNode?.postType || 'branding'}
+                onValueChange={(value: 'engaging' | 'promotional' | 'branding') => 
+                  setEditedNode(prev => prev ? { ...prev, postType: value } : null)
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="engaging">🟢 Engaging</SelectItem>
+                  <SelectItem value="promotional">🔵 Promotional</SelectItem>
+                  <SelectItem value="branding">🟡 Branding</SelectItem>
+                </SelectContent>
+              </Select>
+            ) : (
+              <div className="text-sm text-muted-foreground capitalize">
+                {node.postType === 'engaging' && '🟢 Engaging'}
+                {node.postType === 'promotional' && '🔵 Promotional'}
+                {node.postType === 'branding' && '🟡 Branding'}
+                {!node.postType && 'Not specified'}
+              </div>
+            )}
+          </Card>
+        </div>
 
         {/* Image URL */}
         <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">

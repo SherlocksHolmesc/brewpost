@@ -25,6 +25,7 @@ interface ContentNode {
   imageUrl?: string;
   imagePrompt?: string;
   day?: string;
+  postType?: 'engaging' | 'promotional' | 'branding';
   connections: string[];
   position: { x: number; y: number };
   postedAt?: Date;
@@ -78,6 +79,15 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       case 'scheduled': return 'bg-gradient-primary text-white';
       case 'draft': return 'bg-muted text-muted-foreground';
       default: return 'bg-muted text-muted-foreground';
+    }
+  };
+
+  const getPostTypeBorder = (postType?: ContentNode['postType']) => {
+    switch (postType) {
+      case 'engaging': return 'border-green-500/70 hover:border-green-500';
+      case 'promotional': return 'border-blue-500/70 hover:border-blue-500';
+      case 'branding': return 'border-yellow-500/70 hover:border-yellow-500';
+      default: return 'border-primary/30 hover:border-primary/70';
     }
   };
 
@@ -503,12 +513,12 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         return (
           <Card
             key={node.id}
-            className={`node-card absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 z-10 no-select ${
+            className={`node-card group absolute w-60 p-4 bg-card/90 backdrop-blur-sm border-2 z-10 no-select ${
               draggedNode === node.id 
                 ? 'dragging dragging-node border-primary cursor-grabbing will-change-transform' 
                 : (node.postedAt && node.postedTo && node.postedTo.length > 0)
-                ? 'border-green-500/70 hover:border-green-500 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-green-500/25 transition-all duration-200 ease-out transform-gpu'
-                : 'border-primary/30 hover:border-primary/70 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-primary/25 transition-all duration-200 ease-out transform-gpu'
+                ? 'border-green-600/70 hover:border-green-600 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-green-600/25 transition-all duration-200 ease-out transform-gpu'
+                : `${getPostTypeBorder(node.postType)} cursor-grab hover:scale-[1.02] hover:shadow-xl transition-all duration-200 ease-out transform-gpu`
             } ${
               isConnecting 
                 ? 'ring-2 ring-primary/70 border-primary' 
@@ -517,14 +527,6 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               canConnect 
                 ? 'ring-2 ring-accent/70 border-accent animate-node-pulse cursor-pointer' 
                 : ''
-            } ${
-              (node.postedAt && node.postedTo && node.postedTo.length > 0)
-                ? 'border-green-500/50 hover:border-green-500/70'
-                : node.status === 'published' 
-                ? 'border-success/50 hover:border-success/70' 
-                : node.status === 'scheduled' 
-                ? 'border-accent/50 hover:border-accent/70' 
-                : 'border-muted/50 hover:border-muted/70'
             }`}
             style={{
               left: draggedNode === node.id ? draggedPosition.x : node.position.x,
@@ -549,9 +551,9 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
               handleNodeDoubleClick(node);
             }}
           >
-            {/* Node Controls - 2 buttons: Delete, Link */}
+            {/* Node Controls - 2 buttons: Delete, Link - Only show on hover */}
             <div 
-              className="absolute top-2 right-2 flex gap-1 z-50 pointer-events-auto"
+              className="absolute top-2 right-2 flex gap-1 z-50 pointer-events-auto opacity-0 group-hover:opacity-100 transition-opacity duration-200"
               onMouseDown={(e) => e.stopPropagation()}
             >
               {/* Delete Button */}
