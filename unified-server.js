@@ -176,7 +176,7 @@ async function uploadBase64ToS3(base64, keyPrefix = "generated/") {
   }
 }
 
-app.post("/generate", async (req, res) => {
+app.post("/api/generate", async (req, res) => {
   try {
     const { prompt, messages } = req.body;
     if (!prompt && !Array.isArray(messages)) {
