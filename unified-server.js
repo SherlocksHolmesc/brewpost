@@ -8,13 +8,14 @@ import { invokeModelViaHttp } from "./src/server/bedrock.js";
 
 dotenv.config();
 
-const { S3 } = pkg;
+const { S3, DynamoDB } = pkg;
 const app = express();
 const PORT = process.env.PORT || 8080;
 const REGION = process.env.REGION || "us-east-1";
 const TEXT_MODEL = process.env.TEXT_MODEL;
 const IMAGE_MODEL = process.env.IMAGE_MODEL;
 const S3_BUCKET = process.env.S3_BUCKET;
+const SCHEDULES_TABLE = process.env.SCHEDULES_TABLE || "Schedules";
 
 // Environment detection
 const isProduction = process.env.NODE_ENV === 'production';
@@ -50,6 +51,7 @@ app.use(session({
 }));
 
 const s3 = new S3({ region: REGION });
+const DDB = new DynamoDB.DocumentClient({ region: REGION });
 
 // ============ COGNITO AUTH ROUTES ============
 
