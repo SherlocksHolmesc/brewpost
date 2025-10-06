@@ -42,6 +42,8 @@ interface CircleCanvasProps {
   onForecastAnalysisClick?: () => void
   generatedComponents?: CampaignComponent[]
   onAddComponent?: (component: Component) => void
+  selectedNode?: any // Add support for selected node
+  onSaveNode?: (node: any) => void // Add support for saving node updates
 }
 
 export function CircleCanvas({
@@ -53,6 +55,8 @@ export function CircleCanvas({
   onForecastAnalysisClick,
   generatedComponents = [],
   onAddComponent = () => {},
+  selectedNode,
+  onSaveNode = () => {},
 }: CircleCanvasProps) {
   // Use props instead of local state for selectedComponents
   const selectedComponents = propSelectedComponents;
@@ -126,7 +130,64 @@ export function CircleCanvas({
     }
   `
   
+  const handleGenerateFromNode = async () => {
+    if (!selectedNode) return;
+    
+    console.log('🔥 Generate from node clicked!', selectedNode.title);
+    onGenerate("GENERATING");
+    
+    try {
+      const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+      
+      const response = await fetch(`${BACKEND_URL}/api/canvas-generate-from-node`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nodeId: selectedNode.id,
+          imagePrompt: selectedNode.imagePrompt,
+          title: selectedNode.title,
+          content: selectedNode.content
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate image');
+      }
+      
+      if (data.ok && data.imageUrl) {
+        console.log('✅ Node image generation completed successfully:', data.imageUrl);
+        onGenerate(data.imageUrl); // Show image in canvas
+        
+        // Add new image to imageUrls array (same logic as NodeDetails)
+        const existingImages = selectedNode.imageUrls || [];
+        const updatedNode = {
+          ...selectedNode,
+          imageUrls: [...existingImages, data.imageUrl],
+          imageUrl: data.imageUrl // Keep for backward compatibility
+        };
+        onSaveNode(updatedNode);
+        
+        console.log('Total images after canvas generation:', updatedNode.imageUrls.length);
+      } else {
+        throw new Error('No image URL returned');
+      }
+    } catch (error) {
+      console.error('Error generating image from node:', error);
+      onGenerate("ERROR");
+      setTimeout(() => onGenerate("RESET"), 3000);
+    }
+  };
+
   const handleGenerateImage = async () => {
+    // If we have a selected node, generate from node instead of components
+    if (selectedNode && (selectedNode.imagePrompt || selectedNode.title || selectedNode.content)) {
+      return handleGenerateFromNode();
+    }
+    
     console.log('🔥 Generate button clicked!');
     console.log('📊 Selected components:', selectedComponents);
     console.log('🎯 Components length:', selectedComponents.length);
@@ -141,41 +202,36 @@ export function CircleCanvas({
     onGenerate("GENERATING")
     
     try {
-      // For testing - simulate generation process
-      console.log('🎨 Starting image generation with components:', selectedComponents)
-      console.log('📡 Components being sent to OpenRouter for prompt generation...')
-      console.log('🤖 Using Stability AI Ultra model for highest quality promotional posters')
+      // Create prompt from selected components
+      const componentNames = selectedComponents.map(c => c.name).join(', ');
+      const prompt = `Create a professional social media promotional image incorporating these elements: ${componentNames}. Modern design, vibrant colors, social media ready, high quality`;
       
-      // Simulate generation time for testing
-      await new Promise(resolve => setTimeout(resolve, 3000));
+      console.log('🎨 Starting Nova Canvas image generation with prompt:', prompt);
       
-      // For now, just show completion message instead of calling API
-      console.log('✅ Image generation completed successfully (simulated)')
-      onGenerate("COMPLETED") // Reset to normal state
+      const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
       
-      // Uncomment below for actual API call when ready:
-      /*
-      const response = await fetch('/api/generate-image', {
+      const response = await fetch(`${BACKEND_URL}/api/generate-image-nova`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({
-          components: selectedComponents,
-          model: 'ultra' // Use Ultra for highest quality promotional posters
+          prompt: prompt
         })
-      })
+      });
 
-      const data = await response.json()
+      const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to generate image')
+        throw new Error(data.error || 'Failed to generate image');
       }
 
-      // Call the parent's onGenerate with the generated image URL
-      onGenerate(data.imageUrl)
-      console.log('✅ Image generation completed successfully')
-      */
+      if (data.ok && data.imageUrl) {
+        console.log('✅ Nova Canvas image generation completed successfully:', data.imageUrl);
+        onGenerate(data.imageUrl); // Pass the image URL to show in canvas
+      } else {
+        throw new Error('No image URL returned from Nova Canvas');
+      }
       
     } catch (error) {
       console.error('Error generating image:', error)
@@ -329,17 +385,22 @@ export function CircleCanvas({
                   </div>
                 </div>
               ) : (
-                <h3 
-                  className={[
-                    "text-lg font-semibold drop-shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-300",
-                    isGenerating === "GENERATING" 
-                      ? "text-pink-200 animate-pulse" 
-                      : "text-white hover:text-blue-200"
-                  ].join(" ")}
-                  onClick={() => onForecastAnalysisClick?.()}
-                >
-                  {isGenerating === "GENERATING" ? "Generating..." : (selectedComponents.length > 0 ? "Analyze" :"BrewPost Canvas")}
-                </h3>
+                <>
+                  <h3 
+                    className={[
+                      "text-lg font-semibold drop-shadow-lg backdrop-blur-sm cursor-pointer transition-all duration-300 text-center",
+                      isGenerating === "GENERATING" 
+                        ? "text-pink-200 animate-pulse" 
+                        : "text-white hover:text-blue-200"
+                    ].join(" ")}
+                    onClick={() => onForecastAnalysisClick?.()}
+                  >
+                    {isGenerating === "GENERATING" ? "Generating..." : 
+                     selectedNode ? selectedNode.title.length > 20 ? selectedNode.title.slice(0, 20) + '...' : selectedNode.title :
+                     selectedComponents.length > 0 ? "Analyze" : "BrewPost Canvas"}
+                  </h3>
+
+                </>
               )}
             </div>
           </div>
@@ -451,7 +512,7 @@ export function CircleCanvas({
             <div className="absolute bottom-[-80px] right-[-10] z-50">
               <Button
                 onClick={handleGenerateImage}
-                disabled={isGenerating === "GENERATING" || selectedComponents.length === 0}
+                disabled={isGenerating === "GENERATING" || (selectedComponents.length === 0 && !selectedNode)}
                 className="bg-primary hover:bg-primary/90 text-primary-foreground shadow-lg min-w-[120px]"
               >
                 {isGenerating === "GENERATING" ? (
@@ -462,7 +523,7 @@ export function CircleCanvas({
                 ) : (
                   <>
                     <Sparkles className="w-4 h-4 mr-2" />
-                    Generate ({selectedComponents.length})
+                    {selectedNode ? 'Generate Image' : `Generate (${selectedComponents.length})`}
                   </>
                 )}
               </Button>

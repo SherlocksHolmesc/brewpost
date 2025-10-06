@@ -20,6 +20,7 @@ export type NodeDTO = {
   type?: string | null;
   day?: string | null;
   imageUrl?: string | null;
+  imageUrls?: string[] | null;
   imagePrompt?: string | null;
   scheduledDate?: string | null;
   createdAt: string;
@@ -44,7 +45,7 @@ export const NodeAPI = {
   },
   async create(input: {
     projectId: string; title: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
-    type?: string; day?: string; imageUrl?: string; imagePrompt?: string; scheduledDate?: string;
+    type?: string; day?: string; imageUrl?: string; imageUrls?: string[]; imagePrompt?: string; scheduledDate?: string;
   }) { 
     try {
       console.log('Creating node:', input);
@@ -60,6 +61,7 @@ export const NodeAPI = {
         type: input.type,
         day: input.day,
         imageUrl: input.imageUrl,
+        imageUrls: input.imageUrls,
         imagePrompt: input.imagePrompt,
         scheduledDate: input.scheduledDate
       };
@@ -74,7 +76,7 @@ export const NodeAPI = {
   },
   async update(input: {
     id?: string; projectId: string; nodeId: string; title?: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
-    type?: string; day?: string; imageUrl?: string; imagePrompt?: string; scheduledDate?: string;
+    type?: string; day?: string; imageUrl?: string; imageUrls?: string[]; imagePrompt?: string; scheduledDate?: string;
   }) { 
     try {
       console.log('Updating node:', input);

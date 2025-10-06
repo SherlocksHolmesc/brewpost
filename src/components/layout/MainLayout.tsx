@@ -59,6 +59,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           type: updatedNode.type,
           day: updatedNode.day,
           imageUrl: updatedNode.imageUrl,
+          imageUrls: updatedNode.imageUrls,
           imagePrompt: updatedNode.imagePrompt,
           scheduledDate: updatedNode.scheduledDate ? updatedNode.scheduledDate.toISOString() : null,
         };
@@ -111,6 +112,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
           content: x.description ?? '',
           imageUrl: x.imageUrl ?? undefined,
+          imageUrls: x.imageUrls ?? undefined,
           imagePrompt: x.imagePrompt ?? undefined,
           day: x.day ?? undefined,
           postType: detectPostType(x.title, x.description ?? ''),
@@ -196,6 +198,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setActiveTab('details');
     setViewMode('canvas'); // Switch to canvas view on double-click
     setCanvasNodeId(node.id); // Store node ID for future reference if needed
+    
+    // If node has image prompt, automatically start generation
+    if (node.imagePrompt || node.title || node.content) {
+      console.log('Node double-clicked with prompt data, preparing for image generation');
+      // Clear any existing canvas components and set up for node-based generation
+      setSelectedCanvasComponents([]);
+      setIsGenerating(false);
+    }
   };
 
   const handleCanvasClick = () => {
@@ -336,6 +346,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <CircleCanvas 
                 selectedComponents={selectedCanvasComponents}
                 isGenerating={isGenerating}
+                selectedNode={selectedNode}
+                onSaveNode={handleSaveNode}
                 onGenerate={(status) => {
                   console.log('Generate status:', status);
                   setIsGenerating(status);

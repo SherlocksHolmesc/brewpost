@@ -7,7 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Calendar as CalendarComponent } from '@/components/ui/calendar';
-import { Calendar, Clock, Eye, Target, Zap, Send, Save } from 'lucide-react';
+import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
+import { Calendar, Clock, Eye, Target, Zap, Send, Save, Sparkles, X, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
@@ -25,6 +26,8 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
   const [editedNode, setEditedNode] = useState<ContentNode | null>(null);
   const [calendarOpen, setCalendarOpen] = useState(false);
   const [selectedTime, setSelectedTime] = useState('09:00');
+  const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+  const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
   
   React.useEffect(() => {
     if (node) {
@@ -73,6 +76,102 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
   };
 
   const TypeIcon = getTypeIcon(node.type);
+
+  const handleGeneratePrompt = async () => {
+    if (!node || isGeneratingPrompt) return;
+    
+    setIsGeneratingPrompt(true);
+    try {
+      const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+      
+      const response = await fetch(`${BACKEND_URL}/api/generate-enhanced-prompt`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          title: node.title,
+          content: node.content,
+          postType: node.postType || 'promotional'
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate enhanced prompt');
+      }
+      
+      if (data.ok && data.enhancedPrompt) {
+        // Update the node with the enhanced prompt
+        const updatedNode = {
+          ...node,
+          imagePrompt: data.enhancedPrompt
+        };
+        
+        if (onSaveNode) {
+          onSaveNode(updatedNode);
+        }
+        
+        console.log('Enhanced prompt generated:', data.enhancedPrompt);
+      }
+    } catch (error) {
+      console.error('Error generating enhanced prompt:', error);
+      alert('Failed to generate enhanced prompt: ' + error.message);
+    } finally {
+      setIsGeneratingPrompt(false);
+    }
+  };
+
+  const handleGenerateImage = async () => {
+    if (!node || isGeneratingImage) return;
+    
+    setIsGeneratingImage(true);
+    try {
+      const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
+      
+      const response = await fetch(`${BACKEND_URL}/api/canvas-generate-from-node`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          nodeId: node.id,
+          imagePrompt: node.imagePrompt,
+          title: node.title,
+          content: node.content
+        })
+      });
+      
+      const data = await response.json();
+      
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to generate image');
+      }
+      
+      if (data.ok && data.imageUrl) {
+        // Add new image to imageUrls array
+        const existingImages = node.imageUrls || [];
+        const updatedNode = {
+          ...node,
+          imageUrls: [...existingImages, data.imageUrl],
+          imageUrl: data.imageUrl // Keep for backward compatibility
+        };
+        
+        if (onSaveNode) {
+          onSaveNode(updatedNode);
+        }
+        
+        console.log('Image generated successfully:', data.imageUrl);
+        console.log('Total images:', updatedNode.imageUrls.length);
+      }
+    } catch (error) {
+      console.error('Error generating image:', error);
+      alert('Failed to generate image: ' + error.message);
+    } finally {
+      setIsGeneratingImage(false);
+    }
+  };
 
   return (
     <div className="flex flex-col h-full bg-gradient-subtle">
@@ -288,7 +387,30 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
 
         {/* Image URL */}
         <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-          <h3 className="text-sm font-medium mb-2">Image URL</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Image URL</h3>
+            {!isEditing && (node.imagePrompt || node.title || node.content) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGenerateImage}
+                disabled={isGeneratingImage}
+                className="h-7 px-2 text-xs"
+              >
+                {isGeneratingImage ? (
+                  <>
+                    <div className="w-3 h-3 border border-primary/20 border-t-primary rounded-full animate-spin mr-1" />
+                    Generating...
+                  </>
+                ) : (
+                  <>
+                    <Sparkles className="w-3 h-3 mr-1" />
+                    Generate
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           {isEditing ? (
             <Input
               value={editedNode?.imageUrl || ''}
@@ -296,23 +418,62 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
               placeholder="https://example.com/image.jpg"
             />
           ) : (
-            <div className="text-sm text-muted-foreground break-all">
-              {node.imageUrl ? (
-                node.imageUrl.length > 50 ? (
-                  <button
-                    onClick={() => navigator.clipboard.writeText(node.imageUrl!)}
-                    className="text-blue-500 hover:text-blue-600 underline cursor-pointer w-full text-left"
-                    title="Click to copy full URL"
-                  >
-                    <span className="block truncate">{node.imageUrl.substring(0, 47)}...</span>
-                  </button>
-                ) : (
-                  <a href={node.imageUrl} target="_blank" rel="noopener noreferrer" className="text-blue-500 hover:text-blue-600 underline break-all">
-                    {node.imageUrl}
-                  </a>
-                )
-              ) : (
-                'No image URL'
+            <div className="space-y-2">
+              {(node.imageUrl || node.imageUrls) ? (() => {
+                // Combine all images into one array for display
+                const allImages = [];
+                if (node.imageUrls && node.imageUrls.length > 0) {
+                  allImages.push(...node.imageUrls);
+                } else if (node.imageUrl) {
+                  allImages.push(node.imageUrl);
+                }
+                
+                return (
+                  <>
+                    <div className="text-xs text-muted-foreground">
+                      Generated Images ({allImages.length}):
+                    </div>
+                    <div className="overflow-x-auto">
+                      <div className="flex gap-2 pb-2" style={{ minWidth: 'fit-content' }}>
+                        {allImages.map((imageUrl, index) => (
+                          <Dialog key={`${imageUrl}-${index}`}>
+                            <DialogTrigger asChild>
+                              <div className="relative group cursor-pointer flex-shrink-0">
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Generated content ${index + 1}`} 
+                                  className="w-[140px] h-[140px] object-cover rounded border border-border/20 hover:opacity-80 transition-opacity shadow-sm"
+                                  onError={(e) => {
+                                    e.currentTarget.style.display = 'none';
+                                  }}
+                                />
+                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-200 rounded flex items-center justify-center">
+                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/70 text-white text-xs px-2 py-1 rounded">
+                                    Click to zoom
+                                  </div>
+                                </div>
+                                <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
+                                  {index + 1}
+                                </div>
+                              </div>
+                            </DialogTrigger>
+                            <DialogContent className="max-w-4xl w-full p-0 bg-black/90">
+                              <div className="relative">
+                                <img 
+                                  src={imageUrl} 
+                                  alt={`Generated content ${index + 1} - Full size`} 
+                                  className="w-full h-auto max-h-[90vh] object-contain"
+                                />
+                              </div>
+                            </DialogContent>
+                          </Dialog>
+                        ))}
+                      </div>
+                    </div>
+                  </>
+                );
+              })() : (
+                <div className="text-sm text-muted-foreground">No images generated</div>
               )}
             </div>
           )}
@@ -320,7 +481,30 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
 
         {/* Image Prompt */}
         <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
-          <h3 className="text-sm font-medium mb-2">Image Prompt</h3>
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-sm font-medium">Image Prompt</h3>
+            {!isEditing && (node.title || node.content) && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={handleGeneratePrompt}
+                disabled={isGeneratingPrompt}
+                className="h-7 px-2 text-xs"
+              >
+                {isGeneratingPrompt ? (
+                  <>
+                    <div className="w-3 h-3 border border-primary/20 border-t-primary rounded-full animate-spin mr-1" />
+                    Enhancing...
+                  </>
+                ) : (
+                  <>
+                    <RefreshCw className="w-3 h-3 mr-1" />
+                    Enhance
+                  </>
+                )}
+              </Button>
+            )}
+          </div>
           {isEditing ? (
             <Textarea
               value={editedNode?.imagePrompt || ''}
