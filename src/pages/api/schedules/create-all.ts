@@ -7,9 +7,7 @@ const router = Router();
 const eventbridge = new EventBridgeClient({ region: "us-east-1" });
 
 const REGION = process.env.REGION || "us-east-1";
-const SNS = new AWS.SNS({ region: REGION });
 const TABLE_NAME = process.env.SCHEDULES_TABLE || "SchedulesTable";
-const SNS_TOPIC_ARN = process.env.SNS_TOPIC_ARN || "arn:aws:sns:us-east-1:123456789012:ScheduleNotifications";
 
 // --- Replace router.post("/create-all", ...) with Lambda invocation ---
 router.post("/create-all", async (req, res) => {
@@ -207,55 +205,6 @@ export async function nextHandler(req: NextApiRequest, res: NextApiResponse) {
 
         errors.push({ id: node.id, reason: `DynamoDB put failed: ${msg}` });
         results.push({ scheduleId: node.id, status: "failed", reason: msg });
-        continue;
-      }
-
-      if (SNS_TOPIC_ARN) {
-        try {
-          const publishResp = await retryable(() => SNS.publish({
-            TopicArn: SNS_TOPIC_ARN,
-            Message: JSON.stringify({ action: "create-schedule", schedule: item }),
-          }).promise(), 3, 200);
-          results.push({ scheduleId: node.id, status: "scheduled", scheduledDate: scheduledDateISO || null, messageId: publishResp?.MessageId ?? null });
-        } catch (snsErr) {
-          const msg = snsErr && snsErr.message ? snsErr.message : String(snsErr);
-          console.error("SNS publish failed:", msg);
-          errors.push({ id: node.id, reason: `SNS publish failed: ${msg}` });
-          results.push({ scheduleId: node.id, status: "scheduled", warning: "SNS failed", reason: msg });
-          continue;
-        }
-      } else {
-        results.push({ scheduleId: node.id, status: "scheduled", warning: "SNS not configured" });
-        continue;
-      }
-
-      results.push({ scheduleId: node.id, status: "scheduled", scheduledDate: scheduledDateISO || null });
-    } catch (err) {
-      console.error("Error creating schedule:", err);
-      errors.push({ id: node?.id ?? null, error: (err as any).message ?? String(err) });
-      results.push({ scheduleId: node?.id ?? null, status: "failed", warning: (err as any).message ?? String(err) });
-    }
-  }
-
-  // Return 200 and ok:true so frontend flow doesn't treat partial errors as fatal.
-  const partial = errors.length > 0;
-  return res.json({ ok: true, scheduled: results, partial, errors: partial ? errors : undefined });
-}
-        try {
-          const publishResp = await retryable(() => SNS.publish({
-            TopicArn: SNS_TOPIC_ARN,
-            Message: JSON.stringify({ action: "create-schedule", schedule: item }),
-          }).promise(), 3, 200);
-          results.push({ scheduleId: node.id, status: "scheduled", scheduledDate: scheduledDateISO || null, messageId: publishResp?.MessageId ?? null });
-        } catch (snsErr) {
-          const msg = snsErr && snsErr.message ? snsErr.message : String(snsErr);
-          console.error("SNS publish failed:", msg);
-          errors.push({ id: node.id, reason: `SNS publish failed: ${msg}` });
-          results.push({ scheduleId: node.id, status: "scheduled", warning: "SNS failed", reason: msg });
-          continue;
-        }
-      } else {
-        results.push({ scheduleId: node.id, status: "scheduled", warning: "SNS not configured" });
         continue;
       }
 

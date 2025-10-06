@@ -238,3 +238,340 @@ app.listen(PORT, () => {
   console.log(`Frontend URL: ${FRONTEND_URL}`);
   console.log(`Redirect URI: ${REDIRECT_URI}`);
 });
+
+app.get("/api/schedules/list", async (req, res) => {
+  try {
+    // Determine userId from session, header, or query param
+    const userId =
+      (req.session && req.session.tokens && req.session.tokens.id_token_payload && req.session.tokens.id_token_payload.sub) ||
+      req.headers['x-user-id'] ||
+      req.query.userId ||
+      null;
+
+    const readFuncUrl = process.env.SCHEDULES_READ_LAMBDA_FUNC_URL || process.env.PUBLIC_UPLOADER_FUNC_URL || null;
+
+    // NEW DEBUG: log invocation info to help trace 500 responses
+    console.log(`[schedules/list] called. userId=${userId}, query.userId=${req.query.userId}, header.x-user-id=${req.headers['x-user-id']}, readFuncUrl=${!!readFuncUrl}, SCHEDULES_TABLE=${SCHEDULES_TABLE}`);
+
+    if (readFuncUrl) {
+      // Require a userId to avoid exposing all data via function URL
+      if (!userId) {
+        return res.status(400).json({ ok: false, error: 'missing_userid', detail: 'Provide userId in session/header/query to list schedules' });
+      }
+
+      try {
+        const funcHeaders = { 'Content-Type': 'application/json' };
+        if (process.env.SCHEDULES_READ_LAMBDA_FUNC_URL_AUTH) {
+          funcHeaders['Authorization'] = process.env.SCHEDULES_READ_LAMBDA_FUNC_URL_AUTH;
+        }
+
+        // call the per-user function URL
+        const resp = await fetch(readFuncUrl, {
+          method: 'POST',
+          headers: funcHeaders,
+          body: JSON.stringify({ action: 'listByUser', userId })
+        });
+
+        // parse body safely
+        let body = null;
+        let rawText = null;
+        try {
+          body = await resp.json();
+        } catch (parseErr) {
+          rawText = await resp.text().catch(() => null);
+          console.warn('[schedules/list] function URL returned non-JSON or parse failed; rawText length=', rawText ? rawText.length : 0);
+        }
+
+        if (!resp.ok) {
+          console.error('[schedules/list] Per-user Function URL returned non-200:', resp.status, body ?? rawText);
+          // ensure we return serializable detail
+          const detail = body ?? rawText ?? `HTTP ${resp.status}`;
+          return res.status(500).json({ ok: false, error: 'function_url_error', status: resp.status, detail });
+        }
+
+        // Accept many common shapes from function URL:
+        let schedulesRaw = null;
+        if (Array.isArray(body)) {
+          schedulesRaw = body;
+        } else if (body && Array.isArray(body.schedules)) {
+          schedulesRaw = body.schedules;
+        } else if (body && Array.isArray(body.Items)) {
+          schedulesRaw = body.Items;
+        } else if (body && Array.isArray(body.items)) {
+          schedulesRaw = body.items;
+        } else if (body && Array.isArray(body.scheduled)) {
+          schedulesRaw = body.scheduled;
+        } else if (body && Array.isArray(body.data)) {
+          schedulesRaw = body.data;
+        }
+
+        if (schedulesRaw !== null) {
+          console.log('[schedules/list] Raw schedules from Lambda:', schedulesRaw);
+          console.log('[schedules/list] First raw item:', schedulesRaw[0]);
+          console.log('[schedules/list] First item title:', schedulesRaw[0]?.title);
+          
+          const items = (schedulesRaw || []).map(it => {
+            console.log('[schedules/list] Mapping item:', it);
+            console.log('[schedules/list] Item title field:', it.title, 'Type:', typeof it.title);
+            return {
+              scheduleId: it.scheduleId ?? it.id ?? it.ID ?? it.nodeId ?? null,
+              userId: it.userId ?? userId,
+              status: it.status ?? it.state ?? null,
+              createdAt: it.createdAt ?? it.created_at ?? null,
+              scheduledDate: it.scheduledDate ?? it.scheduled_date ?? it.scheduledAt ?? null,
+              title: it.title ?? 'Untitled',
+              content: it.content ?? null,
+              imageUrl: it.imageUrl ?? null,
+              type: it.type ?? 'post',
+              raw: it
+            };
+          });
+          console.log('[schedules/list] Mapped items:', items);
+          return res.json({ ok: true, schedules: items });
+        }
+
+        // unexpected shape — stringify/capture for debugging
+        const detail = body ?? rawText ?? 'empty_response';
+        console.warn('[schedules/list] Per-user Function URL returned unexpected shape:', detail);
+        return res.status(500).json({ ok: false, error: 'unexpected_function_response', detail: (typeof detail === 'string' ? detail : JSON.stringify(detail)) });
+      } catch (funcErr) {
+        console.error('[schedules/list] Per-user Function URL call failed:', funcErr && (funcErr.message || funcErr));
+        // fallthrough to try DynamoDB query below
+      }
+    }
+
+    // No function URL or function call failed: attempt to query DynamoDB by userId (preferred to scan)
+    if (userId) {
+      try {
+        const q = {
+          TableName: SCHEDULES_TABLE,
+          KeyConditionExpression: 'userId = :uid',
+          ExpressionAttributeValues: { ':uid': userId }
+        };
+        const data = await DDB.query(q).promise();
+        const items = (data.Items || []).map(it => ({
+          scheduleId: it.scheduleId ?? it.id ?? it.ID,
+          userId: it.userId ?? userId,
+          status: it.status ?? null,
+          createdAt: it.createdAt ?? null,
+          scheduledDate: it.scheduledDate ?? null,
+          title: it.title ?? 'Untitled',
+          content: it.content ?? null,
+          imageUrl: it.imageUrl ?? null
+        }));
+        return res.json({ ok: true, schedules: items });
+      } catch (queryErr) {
+        console.warn('DynamoDB query by userId failed, will attempt scan as fallback:', queryErr && queryErr.message ? queryErr.message : queryErr);
+        // If query failed due to permissions or table key mismatch, we will try scan below (with auth detection).
+      }
+    }
+
+    // Fallback: scan the table (existing behavior) — keep auth detection
+    try {
+      const data = await DDB.scan({ TableName: SCHEDULES_TABLE }).promise();
+      const items = (data.Items || []).map(it => ({
+        scheduleId: it.scheduleId ?? it.id ?? it.ID,
+        userId: it.userId ?? null,
+        status: it.status ?? null,
+        createdAt: it.createdAt ?? null,
+        scheduledDate: it.scheduledDate ?? null,
+        title: it.title ?? 'Untitled',
+        content: it.content ?? null,
+        imageUrl: it.imageUrl ?? null
+      }));
+      return res.json({ ok: true, schedules: items });
+    } catch (scanErr) {
+      console.error("Failed to list schedules (scan):", scanErr);
+
+      const msg = scanErr && scanErr.message ? String(scanErr.message) : String(scanErr);
+      const isScanDenied = /not authorized to perform: dynamodb:Scan/i.test(msg) ||
+                           /is not authorized to perform: dynamodb:Scan/i.test(msg) ||
+                           (/dynamodb:Scan/i.test(msg) && /not authorized|AccessDenied/i.test(msg));
+
+      if (isScanDenied) {
+        const detail = {
+          message: msg,
+          hint: 'The server identity is missing permission "dynamodb:Scan" (or related read actions) on the schedules table. Prefer attaching the per-user Lambda or grant read permissions to the server identity.'
+        };
+        console.error('DynamoDB Scan authorization error detected:', detail);
+        return res.status(403).json({ ok: false, error: 'DynamoDBScanAuthorizationError', detail });
+      }
+
+      return res.status(500).json({ ok: false, error: "Failed to list schedules", detail: msg });
+    }
+  } catch (err) {
+    console.error("Unhandled error in schedules list:", err);
+    return res.status(500).json({ ok: false, error: 'list_failed', detail: err && err.message ? err.message : String(err) });
+  }
+});
+
+app.post("/api/schedules/create-all", async (req, res) => {
+  const { nodes } = req.body;
+  if (!Array.isArray(nodes) || nodes.length === 0) {
+    return res.status(400).json({ ok: false, error: "No nodes provided" });
+  }
+
+  const lambdaName = process.env.SCHEDULES_LAMBDA_NAME || process.env.SCHEDULES_LAMBDA_ARN;
+  const lambdaFuncUrl = process.env.SCHEDULES_LAMBDA_FUNC_URL || null; // <-- new env var
+  if (!lambdaName && !lambdaFuncUrl) {
+    console.error('SCHEDULES_LAMBDA_NAME/SCHEDULES_LAMBDA_ARN or SCHEDULES_LAMBDA_FUNC_URL not configured');
+    return res.status(500).json({
+      ok: false,
+      error: 'schedules_lambda_not_configured',
+      detail: 'Set SCHEDULES_LAMBDA_NAME or SCHEDULES_LAMBDA_ARN or SCHEDULES_LAMBDA_FUNC_URL in environment to the Lambda function or its function URL.'
+    });
+  }
+
+  try {
+    const userId =
+      (req.session && req.session.tokens && req.session.tokens.id_token_payload && req.session.tokens.id_token_payload.sub) ||
+      req.headers['x-user-id'] ||
+      req.body.userId ||
+      'anonymous';
+
+    // NEW: validate nodes are non-empty and add quick debug logging
+    if (!Array.isArray(nodes) || nodes.length === 0) {
+      console.warn('create-all called with empty nodes array, aborting.');
+      return res.status(400).json({ ok: false, error: 'nodes_empty', detail: 'No nodes provided to schedule' });
+    }
+
+    const payload = {
+      action: 'createAll',
+      userId,
+      nodes: nodes.map(node => ({
+        ...node,
+        type: node.type || 'post' // ensure type is included
+      })),
+      nodes_count: Array.isArray(nodes) ? nodes.length : 0,
+      debug: {
+        schedulesTable: SCHEDULES_TABLE,
+        region: REGION
+      }
+    };
+
+    // Optional debug: print minimal preview if enabled via env
+    if (process.env.SCHEDULES_DEBUG === 'true') {
+      console.log('Dispatching schedules payload: nodes_count=', payload.nodes_count, 'firstNodePreview=', nodes[0] ? { id: nodes[0].id, title: nodes[0].title } : null, 'debug=', payload.debug);
+    }
+
+    // Try SDK invoke first if configured
+    if (lambdaName) {
+      try {
+        const lambda = new pkg.Lambda({ region: REGION });
+        const invokeResp = await lambda.invoke({
+          FunctionName: lambdaName,
+          InvocationType: 'RequestResponse',
+          Payload: JSON.stringify(payload)
+        }).promise();
+
+        let parsed;
+        try { parsed = invokeResp.Payload ? JSON.parse(String(invokeResp.Payload)) : null; } catch (e) { parsed = null; }
+
+        if (invokeResp.FunctionError) {
+          console.error('Schedules lambda reported function error via SDK:', parsed || invokeResp);
+          if (lambdaFuncUrl && /AccessDenied|not authorized|AccessDeniedException/i.test(JSON.stringify(parsed || ''))) {
+            console.warn('Attempting fallback to Lambda function URL due to function error.');
+          } else {
+            return res.status(500).json({ ok: false, error: 'schedules_lambda_error', detail: parsed || invokeResp });
+          }
+        } else {
+          console.log('Schedules lambda SDK response (parsed):', parsed);
+          // If lambda says ok but returned no scheduled items, surface the full payload for debugging
+          if (parsed && parsed.ok && Array.isArray(parsed.scheduled) && parsed.scheduled.length === 0) {
+            console.warn('Lambda returned ok but scheduled array empty. Surface full lambda response to caller for inspection.');
+            return res.status(200).json({ ok: true, warning: 'lambda_ok_but_no_items', lambdaResponse: parsed });
+          }
+          return res.status(parsed && parsed.ok === false ? 500 : 200).json(parsed);
+        }
+      } catch (sdkErr) {
+        const msg = sdkErr && sdkErr.message ? sdkErr.message : String(sdkErr);
+        console.error('Lambda SDK invoke failed:', msg);
+
+        // Detect explicit missing lambda:InvokeFunction permission and handle it
+        const isInvokeDenied = /not authorized to perform: lambda:InvokeFunction/i.test(msg) ||
+                               /is not authorized to perform: lambda:InvokeFunction/i.test(msg);
+
+        if (isInvokeDenied) {
+          console.warn('Detected missing lambda:InvokeFunction permission for current identity.');
+
+          // If function URL is available, fall back to HTTP POST
+          if (lambdaFuncUrl) {
+            console.warn('Falling back to configured Lambda Function URL:', lambdaFuncUrl);
+            // allow flow to continue to Function URL invocation below
+          } else {
+            // No fallback available — return actionable guidance to the caller
+            const detail = {
+              message: msg,
+              hint: 'The server process identity is missing permission "lambda:InvokeFunction" on the dispatcher Lambda. Attach a policy allowing lambda:InvokeFunction for the function ARN to the IAM user/role (see aws/allow-invoke-lambda-policy.json).'
+            };
+            console.error('Lambda invoke authorization error (no fallback):', detail);
+            return res.status(403).json({ ok: false, error: 'lambda_invoke_authorization_error', detail });
+          }
+        } else {
+          // For other SDK errors, only fallback if it's a general access denied and we have a function URL
+          if (/access denied|not authorized|AccessDenied|AccessDeniedException/i.test(msg) && lambdaFuncUrl) {
+            console.warn('Lambda SDK invoke denied; falling back to Lambda function URL:', lambdaFuncUrl);
+            // fallthrough to HTTP invocation below
+          } else {
+            return res.status(500).json({ ok: false, error: 'invoke_failed', detail: msg });
+          }
+        }
+      }
+    }
+
+    // Fallback: call Lambda Function URL via HTTP POST if available
+    if (lambdaFuncUrl) {
+      try {
+        const funcHeaders = { 'Content-Type': 'application/json' };
+        if (process.env.SCHEDULES_LAMBDA_FUNC_URL_AUTH) {
+          funcHeaders['Authorization'] = process.env.SCHEDULES_LAMBDA_FUNC_URL_AUTH;
+        }
+
+        // Log call for debugging
+        console.log(`POST ${lambdaFuncUrl} with nodes_count=${payload.nodes_count}`);
+
+        const resp = await fetch(lambdaFuncUrl, {
+          method: 'POST',
+          headers: funcHeaders,
+          body: JSON.stringify(payload)
+        });
+        const result = await resp.json().catch(() => null);
+        if (!resp.ok) {
+          console.error('Function URL returned non-200:', resp.status, result);
+          return res.status(500).json({ ok: false, error: 'function_url_error', status: resp.status, detail: result });
+        }
+        console.log('Function URL response:', result);
+
+        // treat generic success without scheduled items as actionable failure
+        const hasScheduledArray = result && (Array.isArray(result.scheduled) || Array.isArray(result.results));
+        const reportedSuccess = result && (result.ok === true || result.success === true);
+        if (reportedSuccess && !hasScheduledArray) {
+          console.error('Function URL responded success but did not return scheduled items:', result);
+          return res.status(500).json({
+            ok: false,
+            error: 'lambda_success_no_items',
+            detail: 'Lambda function responded with success but did not return any scheduled items. Check Lambda logs and that the function received nodes (nodes_count).',
+            nodes_count_sent: payload.nodes_count,
+            lambdaResponse: result
+          });
+        }
+
+        // Normalize the response format
+        const normalizedResult = {
+          ...result,
+          scheduled: result.scheduled || result.results || []
+        };
+        return res.status(result && result.ok === false ? 500 : 200).json(normalizedResult);
+      } catch (httpErr) {
+        console.error('Function URL POST failed:', httpErr);
+        return res.status(500).json({ ok: false, error: 'function_url_invoke_failed', detail: httpErr && httpErr.message ? httpErr.message : String(httpErr) });
+      }
+    }
+
+    // Should not reach here
+    return res.status(500).json({ ok: false, error: 'no_invoke_path_available' });
+  } catch (err) {
+    console.error('Failed to invoke schedules lambda/path:', err);
+    return res.status(500).json({ ok: false, error: 'invoke_failed', detail: err && err.message ? err.message : String(err) });
+  }
+});
