@@ -131,7 +131,30 @@ function mapFrontendToBedrockMessages(frontendMessages = [], instruction = null)
 async function generateTextFromBedrock(messagesArray) {
   const payload = {
     messages: mapFrontendToBedrockMessages(messagesArray, 
-      `INSTRUCTION: You are BrewPost assistant — a professional-grade social media strategist and planner for Instagram content.`
+      `INSTRUCTION: You are BrewPost assistant. Generate content plans in this EXACT format:
+
+## Post 1
+**Title:** [Clean, professional title with NO emojis]
+**Caption:** [Write a short, engaging caption in one brief paragraph (3-5 sentences max). Include one key insight. Add 2-3 emojis and hashtags.]
+**Image Prompt:** [Detailed visual description including specific elements like lighting, composition, colors, style, mood, and any text overlays. Be specific about the setting, objects, people, and overall aesthetic. Make it 2-3 sentences long.]
+
+## Post 2
+**Title:** [Clean, professional title with NO emojis]
+**Caption:** [Write a short, engaging caption in one brief paragraph (3-5 sentences max). Include one key insight. Add 2-3 emojis and hashtags.]
+**Image Prompt:** [Detailed visual description including specific elements like lighting, composition, colors, style, mood, and any text overlays. Be specific about the setting, objects, people, and overall aesthetic. Make it 2-3 sentences long.]
+
+[Continue for 7 posts total]
+
+RULES:
+- Generate exactly 7 posts
+- Use "Post 1", "Post 2", etc. (not weekdays)
+- Titles must be clean and professional with NO emojis
+- Write short captions (one brief paragraph, 2-3 sentences max)
+- Include storytelling, insights, and value in captions
+- Add emojis and hashtags only in captions, not titles
+- Make image prompts detailed and specific (2-3 sentences)
+- NO extra explanations or introductions
+- Start directly with "## Post 1"`
     ),
   };
   return invokeModelViaHttp(REGION, TEXT_MODEL, payload, "application/json");

@@ -74,6 +74,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const [helpOffset, setHelpOffset] = useState({ x: 0, y: 0 });
   const [helpPos, setHelpPos] = useState<{ x: number; y: number } | null>(null);
   const [helpVisible, setHelpVisible] = useState(true);
+  const [canvasPanning, setCanvasPanning] = useState(false);
+  const [canvasOffset, setCanvasOffset] = useState({ x: 0, y: 0 });
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [zoomLevel, setZoomLevel] = useState(1);
   const [expandedImageFolders, setExpandedImageFolders] = useState<Set<string>>(new Set());
   const [draggedImage, setDraggedImage] = useState<{ url: string; nodeId: string } | null>(null);
 
@@ -155,9 +159,13 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     if (!node) return;
 
     const rect = (e.target as HTMLElement).closest('.node-card')?.getBoundingClientRect();
-    if (rect) {
-      const offsetX = e.clientX - rect.left;
-      const offsetY = e.clientY - rect.top;
+    const canvasRect = canvasRef.current?.getBoundingClientRect();
+    if (rect && canvasRect) {
+      // Calculate offset in canvas coordinate space
+      const canvasX = (e.clientX - canvasRect.left - canvasOffset.x) / zoomLevel;
+      const canvasY = (e.clientY - canvasRect.top - canvasOffset.y) / zoomLevel;
+      const offsetX = canvasX - node.position.x;
+      const offsetY = canvasY - node.position.y;
       
       setDragOffset({ x: offsetX, y: offsetY });
       
@@ -416,22 +424,83 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     };
   }, [helpDragging, onHelpMouseMove]);
 
-  const handleCanvasClick = useCallback((e: React.MouseEvent) => {
-    if (e.target === e.currentTarget && connectingMode) {
+  const handleCanvasMouseDown = useCallback((e: React.MouseEvent) => {
+    if (e.button === 2) { // Right click
+      e.preventDefault();
+      setCanvasPanning(true);
+      setPanStart({ x: e.clientX - canvasOffset.x, y: e.clientY - canvasOffset.y });
+      document.body.style.cursor = 'grabbing';
+    } else if (e.target === e.currentTarget && connectingMode) {
       setConnectingMode(null);
     }
-  }, [connectingMode]);
+  }, [connectingMode, canvasOffset]);
+
+  const handleCanvasPan = useCallback((e: MouseEvent) => {
+    if (!canvasPanning) return;
+    
+    const newOffset = {
+      x: e.clientX - panStart.x,
+      y: e.clientY - panStart.y
+    };
+    setCanvasOffset(newOffset);
+  }, [canvasPanning, panStart]);
+
+  const handleCanvasPanEnd = useCallback(() => {
+    setCanvasPanning(false);
+    document.body.style.cursor = '';
+  }, []);
+
+  const handleWheel = useCallback((e: WheelEvent) => {
+    e.preventDefault();
+    const zoomFactor = 0.1;
+    const newZoom = e.deltaY > 0 
+      ? Math.max(0.5, zoomLevel - zoomFactor) // Zoom out (scroll down)
+      : Math.min(1.5, zoomLevel + zoomFactor);   // Zoom in (scroll up)
+    setZoomLevel(newZoom);
+  }, [zoomLevel]);
+
+  React.useEffect(() => {
+    if (canvasPanning) {
+      document.addEventListener('mousemove', handleCanvasPan);
+      document.addEventListener('mouseup', handleCanvasPanEnd);
+      document.addEventListener('contextmenu', (e) => e.preventDefault());
+      
+      return () => {
+        document.removeEventListener('mousemove', handleCanvasPan);
+        document.removeEventListener('mouseup', handleCanvasPanEnd);
+        document.removeEventListener('contextmenu', (e) => e.preventDefault());
+      };
+    }
+  }, [canvasPanning, handleCanvasPan, handleCanvasPanEnd]);
+
+  React.useEffect(() => {
+    const canvas = canvasRef.current;
+    if (canvas) {
+      canvas.addEventListener('wheel', handleWheel, { passive: false });
+      return () => canvas.removeEventListener('wheel', handleWheel);
+    }
+  }, [handleWheel]);
 
   return (
     <div 
       ref={canvasRef}
-      className="relative w-full h-full p-6 overflow-auto scrollbar-hide bg-gradient-to-br from-background/50 to-background/80 no-select"
+      className="relative w-full h-full overflow-hidden bg-gradient-to-br from-background/50 to-background/80 no-select"
       style={{ 
-        cursor: isDragging ? 'grabbing' : 'default',
-        willChange: isDragging ? 'transform' : 'auto',
+        cursor: canvasPanning ? 'grabbing' : (isDragging ? 'grabbing' : 'default'),
+        willChange: isDragging || canvasPanning ? 'transform' : 'auto',
       }}
-      onClick={handleCanvasClick}
+      onMouseDown={handleCanvasMouseDown}
+      onContextMenu={(e) => e.preventDefault()}
     >
+      {/* Canvas content with transform */}
+      <div 
+        className="relative w-full h-full"
+        style={{ 
+          transform: `translate(${canvasOffset.x}px, ${canvasOffset.y}px) scale(${zoomLevel})`,
+          transition: canvasPanning ? 'none' : 'transform 0.1s ease-out',
+          transformOrigin: 'center center'
+        }}
+      >
       {/* Connection Lines */}
       <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
         <defs>
@@ -615,7 +684,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 </div>
                 <div>
                   <h3 className="font-medium text-xs">{node.title}</h3>
-                  <p className="text-xs text-muted-foreground capitalize">{node.day + " - " + node.type}</p>
+                  <p className="text-xs text-muted-foreground capitalize">{node.day && node.postType ? `${node.day} - ${node.postType.charAt(0).toUpperCase() + node.postType.slice(1)}` : node.day + " - " + node.type}</p>
                 </div>
               </div>
               
@@ -784,21 +853,16 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         </div>
       )}
 
-      {/* Usage Instructions */}
+      </div>
+      
+      {/* Usage Instructions - Outside transform so it stays fixed */}
       {helpVisible && (
         <div
-          ref={helpRef}
-          className={`absolute bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg p-3 z-30 ${
-            helpDragging ? 'cursor-grabbing' : 'cursor-grab'
-          }`}
+          className="absolute top-4 right-4 bg-card/90 backdrop-blur-sm border border-border/50 rounded-lg p-3 z-30"
           style={{
-            left: helpPos ? helpPos.x : 24,
-            top: helpPos ? helpPos.y : 24,
             width: 220,
             userSelect: 'none',
           }}
-          onMouseDown={onHelpMouseDown}
-          title="Drag me"
         >
           <div className="flex items-center justify-between mb-2">
             <div className="flex items-center gap-2">
@@ -825,6 +889,11 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
           </div>
         </div>
       )}
+      
+      {/* Zoom Level Indicator */}
+      <div className="absolute bottom-4 right-4 bg-black/70 text-white text-sm px-3 py-2 rounded-lg backdrop-blur-sm border border-white/10 z-40">
+        {Math.round(zoomLevel * 100)}%
+      </div>
     </div>
   );
 };
