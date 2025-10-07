@@ -50,169 +50,95 @@ type PlannerNode = {
 
 function extractPlannerNodesFromText(raw: string): PlannerNode[] {
   const text = raw.replace(/\r\n/g, '\n');
-  const dayNamesRe = /(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)/i;
-
-  // Split into blocks by markdown heading lines (e.g., #### ...)
-  const headingRe = /^#{2,6}\s*(.+)$/gm;
-  const blocks: { heading: string; content: string }[] = [];
-
-  let lastIndex = 0;
-  let lastHeading = '';
-  let m: RegExpExecArray | null;
-
-  // Walk through headings and capture content between them
-  while ((m = headingRe.exec(text)) !== null) {
-    const heading = m[1].trim();
-    const start = m.index + m[0].length;
-    if (lastHeading) {
-      const content = text.slice(lastIndex, m.index).trim();
-      blocks.push({ heading: lastHeading, content });
-    }
-    lastHeading = heading;
-    lastIndex = start;
-  }
-
-  // push final block
-  if (lastHeading) {
-    const content = text.slice(lastIndex).trim();
-    blocks.push({ heading: lastHeading, content });
-  }
-
   const nodes: PlannerNode[] = [];
 
-  blocks.forEach((b, idx) => {
-    const heading = b.heading.replace(/\*+/g, '').trim();
-    const dayMatch = heading.match(dayNamesRe);
-    const day = dayMatch ? dayMatch[0] : '';
-
-    const headingTitle = heading.replace(dayNamesRe, '').replace(/^\s*\([^)]*\)\s*[:\s-]+/, '').replace(/^[:\s-]+/, '').trim();
-
-    const content = b.content;
-    const titleInlineRe = /(?:\*\*Title\*\*|Title)\s*[:-]?/i;
-    const captionInlineRe = /(?:\*\*Caption\*\*|Caption)\s*[:-]?/i;
-    const imagePromptInlineRe = /(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i;
-
-    let titleFound: string | undefined = undefined;
-    let captionFound = '';
-    let imagePromptFound = '';
-
-    const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
-    const titleMatch = content.match(titleRe);
-    if (titleMatch) {
-      titleFound = (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim();
-    }
-
-    // Find positions for caption and image prompt markers
-    const captionPos = content.search(captionInlineRe);
-    const imagePromptPos = content.search(imagePromptInlineRe);
-
-    if (captionPos >= 0) {
-      const capMarkerMatch = content.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i);
-      const capStart = captionPos + (capMarkerMatch ? capMarkerMatch[0].length : 0);
-      const capEnd = imagePromptPos >= 0 ? imagePromptPos : content.length;
-      captionFound = content.slice(capStart, capEnd).trim();
-    }
-
-    if (imagePromptPos >= 0) {
-      const ipMarkerMatch = content.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i);
-      const ipStart = imagePromptPos + (ipMarkerMatch ? ipMarkerMatch[0].length : 0);
-      const rest = content.slice(ipStart).trim();
-      const doubleNl = rest.search(/\n\s*\n/);
-      imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
-    }
-
-    const title = (titleFound && titleFound.length > 0) ? titleFound : headingTitle || `Untitled ${idx + 1}`;
-
-    // Normalize title and image prompt
-    let cleanTitle = title.replace(/\*+/g, '').trim();
-    cleanTitle = cleanTitle.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
-
-    let cleanImagePrompt = (imagePromptFound || '').replace(/\s+/g, ' ').trim();
-    cleanImagePrompt = cleanImagePrompt.replace(/^"(.*)"$/, '$1').replace(/^'(.*)'$/, '$1').trim();
-
-    const caption = captionFound.replace(/^[-\s]*/,'').trim();
-
-    // Only accept blocks that explicitly reference a weekday in the heading
-    // This prevents the top-level header like 'PLANNER MODE: 7-Day Weekly Content Plan' from becoming a node
-    if (day) {
-      nodes.push({
-        day,
-        title: cleanTitle,
-        caption,
-        imagePrompt: cleanImagePrompt,
-      });
-    } else {
-      console.debug('AIChat: skipping non-day block heading:', heading.slice(0, 80));
-    }
-  });
-
-  // As a final fallback, if no heading blocks found, try to parse by looking for bullet sections with 'Title' markers
+  // New format: Parse "Post X" blocks with Title, Caption, Image Prompt
+  const postBlockRe = /(?:^|\n)(?:##\s*)?Post\s+(\d+)\s*\n([\s\S]*?)(?=(?:\n(?:##\s*)?Post\s+\d+)|$)/gi;
+  let match;
+  
+  while ((match = postBlockRe.exec(text)) !== null) {
+    const postNum = match[1];
+    const content = match[2].trim();
+    
+    // Extract Title, Caption, and Image Prompt
+    const titleMatch = content.match(/\*\*Title:\*\*\s*([^\n]+)/i);
+    const captionMatch = content.match(/\*\*Caption:\*\*\s*([^\n]+)/i);
+    const imagePromptMatch = content.match(/\*\*Image Prompt:\*\*\s*([^\n]+)/i);
+    
+    const title = titleMatch ? titleMatch[1].trim() : `Post ${postNum}`;
+    const caption = captionMatch ? captionMatch[1].trim() : '';
+    const imagePrompt = imagePromptMatch ? imagePromptMatch[1].trim() : '';
+    
+    nodes.push({
+      day: `Post ${postNum}`,
+      title: cleanField(title),
+      caption: cleanField(caption),
+      imagePrompt: cleanField(imagePrompt)
+    });
+  }
+  
+  // Fallback: Try to parse line-by-line format
   if (nodes.length === 0) {
-    // Robust fallback: scan lines, detect 'Monday:' style headers and capture their following block
-    const lines = text.split(/\r?\n/);
-    // match a line that starts with a weekday, optionally followed by ':' and inline content
-  const dayStartRe = /^\s*(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b\s*[:]?\s*(.*)$/i;
-    let i = 0;
-    while (i < lines.length) {
-      const headerMatch = lines[i].match(dayStartRe);
-      if (headerMatch) {
-        const day = headerMatch[1];
-        const inline = headerMatch[2] || '';
-        i++;
-        const chunk: string[] = [];
-        if (inline.trim()) chunk.push(inline);
-        while (i < lines.length && !lines[i].match(dayStartRe)) {
-          chunk.push(lines[i]);
-          i++;
+    const lines = text.split('\n');
+    let currentPost: Partial<PlannerNode> = {};
+    let postCount = 0;
+    
+    for (const line of lines) {
+      const trimmed = line.trim();
+      
+      // Check for Post header
+      const postHeaderMatch = trimmed.match(/^(?:##\s*)?Post\s+(\d+)/i);
+      if (postHeaderMatch) {
+        // Save previous post if exists
+        if (currentPost.day) {
+          nodes.push({
+            day: currentPost.day,
+            title: currentPost.title || `Post ${postCount}`,
+            caption: currentPost.caption || '',
+            imagePrompt: currentPost.imagePrompt || ''
+          });
         }
-        const block = chunk.join('\n').trim();
-
-    // Parse '- Title: ...' and '- Caption: ...' and '- Image Prompt: ...' where present
-  const titleMatch = block.match(/^[-\s*]*Title\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/im);
-  const captionMatch = block.match(/^[-\s*]*Caption\s*[:-]?\s*([\s\S]*?)(?=(?:\n[-\s*]*Image Prompt\b)|$)/im);
-  const imagePromptMatch = block.match(/^[-\s*]*Image Prompt\s*[:-]?\s*([\s\S]*?)(?=\n\s*$|$)/im);
-
-    const titleFinal = cleanField(titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3]) : '') || (day + ' Post');
-    const captionFinal = cleanField(captionMatch ? captionMatch[1] : '') || '';
-    const imagePromptFinal = (imagePromptMatch ? imagePromptMatch[1] : '').replace(/\s+/g, ' ').trim();
-
-        nodes.push({ day, title: titleFinal, caption: captionFinal, imagePrompt: imagePromptFinal });
-      } else {
-        i++;
+        
+        // Start new post
+        postCount = parseInt(postHeaderMatch[1]);
+        currentPost = { day: `Post ${postCount}` };
+        continue;
+      }
+      
+      // Extract title (can be on same line as Post or separate)
+      const titleMatch = trimmed.match(/^(?:Title:|\*\*Title:\*\*)\s*(.+)/i) || 
+                        (currentPost.day && !currentPost.title && trimmed.match(/^(.+)$/));
+      if (titleMatch && !currentPost.title) {
+        currentPost.title = cleanField(titleMatch[1]);
+        continue;
+      }
+      
+      // Extract caption
+      const captionMatch = trimmed.match(/^(?:Caption:|\*\*Caption:\*\*)\s*(.+)/i);
+      if (captionMatch) {
+        currentPost.caption = cleanField(captionMatch[1]);
+        continue;
+      }
+      
+      // Extract image prompt
+      const imagePromptMatch = trimmed.match(/^(?:Image Prompt:|\*\*Image Prompt:\*\*)\s*(.+)/i);
+      if (imagePromptMatch) {
+        currentPost.imagePrompt = cleanField(imagePromptMatch[1]);
+        continue;
       }
     }
-    // If still nothing, fall back to earlier permissive itemRe method
-    if (nodes.length === 0) {
-      const itemRe = /(?:[-*]\s*)?\*?\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*?\*?[:\s]*([\s\S]*?)(?=(?:\n[-*\s]*\*?\*?(Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\*?\*?)|$)/gi;
-      let it: RegExpExecArray | null;
-      while ((it = itemRe.exec(text)) !== null) {
-        const day = it[1];
-        const block = it[2] || '';
-        const titleRe = /(?:\*\*Title\*\*|Title)\s*[:-]?\s*(?:"([^"]+)"|'([^']+)'|([^\n]+))/i;
-        const titleMatch = block.match(titleRe);
-        const captionPos = block.search(/(?:\*\*Caption\*\*|Caption)\s*[:-]?/i);
-        const imagePromptPos = block.search(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i);
-
-        const titleFound = titleMatch ? (titleMatch[1] || titleMatch[2] || titleMatch[3] || '').trim() : '';
-        const capStart = captionPos >= 0 ? (captionPos + (block.slice(captionPos).match(/(?:\*\*Caption\*\*|Caption)\s*[:-]?\s*/i)?.[0].length || 0)) : -1;
-        const capEnd = imagePromptPos >= 0 ? imagePromptPos : block.length;
-        const captionFound = capStart >= 0 ? block.slice(capStart, capEnd).trim() : '';
-
-        let imagePromptFound = '';
-        if (imagePromptPos >= 0) {
-          const ipStart = imagePromptPos + (block.slice(imagePromptPos).match(/(?:\*\*Image Prompt\*\*|Image Prompt)\b[:-]?\s*/i)?.[0].length || 0);
-          const rest = block.slice(ipStart).trim();
-          const doubleNl = rest.search(/\n\s*\n/);
-          imagePromptFound = doubleNl >= 0 ? rest.slice(0, doubleNl).trim() : rest.trim();
-        }
-
-        const titleFinal = cleanField(titleFound) || 'Untitled';
-        const imagePromptFinal = imagePromptFound.replace(/\s+/g, ' ').trim();
-
-        nodes.push({ day, title: titleFinal, caption: (captionFound || '').trim(), imagePrompt: imagePromptFinal });
-      }
+    
+    // Save last post
+    if (currentPost.day) {
+      nodes.push({
+        day: currentPost.day,
+        title: currentPost.title || `Post ${postCount}`,
+        caption: currentPost.caption || '',
+        imagePrompt: currentPost.imagePrompt || ''
+      });
     }
   }
+  
   console.info('AIChat: parsed planner blocks ->', nodes.map(n => ({ day: n.day, title: n.title, caption: n.caption.substring(0, 50), hasImagePrompt: !!n.imagePrompt })));
   return nodes;
 }
@@ -222,10 +148,10 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
   const ids = plannerNodes.map((_, i) => `planner-${timestamp}-${i}-${Math.floor(Math.random() * 10000)}`);
   const count = plannerNodes.length;
   const spacing = 320;
-  // Position planner nodes to the right to avoid overlap with existing nodes
-  const startX = 600;
-  const topY = 60;
-  const bottomY = topY + 220;
+  // Position planner nodes more to the left and up
+  const startX = 100;
+  const topY = 20;
+  const bottomY = topY + 180;
 
   const detectPostType = (title: string, caption: string) => {
     const content = `${title} ${caption}`.toLowerCase();
@@ -273,7 +199,7 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
       title: titleCandidate,
       type: 'post',
       status: 'draft',
-      scheduledDate: getNextWeekdayDate(index),
+      scheduledDate: getScheduledDate(index),
       content: cleanedCaption,
       imagePrompt: node.imagePrompt || undefined,
       day: node.day,
@@ -290,10 +216,23 @@ function mapPlannerNodesToContentNodes(plannerNodes: PlannerNode[]): ContentNode
 
 
 
-function getNextWeekdayDate(offset: number): Date {
+function getScheduledDate(postIndex: number): Date {
   const today = new Date();
   const newDate = new Date(today);
-  newDate.setDate(today.getDate() + offset);
+  
+  if (postIndex === 0) {
+    // Post 1 is tomorrow
+    newDate.setDate(today.getDate() + 1);
+  } else {
+    // Each subsequent post is 4-5 days apart at random
+    let totalDays = 1; // Start from tomorrow for Post 1
+    for (let i = 1; i <= postIndex; i++) {
+      const randomDays = Math.floor(Math.random() * 2) + 4; // 4 or 5 days
+      totalDays += randomDays;
+    }
+    newDate.setDate(today.getDate() + totalDays);
+  }
+  
   return newDate;
 }
 
@@ -340,8 +279,8 @@ export const AIChat: React.FC<AIChatProps> = ({ setPlanningNodes }) => {
     setRotation(0);
   };
 
-  const zoomIn = () => setZoomLevel(prev => Math.min(prev + 0.25, 3));
-  const zoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.25));
+  const zoomIn = () => setZoomLevel(prev => Math.min(prev + 0.25, 2));
+  const zoomOut = () => setZoomLevel(prev => Math.max(prev - 0.25, 0.5));
   const rotateImage = () => setRotation(prev => (prev + 90) % 360);
 
   const downloadImage = () => {
@@ -615,12 +554,12 @@ Return only the refined prompt, nothing else.`
     const raw = (text || '');
     const normalized = raw.toLowerCase();
 
-    // Flexible header detection
+    // Flexible header detection for post-based planning
     const hasPlannerHeader =
-      /planner\s*mode|7\s*[-–]?\s*day\s+weekly\s+content\s+plan|weekly\s+content\s+plan/.test(normalized);
+      /planner\s*mode|content\s+plan|post\s+schedule/.test(normalized);
 
-    const weekdays = ['monday','tuesday','wednesday','thursday','friday','saturday','sunday'];
-    const daysFound = weekdays.reduce((acc, d) => acc + (normalized.includes(d) ? 1 : 0), 0);
+    const postNumbers = /post\s+\d+/gi;
+    const postsFound = (normalized.match(postNumbers) || []).length;
 
     // Section markers (Title/Caption/Image Prompt) often appear in your plans
     const hasSectionMarkers = /(title\s*[:\-])|(\bimage\s+prompt\b)|(\bcaption\s*[:\-])/.test(raw);
@@ -632,9 +571,9 @@ Return only the refined prompt, nothing else.`
     } catch {}
 
     return (
-      (hasPlannerHeader && daysFound >= 2) ||  // header + a couple weekdays
-      daysFound >= 4 ||                        // looks like a weekly plan
-      (hasSectionMarkers && parsedCount >= 3)  // parses into multiple nodes
+      (hasPlannerHeader && postsFound >= 2) ||  // header + a couple posts
+      postsFound >= 3 ||                        // looks like a multi-post plan
+      (hasSectionMarkers && parsedCount >= 3)   // parses into multiple nodes
     );
   };
 
@@ -940,7 +879,7 @@ Return only the refined prompt, nothing else.`
                   variant="ghost"
                   className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
                   onClick={zoomOut}
-                  disabled={zoomLevel <= 0.25}
+                  disabled={zoomLevel <= 0.5}
                   title="Zoom Out (-)"
                 >
                   <ZoomOut className="w-4 h-4" />
@@ -950,7 +889,7 @@ Return only the refined prompt, nothing else.`
                   variant="ghost"
                   className="text-white hover:bg-white/20 h-8 w-8 p-0 transition-all duration-200"
                   onClick={zoomIn}
-                  disabled={zoomLevel >= 3}
+                  disabled={zoomLevel >= 2}
                   title="Zoom In (+)"
                 >
                   <ZoomIn className="w-4 h-4" />
@@ -1025,11 +964,9 @@ Return only the refined prompt, nothing else.`
             </div>
 
             {/* Zoom level indicator */}
-            {zoomLevel !== 1 && (
-              <div className="absolute top-1/2 right-4 bg-black/70 text-white text-sm px-3 py-2 rounded-lg backdrop-blur-sm border border-white/10">
-                {zoomLevel > 1 ? `${Math.round(zoomLevel * 100)}% Zoomed` : `${Math.round(zoomLevel * 100)}% Fit`}
-              </div>
-            )}
+            <div className="absolute bottom-4 right-4 bg-black/70 text-white text-sm px-3 py-2 rounded-lg backdrop-blur-sm border border-white/10">
+              {Math.round(zoomLevel * 100)}%
+            </div>
           </div>
         </DialogContent>
       </Dialog>
