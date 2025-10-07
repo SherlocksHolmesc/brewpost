@@ -458,12 +458,12 @@ app.listen(PORT, () => {
 
 app.get("/api/schedules/list", async (req, res) => {
   try {
-    // Determine userId from session, header, or query param
+    // Determine userId from session, header, or query param (fallback to demo user)
     const userId =
       (req.session && req.session.tokens && req.session.tokens.id_token_payload && req.session.tokens.id_token_payload.sub) ||
       req.headers['x-user-id'] ||
       req.query.userId ||
-      null;
+      'demo-user-123'; // Default for development
 
     const readFuncUrl = process.env.SCHEDULES_READ_LAMBDA_FUNC_URL || process.env.PUBLIC_UPLOADER_FUNC_URL || null;
 
@@ -644,7 +644,7 @@ app.post("/api/schedules/create-all", async (req, res) => {
       (req.session && req.session.tokens && req.session.tokens.id_token_payload && req.session.tokens.id_token_payload.sub) ||
       req.headers['x-user-id'] ||
       req.body.userId ||
-      'anonymous';
+      'demo-user-123'; // Default for development
 
     // NEW: validate nodes are non-empty and add quick debug logging
     if (!Array.isArray(nodes) || nodes.length === 0) {

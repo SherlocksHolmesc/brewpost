@@ -279,24 +279,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 Canvas
               </button>
             </div>
-            
-
-
-            {/* Schedule All button */}
-            <Button
-              size="sm"
-              className="bg-gradient-primary hover:opacity-90 glow-hover"
-              onClick={() => {
-                if (viewMode === 'nodes') {
-                  // Trigger schedule modal in PlanningPanel
-                  const scheduleButton = document.querySelector('[data-schedule-all]') as HTMLButtonElement;
-                  if (scheduleButton) scheduleButton.click();
-                }
-              }}
-            >
-              <Sparkles className="w-4 h-4 mr-2" />
-              Schedule All
-            </Button>
 
             <Button 
               size="sm" 

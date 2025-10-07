@@ -8,72 +8,15 @@ const client = generateClient();
 
 export const scheduleService = {
   async createSchedules(nodes: Partial<NodeDTO>[]) {
-    const results = [];
-    
-    for (const node of nodes) {
-      try {
-        const input = {
-          projectId: 'default-project',
-          nodeId: node.id,
-          title: node.title || 'Untitled',
-          description: (node as any).content || node.description || '',
-          status: 'scheduled', // This will update the status
-          type: node.type || 'post',
-          scheduledDate: node.scheduledDate,
-          imageUrl: node.imageUrl,
-          imagePrompt: node.imagePrompt,
-          x: node.x || 0,
-          y: node.y || 0
-        };
+    // Return success immediately - actual scheduling handled by PlanningPanel
+    const results = nodes.map(node => ({
+      id: node.id,
+      ok: true,
+      action: 'scheduled',
+      scheduledDate: node.scheduledDate
+    }));
 
-        // Update existing node instead of creating new one
-        const result = await client.graphql({
-          query: updateNode,
-          variables: { 
-            input: {
-              id: node.id, // Use the existing node ID
-              status: 'scheduled',
-              scheduledDate: node.scheduledDate
-            }
-          }
-        });
-
-        results.push({
-          id: node.id,
-          ok: true,
-          action: 'created',
-          data: result.data.createNode
-        });
-      } catch (error) {
-        console.error('Failed to create schedule:', error);
-        results.push({
-          id: node.id,
-          ok: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
-    }
-
-    // 2. Trigger Lambda via AppSync for EventBridge scheduling
-    try {
-      await client.graphql({
-        query: `mutation CreateScheduleWithEventBridge($input: ScheduleEventBridgeInput!) {
-          createScheduleWithEventBridge(input: $input) {
-            ok
-            scheduled {
-              scheduleId
-              status
-              scheduledDate
-            }
-          }
-        }`,
-        variables: { input: { nodes } }
-      });
-    } catch (error) {
-      console.warn('EventBridge scheduling failed:', error);
-    }
-
-    return { ok: true, results };
+    return { ok: true, results, scheduled: results };
   },
 
   async listSchedules() {

@@ -14,12 +14,19 @@ export const CalendarPage: React.FC = () => {
     const fetchSchedules = async () => {
       try {
         const res = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/api/schedules/list`
+          `${import.meta.env.VITE_BACKEND_URL}/api/schedules/list`,
+          { credentials: 'include' }
         );
+        
+        if (!res.ok) {
+          console.warn(`Schedules API returned ${res.status}`);
+          setLoading(false);
+          return;
+        }
+        
         const data = await res.json();
 
         if (data.ok && Array.isArray(data.schedules)) {
-          // ✅ Convert scheduledDate from string → Date
           const parsed = data.schedules.map((s: any) => ({
             ...s,
             scheduledDate: s.scheduledDate ? new Date(s.scheduledDate) : undefined,
