@@ -10,6 +10,7 @@ import { ScheduleConfirmationModal } from '@/components/modals/ScheduleConfirmat
 import { CalendarModal } from '@/components/modals/CalendarModal';
 import { EditNodeModal } from '@/components/modals/EditNodeModal';
 import { NodeAPI } from '@/services/nodeService';
+import { scheduleService } from '@/services/scheduleService';
 import { 
   Calendar, 
   Clock, 
@@ -215,13 +216,16 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
 
   const handleSaveNode = async (updatedNode: ContentNode) => {
     console.log('handleSaveNode called with:', updatedNode);
+    console.log('Updated node scheduledDate:', updatedNode.scheduledDate);
     
     // Optimistic update - update UI immediately
-    setNodes(prevNodes => 
-      prevNodes.map(node => 
+    setNodes(prevNodes => {
+      const updated = prevNodes.map(node => 
         node.id === updatedNode.id ? updatedNode : node
-      )
-    );
+      );
+      console.log('Updated nodes array:', updated.map(n => ({ id: n.id, scheduledDate: n.scheduledDate })));
+      return updated;
+    });
     
     try {
       const updateData = {
@@ -455,21 +459,37 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
   };
 
   // Confirm scheduling: send to backend which writes to DynamoDB and notifies SNS (to create EventBridge one-shot schedules)
-  const handleConfirmSchedule = async () => {
-    // Build scheduled dates (spread starting today)
-    const today = new Date();
-    const payloadNodes = nodes.map((node, index) => {
-      const scheduledDate = new Date(today);
-      scheduledDate.setDate(today.getDate() + index);
-      return {
-        id: node.id,
-        title: node.title,
-        type: node.type,
-        content: node.content,
-        imageUrl: node.imageUrl || null,
-        scheduledDate: scheduledDate.toISOString(),
-      };
+  const handleConfirmSchedule = async (freshNodes?: ContentNode[]) => {
+    console.log('=== HANDLE CONFIRM SCHEDULE DEBUG ===');
+    
+    // Use fresh nodes from table 1 if provided, otherwise fallback to local state
+    const nodesToSchedule = freshNodes || nodes;
+    console.log('Using nodes from:', freshNodes ? 'table 1 (fresh)' : 'local state (fallback)');
+    console.log('Nodes count:', nodesToSchedule.length);
+    
+    nodesToSchedule.forEach(n => {
+      console.log(`Node: ${n.title}`);
+      console.log(`  status: ${n.status}`);
+      console.log(`  scheduledDate:`, n.scheduledDate);
+      console.log(`  scheduledDate ISO:`, n.scheduledDate?.toISOString());
+      console.log(`  postedAt:`, n.postedAt);
+      console.log(`  will be included:`, !!(n.scheduledDate && n.status !== 'published' && !n.postedAt));
     });
+    console.log('=== END HANDLE CONFIRM SCHEDULE DEBUG ===');
+    
+    // Use fresh data from table 1 to ensure we have the correct scheduled dates
+    const payloadNodes = nodesToSchedule
+      .filter(node => node.scheduledDate && node.status !== 'published' && !node.postedAt)
+      .map((node) => {
+        return {
+          id: node.id,
+          title: node.title,
+          type: node.type || 'post',
+          content: node.content || '',
+          imageUrl: node.imageUrl || null,
+          scheduledDate: node.scheduledDate?.toISOString(),
+        };
+      });
 
     // DEBUG: always log payload sent from client
     console.log('Scheduling payloadNodes (count):', payloadNodes.length, payloadNodes.slice(0, 3));
@@ -486,18 +506,9 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
             headers['x-user-id'] = userId;
           }
 
-          const res = await fetch(`${BACKEND_URL}/api/schedules/create-all`, {
-            method: "POST",
-            headers,
-            body: JSON.stringify({ 
-              nodes: nodesToSend,
-              userId: userId // Also include in body as fallback
-            }),
-            credentials: 'include' // Include session cookies for server-side auth
-          });
-          const data = await res.json().catch(() => ({}));
-          // Return structured result so caller can inspect non-200 responses
-          return { ok: res.ok, status: res.status, data };
+          const result = await scheduleService.createSchedules(nodesToSend);
+          return { ok: result.ok, status: result.ok ? 200 : 500, data: result };
+
         } catch (fetchErr) {
           console.error("Network/Fetch failed:", fetchErr);
           return { ok: false, status: 0, data: { error: "network_error", detail: String(fetchErr) } };
@@ -607,7 +618,8 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
           return {
             ...n,
             status: 'scheduled' as const,
-            scheduledDate: sched.scheduledDate ? new Date(sched.scheduledDate) : n.scheduledDate,
+            // Keep the existing scheduledDate from local state since it's already correct
+            scheduledDate: n.scheduledDate,
           };
         }
         return n;
@@ -615,7 +627,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
 
       setNodes(updatedNodes);
       setShowScheduleConfirmation(false);
-      navigate('/calendar', { state: { nodes: updatedNodes } });
+      navigate('/calendar', { state: { nodes: updatedNodes, editable: true } });
     } catch (err) {
       console.error('handleConfirmSchedule failed:', err);
       alert('Failed to schedule nodes. Check server logs and ensure SNS/Dynamo/Scheduler permissions are correct.');
@@ -756,7 +768,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       <ScheduleConfirmationModal
         open={showScheduleConfirmation}
         onOpenChange={setShowScheduleConfirmation}
-        nodes={nodes}
+        nodes={nodes.filter(node => node.scheduledDate && node.status !== 'published' && !node.postedAt)} // Exclude published and posted nodes
         onConfirm={handleConfirmSchedule}
       />
 
@@ -764,7 +776,9 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
       <CalendarModal
         open={showCalendarModal}
         onOpenChange={setShowCalendarModal}
-        scheduledNodes={[]} // Let calendar fetch from database instead of using local nodes
+        scheduledNodes={nodes.filter(node => node.status === 'scheduled')} // Show only scheduled nodes
+        editable={true}
+        onEditNode={handleEditNode}
       />
 
       {/* Edit Node Modal */}

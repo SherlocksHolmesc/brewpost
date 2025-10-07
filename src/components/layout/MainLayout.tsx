@@ -28,19 +28,29 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
 
   // Shared save function that works in both modes
   const handleSaveNode = (updatedNode: ContentNode) => {
+    console.log('=== MAIN LAYOUT HANDLE SAVE NODE DEBUG ===');
+    console.log('MainLayout handleSaveNode called with:', updatedNode);
+    console.log('Current viewMode:', viewMode);
+    console.log('Updated node scheduledDate:', updatedNode.scheduledDate);
+    console.log('Updated node scheduledDate ISO:', updatedNode.scheduledDate?.toISOString());
+    
     if (viewMode === 'nodes' && planningPanelRef.current?.handleSaveNode) {
       // Use PlanningPanel's save function in nodes mode
+      console.log('Using PlanningPanel handleSaveNode');
       planningPanelRef.current.handleSaveNode(updatedNode);
     } else {
       // Direct save in canvas mode
+      console.log('Using direct save in canvas mode');
       console.log('Canvas mode: handleSaveNode called with:', updatedNode);
       
-      // Update nodes state immediately
-      debugSetNodes(prevNodes => 
-        prevNodes.map(node => 
+      // Update nodes state immediately - use debugSetNodes to sync with PlanningPanel
+      debugSetNodes(prevNodes => {
+        const updated = prevNodes.map(node => 
           node.id === updatedNode.id ? updatedNode : node
-        )
-      );
+        );
+        console.log('Canvas mode: Updated nodes state with new scheduledDate:', updated.find(n => n.id === updatedNode.id)?.scheduledDate);
+        return updated;
+      });
       
       // Also update selectedNode directly if it's the same node
       if (selectedNode && selectedNode.id === updatedNode.id) {
@@ -70,6 +80,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           .catch(error => console.error('Canvas mode: Failed to update node:', error));
       });
     }
+    console.log('=== END MAIN LAYOUT HANDLE SAVE NODE DEBUG ===');
   };
 
   // Shared post function that works in both modes
@@ -334,7 +345,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             <div className="h-full bg-card border-l border-border/50 backdrop-blur-xl">
               <PlanningPanel 
                 nodes={nodes} 
-                setNodes={setNodes} 
+                setNodes={debugSetNodes} 
                 onNodeSelect={handleNodeSelect}
                 onNodeDoubleClick={handleNodeDoubleClick}
                 onCanvasClick={handleCanvasClick}

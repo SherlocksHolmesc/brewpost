@@ -31,15 +31,39 @@ type Edge @model @auth(rules: [{ allow: public }]) {
   updatedAt: AWSDateTime!
 }
 
-type Schedule @model @auth(rules: [{ allow: public }]) {
-  id: ID!
+type Mutation {
+  createScheduleWithEventBridge(input: ScheduleEventBridgeInput!): ScheduleEventBridgeResponse
+    @function(name: "scheduleDispatcher")
+}
+
+type ScheduleEventBridgeResponse {
+  ok: Boolean!
+  scheduled: [ScheduledItem]
+}
+
+type ScheduledItem {
   scheduleId: String!
-  title: String!
-  content: String
-  imageUrl: String
-  scheduledDate: AWSDateTime!
   status: String!
-  userId: String
-  createdAt: AWSDateTime!
-  updatedAt: AWSDateTime!
+  scheduledDate: AWSDateTime
+}
+
+input ScheduleEventBridgeInput {
+  nodes: [ScheduleNodeInput!]!
+}
+
+input ScheduleNodeInput {
+  id: ID!
+  projectId: String
+  nodeId: String
+  title: String
+  description: String
+  x: Float
+  y: Float
+  status: String
+  contentId: String
+  type: String
+  day: String
+  imageUrl: String
+  imagePrompt: String
+  scheduledDate: AWSDateTime
 }

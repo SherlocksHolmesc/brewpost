@@ -573,6 +573,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                         const [hours, minutes] = selectedTime.split(':');
                         const newDate = new Date(date);
                         newDate.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                        console.log('NodeDetails: Calendar date selected:', date, 'with time:', selectedTime, 'result:', newDate);
                         setEditedNode(prev => prev ? { ...prev, scheduledDate: newDate } : null);
                       }
                     }}
@@ -681,6 +682,13 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
               <Button
                 onClick={() => {
                   if (editedNode && onSaveNode) {
+                    console.log('=== NODE DETAILS SAVE DEBUG ===');
+                    console.log('NodeDetails: Save Changes clicked');
+                    console.log('Original node:', node);
+                    console.log('Original node scheduledDate:', node.scheduledDate);
+                    console.log('Edited node:', editedNode);
+                    console.log('Edited node scheduledDate:', editedNode.scheduledDate);
+                    console.log('=== END NODE DETAILS SAVE DEBUG ===');
                     onSaveNode(editedNode);
                     setIsEditing(false);
                   }

@@ -18,12 +18,16 @@ interface CalendarModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   scheduledNodes: ContentNode[];
+  editable?: boolean;
+  onEditNode?: (node: ContentNode) => void;
 }
 
 export const CalendarModal: React.FC<CalendarModalProps> = ({
   open,
   onOpenChange,
-  scheduledNodes
+  scheduledNodes,
+  editable = true,
+  onEditNode
 }) => {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -34,7 +38,9 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
         <div className="overflow-auto">
           <CalendarView 
             scheduledNodes={scheduledNodes}
-            onClose={() => onOpenChange(false)} 
+            onClose={() => onOpenChange(false)}
+            editable={editable}
+            onEditNode={onEditNode}
           />
         </div>
       </DialogContent>

@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { scheduleService } from '@/services/scheduleService';
 import { Card } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -99,32 +100,9 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         }
 
         // NOTE: include credentials so server session cookies are sent when using session-based auth
-        const fetchUrl = `${BACKEND_URL}/api/schedules/list${userQuery}`;
-        console.log('Calendar fetch URL:', fetchUrl);
-        const res = await fetch(fetchUrl, { headers, credentials: 'include' });
-        let data: any = null;
-        // try parse JSON if possible, otherwise capture text for debugging
-        const contentType = res.headers.get?.('content-type') || '';
-        if (contentType.includes('application/json')) {
-          try {
-            data = await res.json();
-          } catch (e) {
-            data = { ok: false, error: 'invalid_json', detail: 'Failed to parse JSON response' };
-          }
-        } else {
-          const txt = await res.text().catch(() => null);
-          // attempt to parse text as JSON fallback
-          try { data = txt ? JSON.parse(txt) : { ok: false, error: 'empty_response', detail: txt } } catch { data = { ok: false, error: 'non_json_response', detail: txt } }
-        }
+        const data = await scheduleService.listSchedules();
 
-        // If HTTP status is not OK and server didn't provide ok:true, ensure we surface status & detail
-        if (!res.ok && (!data || data.ok !== true)) {
-          console.error("Schedule list HTTP error:", res.status, data);
-          const detailText = data?.detail ?? data?.error ?? `HTTP ${res.status} - ${res.statusText}`;
-          alert(`Failed to load schedules (server responded ${res.status}).\n\nDetail: ${typeof detailText === 'string' ? detailText : JSON.stringify(detailText)}`);
-          if (mounted) setFetchedNodes([]);
-          return;
-        }
+
 
         if (!data.ok) {
           console.error("Unexpected schedule list response:", data);

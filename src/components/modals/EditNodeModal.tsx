@@ -39,6 +39,7 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
 
   useEffect(() => {
     if (node) {
+      console.log('EditNodeModal useEffect - node:', node.title, 'scheduledDate:', node.scheduledDate);
       setFormData({
         title: node.title,
         type: node.type,
@@ -51,9 +52,12 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
   }, [node]);
 
   const handleSave = () => {
+    console.log('=== EDIT NODE MODAL SAVE DEBUG ===');
     console.log('EditNodeModal handleSave called');
     console.log('Current formData:', formData);
+    console.log('Current formData scheduledDate:', formData.scheduledDate);
     console.log('Original node:', node);
+    console.log('Original node scheduledDate:', node?.scheduledDate);
     
     if (!node) {
       console.log('No node found, returning');
@@ -71,7 +75,9 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
       imageUrl: formData.imageUrl
     };
 
-    console.log('Calling onSave with updatedNode:', updatedNode);
+    console.log('EditNodeModal: Final updatedNode:', updatedNode);
+    console.log('EditNodeModal: Final updatedNode scheduledDate:', updatedNode.scheduledDate);
+    console.log('=== END EDIT NODE MODAL SAVE DEBUG ===');
     onSave(updatedNode);
     onOpenChange(false);
   };
@@ -153,23 +159,25 @@ export const EditNodeModal: React.FC<EditNodeModalProps> = ({
               />
             </div>
 
-            {formData.status === 'scheduled' && (
-              <div className="space-y-2">
-                <Label htmlFor="scheduledDate">Scheduled Date</Label>
-                <Input
-                  id="scheduledDate"
-                  type="datetime-local"
-                  value={formData.scheduledDate ? 
-                    new Date(formData.scheduledDate.getTime() - formData.scheduledDate.getTimezoneOffset() * 60000)
-                      .toISOString().slice(0, 16) : ''
-                  }
-                  onChange={(e) => setFormData(prev => ({ 
+            <div className="space-y-2">
+              <Label htmlFor="scheduledDate">Scheduled Date</Label>
+              <Input
+                id="scheduledDate"
+                type="datetime-local"
+                value={formData.scheduledDate ? 
+                  new Date(formData.scheduledDate.getTime() - formData.scheduledDate.getTimezoneOffset() * 60000)
+                    .toISOString().slice(0, 16) : ''
+                }
+                onChange={(e) => {
+                  const newDate = e.target.value ? new Date(e.target.value) : undefined;
+                  console.log('Date changed in modal:', e.target.value, 'parsed as:', newDate);
+                  setFormData(prev => ({ 
                     ...prev, 
-                    scheduledDate: e.target.value ? new Date(e.target.value) : undefined 
-                  }))}
-                />
-              </div>
-            )}
+                    scheduledDate: newDate
+                  }));
+                }}
+              />
+            </div>
 
             <div className="space-y-2">
               <Label htmlFor="imageUrl">Image URL (optional)</Label>
