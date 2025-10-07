@@ -36,13 +36,15 @@ interface CalendarViewProps {
   onClose: () => void;
   onUpdateNode?: (updatedNode: ContentNode) => void;
   onDeleteNode?: (nodeId: string) => void;
+  editable?: boolean;
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
   scheduledNodes = [], 
   onClose, 
   onUpdateNode, 
-  onDeleteNode 
+  onDeleteNode,
+  editable = false
 }) => {
   const [currentDate, setCurrentDate] = useState(new Date());
   const [selectedEvent, setSelectedEvent] = useState<ContentNode | null>(null);
@@ -337,17 +339,17 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   
                   <div className="space-y-1">
                     {dayContent.slice(0, 2).map(content => {
-                      const fullEvent = scheduledNodes.find(node => node.id === content.id);
+                      const fullEvent = nodesToRender.find(node => node.id === content.id);
                       return (
                         <div 
                           key={content.id} 
-                          className={`p-1 rounded text-xs cursor-pointer hover:opacity-80 transition-opacity ${
+                          className={`p-1 rounded text-xs ${editable ? 'cursor-pointer hover:opacity-80' : ''} transition-opacity ${
                             content.status === 'published' 
                               ? 'bg-success/20 text-success-foreground' 
                               : 'bg-primary/20 text-primary-foreground'
                           }`}
                           onClick={() => {
-                            if (fullEvent) {
+                            if (editable && fullEvent) {
                               setSelectedEvent(fullEvent);
                               setShowEventModal(true);
                             }

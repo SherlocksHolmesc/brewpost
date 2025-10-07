@@ -1,6 +1,18 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { CalendarView, ContentNode } from '@/components/calendar/CalendarView';
+import { CalendarView } from '@/components/calendar/CalendarView';
+
+interface ContentNode {
+  id: string;
+  title: string;
+  type: 'post' | 'image' | 'story';
+  status: 'draft' | 'scheduled' | 'published';
+  scheduledDate?: Date;
+  content: string;
+  imageUrl?: string;
+  connections: string[];
+  position: { x: number; y: number };
+}
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
@@ -99,6 +111,7 @@ export const CalendarPage: React.FC = () => {
             onClose={() => navigate("/app")}
             onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
+            editable={true}
           />
         )}
       </div>
