@@ -63,6 +63,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
 }) => {
   const [draggedNode, setDraggedNode] = useState<string | null>(null);
   const [dragOffset, setDragOffset] = useState({ x: 0, y: 0 });
+  const [dragStartZoom, setDragStartZoom] = useState(1);
+  const [dragStartCanvasOffset, setDragStartCanvasOffset] = useState({ x: 0, y: 0 });
   const [connectingMode, setConnectingMode] = useState<string | null>(null);
   const [clickTimeout, setClickTimeout] = useState<NodeJS.Timeout | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -158,14 +160,19 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
-    const rect = (e.target as HTMLElement).closest('.node-card')?.getBoundingClientRect();
     const canvasRect = canvasRef.current?.getBoundingClientRect();
-    if (rect && canvasRect) {
-      // Calculate offset in canvas coordinate space
-      const canvasX = (e.clientX - canvasRect.left - canvasOffset.x) / zoomLevel;
-      const canvasY = (e.clientY - canvasRect.top - canvasOffset.y) / zoomLevel;
-      const offsetX = canvasX - node.position.x;
-      const offsetY = canvasY - node.position.y;
+    if (canvasRect) {
+      // Store the zoom and canvas offset at drag start
+      setDragStartZoom(zoomLevel);
+      setDragStartCanvasOffset({ ...canvasOffset });
+      
+      // Calculate mouse position in canvas coordinate space
+      const mouseCanvasX = (e.clientX - canvasRect.left - canvasOffset.x) / zoomLevel;
+      const mouseCanvasY = (e.clientY - canvasRect.top - canvasOffset.y) / zoomLevel;
+      
+      // Calculate offset from mouse to node position
+      const offsetX = mouseCanvasX - node.position.x;
+      const offsetY = mouseCanvasY - node.position.y;
       
       setDragOffset({ x: offsetX, y: offsetY });
       
@@ -212,27 +219,21 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       
       const canvasRect = canvasRef.current.getBoundingClientRect();
       
-      const newX = Math.max(0, Math.min(
-        canvasRect.width - 240,
-        e.clientX - canvasRect.left - dragOffset.x
-      ));
-      const newY = Math.max(0, Math.min(
-        canvasRect.height - 200,
-        e.clientY - canvasRect.top - dragOffset.y
-      ));
+      // Use the zoom level and canvas offset from when drag started
+      const mouseCanvasX = (e.clientX - canvasRect.left - dragStartCanvasOffset.x) / dragStartZoom;
+      const mouseCanvasY = (e.clientY - canvasRect.top - dragStartCanvasOffset.y) / dragStartZoom;
+      
+      // Calculate new node position by subtracting the drag offset
+      const newX = mouseCanvasX - dragOffset.x;
+      const newY = mouseCanvasY - dragOffset.y;
 
-      const lerpFactor = 0.3;
-      const currentPos = draggedPosition;
-      const smoothX = currentPos.x + (newX - currentPos.x) * lerpFactor;
-      const smoothY = currentPos.y + (newY - currentPos.y) * lerpFactor;
-
-      setDraggedPosition({ x: smoothX, y: smoothY });
+      setDraggedPosition({ x: newX, y: newY });
 
       const now = performance.now();
       if (now - lastUpdateTime.current > 16) {
         const updatedNodes = nodes.map(node => 
           node.id === draggedNode 
-            ? { ...node, position: { x: smoothX, y: smoothY } }
+            ? { ...node, position: { x: newX, y: newY } }
             : node
         );
 
@@ -240,7 +241,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         lastUpdateTime.current = now;
       }
     });
-  }, [draggedNode, dragOffset, nodes, onNodeUpdate, isDragging, draggedPosition]);
+  }, [draggedNode, dragOffset, nodes, onNodeUpdate, isDragging, dragStartCanvasOffset, dragStartZoom]);
 
   const handleMouseUp = useCallback(() => {
     if (animationFrameRef.current) {
@@ -261,6 +262,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     setIsDragging(false);
     setDraggedPosition({ x: 0, y: 0 });
     setDragOffset({ x: 0, y: 0 });
+    setDragStartZoom(1);
+    setDragStartCanvasOffset({ x: 0, y: 0 });
     
     document.body.classList.remove('dragging');
     document.body.style.userSelect = '';
@@ -484,7 +487,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   return (
     <div 
       ref={canvasRef}
-      className="relative w-full h-full overflow-hidden bg-gradient-to-br from-background/50 to-background/80 no-select"
+      className="relative w-full h-full bg-gradient-to-br from-background/50 to-background/80 no-select"
       style={{ 
         cursor: canvasPanning ? 'grabbing' : (isDragging ? 'grabbing' : 'default'),
         willChange: isDragging || canvasPanning ? 'transform' : 'auto',
@@ -502,7 +505,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
         }}
       >
       {/* Connection Lines */}
-      <svg className="absolute inset-0 w-full h-full pointer-events-none z-0">
+      <svg className="absolute inset-0 pointer-events-none z-0" style={{ width: '100%', height: '100%', overflow: 'visible' }}>
         <defs>
           <linearGradient id="connectionGradient" x1="0%" y1="0%" x2="100%" y2="0%">
             <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
