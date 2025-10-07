@@ -113,6 +113,9 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
           onSaveNode(updatedNode);
         }
         
+        // Update local state immediately for UI feedback
+        setEditedNode(updatedNode);
+        
         console.log('Enhanced prompt generated:', data.enhancedPrompt);
       }
     } catch (error) {
@@ -161,6 +164,9 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
         if (onSaveNode) {
           onSaveNode(updatedNode);
         }
+        
+        // Update local state immediately for UI feedback
+        setEditedNode(updatedNode);
         
         console.log('Image generated successfully:', data.imageUrl);
         console.log('Total images:', updatedNode.imageUrls.length);
@@ -424,39 +430,59 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                 const allImages = [];
                 if (node.imageUrls && node.imageUrls.length > 0) {
                   allImages.push(...node.imageUrls);
-                } else if (node.imageUrl) {
+                }
+                if (node.imageUrl && !allImages.includes(node.imageUrl)) {
                   allImages.push(node.imageUrl);
                 }
                 
                 return (
                   <>
                     <div className="text-xs text-muted-foreground">
-                      Generated Images ({allImages.length}):
+                      Generated Images ({allImages.length}) - Click to select:
                     </div>
                     <div className="overflow-x-auto">
                       <div className="flex gap-2 pb-2" style={{ minWidth: 'fit-content' }}>
                         {allImages.map((imageUrl, index) => (
                           <Dialog key={`${imageUrl}-${index}`}>
-                            <DialogTrigger asChild>
-                              <div className="relative group cursor-pointer flex-shrink-0">
-                                <img 
-                                  src={imageUrl} 
-                                  alt={`Generated content ${index + 1}`} 
-                                  className="w-[140px] h-[140px] object-cover rounded border border-border/20 hover:opacity-80 transition-opacity shadow-sm"
-                                  onError={(e) => {
-                                    e.currentTarget.style.display = 'none';
-                                  }}
-                                />
-                                <div className="absolute inset-0 bg-black/0 group-hover:bg-black/10 transition-all duration-200 rounded flex items-center justify-center">
-                                  <div className="opacity-0 group-hover:opacity-100 transition-opacity duration-200 bg-black/70 text-white text-xs px-2 py-1 rounded">
-                                    Click to zoom
-                                  </div>
-                                </div>
-                                <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
-                                  {index + 1}
-                                </div>
+                            <div 
+                              className={`relative group cursor-pointer flex-shrink-0 ${
+                                (editedNode?.imageUrl || node.imageUrl) === imageUrl ? 'ring-2 ring-primary' : ''
+                              }`}
+                              onClick={() => {
+                                const updatedNode = { ...node, imageUrl: imageUrl };
+                                setEditedNode(updatedNode);
+                                if (onSaveNode) {
+                                  onSaveNode(updatedNode);
+                                }
+                              }}
+                            >
+                              <img 
+                                src={imageUrl} 
+                                alt={`Generated content ${index + 1}`} 
+                                className="w-[140px] h-[140px] object-cover rounded border border-border/20 hover:opacity-80 transition-opacity shadow-sm"
+                                onError={(e) => {
+                                  e.currentTarget.style.display = 'none';
+                                }}
+                              />
+                              <div className="absolute top-1 left-1 bg-black/70 text-white text-xs px-1 rounded">
+                                {index + 1}
                               </div>
-                            </DialogTrigger>
+                              {(editedNode?.imageUrl || node.imageUrl) === imageUrl && (
+                                <div className="absolute top-1 right-1 bg-primary text-primary-foreground text-xs px-1 rounded">
+                                  ✓
+                                </div>
+                              )}
+                              <DialogTrigger asChild>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="absolute bottom-1 right-1 h-6 w-6 p-0 bg-black/70 hover:bg-black/90 text-white border-white/20"
+                                  onClick={(e) => e.stopPropagation()}
+                                >
+                                  <Eye className="w-3 h-3" />
+                                </Button>
+                              </DialogTrigger>
+                            </div>
                             <DialogContent className="max-w-4xl w-full p-0 bg-black/90">
                               <div className="relative">
                                 <img 
@@ -514,7 +540,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
             />
           ) : (
             <div className="text-sm text-muted-foreground">
-              {node.imagePrompt || 'No image prompt'}
+              {(editedNode?.imagePrompt || node.imagePrompt) || 'No image prompt'}
             </div>
           )}
         </Card>

@@ -38,6 +38,7 @@ export type ContentNode = {
   scheduledDate?: Date;
   content: string;
   imageUrl?: string;
+  imageUrls?: string[];
   imagePrompt?: string;
   day?: string;
   postType?: 'engaging' | 'promotional' | 'branding';
@@ -47,6 +48,7 @@ export type ContentNode = {
   postedAt?: Date;
   postedTo?: string[];
   tweetId?: string;
+  selectedImageUrl?: string;
 };
 
 interface PlanningPanelProps {
@@ -231,7 +233,9 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         type: updatedNode.type,
         day: updatedNode.day,
         imageUrl: updatedNode.imageUrl,
+        imageUrls: updatedNode.imageUrls,
         imagePrompt: updatedNode.imagePrompt,
+        selectedImageUrl: updatedNode.selectedImageUrl,
         scheduledDate: updatedNode.scheduledDate?.toISOString(),
       };
       console.log('Sending update to NodeAPI:', updateData);
@@ -298,7 +302,9 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
         type: nodeData.type,
         day: nodeData.day,
         imageUrl: nodeData.imageUrl,
+        imageUrls: nodeData.imageUrls,
         imagePrompt: nodeData.imagePrompt,
+        selectedImageUrl: nodeData.selectedImageUrl,
         scheduledDate: nodeData.scheduledDate?.toISOString(),
         contentId: undefined,
       });
@@ -314,7 +320,9 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
                 status: (res.status as any) ?? 'draft',
                 content: res.description ?? '',
                 imageUrl: res.imageUrl ?? undefined,
+                imageUrls: res.imageUrls ?? undefined,
                 imagePrompt: res.imagePrompt ?? undefined,
+                selectedImageUrl: res.selectedImageUrl ?? undefined,
                 day: res.day ?? undefined,
                 connections: [],
                 position: { x: res.x ?? 0, y: res.y ?? 0 },
