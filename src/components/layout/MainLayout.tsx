@@ -246,7 +246,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <p className="text-xs text-muted-foreground">AI Content Generator</p>
             </div>
           </div>
-          
+
           <div className="flex items-center gap-2">
             {/* View Toggle Button */}
             <div className="flex items-center bg-card border border-border/30 rounded-lg p-1 glow-hover">
@@ -281,6 +281,17 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
             </div>
             
 
+
+            {/* Schedule All button */}
+            <Button
+              size="sm"
+              className="bg-gradient-primary hover:opacity-90 glow-hover"
+              onClick={handleScheduleAll}
+            >
+              <Sparkles className="w-4 h-4 mr-2" />
+              Schedule All
+            </Button>
+
             <Button 
               size="sm" 
               className="bg-gradient-primary hover:opacity-90 glow-hover"
@@ -289,6 +300,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
               <Calendar className="w-4 h-4 mr-2" />
               Calendar
             </Button>
+
             <Button
               variant="outline"
               size="sm"
@@ -816,7 +828,6 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
         </div>
       </div>
-
     </div>
   );
 };

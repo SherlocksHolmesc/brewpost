@@ -1,61 +1,102 @@
 import React, { useState, useEffect } from 'react';
-import { useLocation, useNavigate } from 'react-router-dom';
-import { CalendarView } from '@/components/calendar/CalendarView';
+import { useNavigate } from 'react-router-dom';
+import { CalendarView, ContentNode } from '@/components/calendar/CalendarView';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft } from 'lucide-react';
 
-interface ContentNode {
-  id: string;
-  title: string;
-  type: 'post' | 'image' | 'story';
-  status: 'draft' | 'scheduled' | 'published';
-  scheduledDate?: Date;
-  content: string;
-  imageUrl?: string;
-  connections: string[];
-  position: { x: number; y: number };
-}
-
 export const CalendarPage: React.FC = () => {
-  const location = useLocation();
   const navigate = useNavigate();
-  const [nodes, setNodes] = useState(location.state?.nodes || []);
+  const [nodes, setNodes] = useState<ContentNode[]>([]);
+  const [loading, setLoading] = useState(true);
 
+  // Fetch schedules from backend
   useEffect(() => {
-    if (location.state?.nodes) {
-      setNodes(location.state.nodes);
-    }
-  }, [location.state?.nodes]);
+    const fetchSchedules = async () => {
+      try {
+        const res = await fetch(
+          `${import.meta.env.VITE_BACKEND_URL}/api/schedules/list`
+        );
+        const data = await res.json();
 
-  const handleUpdateNode = (updatedNode: any) => {
-    const updatedNodes = nodes.map((node: any) => 
-      node.id === updatedNode.id ? updatedNode : node
+        if (data.ok && Array.isArray(data.schedules)) {
+          // ✅ Convert scheduledDate from string → Date
+          const parsed = data.schedules.map((s: any) => ({
+            ...s,
+            scheduledDate: s.scheduledDate ? new Date(s.scheduledDate) : undefined,
+          }));
+          setNodes(parsed);
+        } else {
+          console.error("Unexpected API response:", data);
+        }
+      } catch (err) {
+        console.error("Failed to fetch schedules:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    fetchSchedules();
+  }, []);
+
+  const handleUpdateNode = async (updatedNode: ContentNode) => {
+    setNodes(prev =>
+      prev.map(n => (n.id === updatedNode.id ? updatedNode : n))
     );
-    setNodes(updatedNodes);
+
+    try {
+      await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/schedules/update/${updatedNode.id}`,
+        {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            ...updatedNode,
+            scheduledDate: updatedNode.scheduledDate?.toISOString(), // ✅ send string to backend
+          }),
+        }
+      );
+    } catch (err) {
+      console.error("Failed to update schedule:", err);
+    }
   };
 
-  const handleDeleteNode = (nodeId: string) => {
-    const updatedNodes = nodes.filter((node: any) => node.id !== nodeId);
-    setNodes(updatedNodes);
+  const handleDeleteNode = async (nodeId: string) => {
+    setNodes(prev => prev.filter(n => n.id !== nodeId));
+
+    try {
+      await fetch(
+        `${import.meta.env.VITE_BACKEND_URL}/api/schedules/delete/${nodeId}`,
+        {
+          method: "DELETE",
+        }
+      );
+    } catch (err) {
+      console.error("Failed to delete schedule:", err);
+    }
   };
 
   return (
     <div className="min-h-screen bg-gradient-subtle">
       <div className="p-4">
-        <Button 
-          variant="outline" 
-          onClick={() => navigate('/app')}
+        <Button
+          variant="outline"
+          onClick={() => navigate("/app")}
           className="mb-4 border-primary/20 hover:border-primary/40"
         >
           <ArrowLeft className="w-4 h-4 mr-2" />
           Back to Planning
         </Button>
-        <CalendarView 
-          scheduledNodes={nodes} 
-          onClose={() => navigate('/app')}
-          onUpdateNode={handleUpdateNode}
-          onDeleteNode={handleDeleteNode}
-        />
+
+        {loading ? (
+          <p className="text-gray-500">Loading schedules...</p>
+        ) : (
+          <CalendarView
+            scheduledNodes={nodes}
+            onClose={() => navigate("/app")}
+            onUpdateNode={handleUpdateNode}
+            onDeleteNode={handleDeleteNode}
+          />
+        )}
       </div>
     </div>
   );

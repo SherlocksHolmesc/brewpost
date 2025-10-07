@@ -9,7 +9,6 @@ import {
   ChevronRight,
   Calendar as CalendarIcon,
   Clock,
-  Plus
 } from 'lucide-react';
 
 interface ScheduledContent {
@@ -20,7 +19,7 @@ interface ScheduledContent {
   status: 'scheduled' | 'published';
 }
 
-interface ContentNode {
+export interface ContentNode {
   id: string;
   title: string;
   type: 'post' | 'image' | 'story';
@@ -233,19 +232,15 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
     const days = [];
     
-    // Add empty cells for days before the first day of the month
     for (let i = 0; i < startingDayOfWeek; i++) {
       days.push(null);
     }
-    
-    // Add all days of the month
     for (let day = 1; day <= daysInMonth; day++) {
       days.push(day);
     }
     
     return days;
   };
-
 
   const navigateMonth = (direction: 'prev' | 'next') => {
     setCurrentDate(prev => {
@@ -309,14 +304,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
 
           {/* Calendar Grid */}
           <div className="grid grid-cols-7 gap-1 mb-4">
-            {/* Day headers */}
             {dayNames.map(day => (
               <div key={day} className="p-3 text-center text-sm font-medium text-muted-foreground">
                 {day}
               </div>
             ))}
             
-            {/* Calendar days */}
             {days.map((day, index) => {
               if (day === null) {
                 return <div key={`empty-${index}`} className="p-3"></div>;
@@ -395,7 +388,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         </div>
       </Card>
 
-      {/* Calendar Event Edit Modal */}
       <CalendarEventModal
         open={showEventModal}
         onOpenChange={setShowEventModal}

@@ -37,16 +37,17 @@ const REDIRECT_URI = process.env.REDIRECT_URI;
 // Cognito configuration
 const CLIENT_ID = process.env.COGNITO_CLIENT_ID;
 const CLIENT_SECRET = process.env.COGNITO_CLIENT_SECRET;
-const COGNITO_DOMAIN = process.env.COGNITO_DOMAIN;
+const COGNITO_DOMAIN =
+  process.env.COGNITO_DOMAIN ||
+  "https://us-east-1lnmmjkyb9.auth.us-east-1.amazoncognito.com";
+const REDIRECT_URI = process.env.REDIRECT_URI;
 
-// CORS configuration
-app.use(cors({
-  origin: [FRONTEND_URL, 'http://localhost:8082', 'http://localhost:8080'].filter(Boolean),
-  methods: ["GET", "POST", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"],
-  credentials: true,
-}));
+// ====== Server Configuration ======
+const PORT = process.env.PORT || 8081;
+const app = express();
 
+// ====== Middleware Setup ======
+app.use(express.json());
 app.use(bodyParser.json());
 app.use(express.json());
 
@@ -62,8 +63,11 @@ app.use(session({
   },
 }));
 
+// ====== AWS Clients ======
 const s3 = new S3({ region: REGION });
 const DDB = new DynamoDB.DocumentClient({ region: REGION });
+const dynamo = new DynamoDB.DocumentClient({ region: REGION });
+const eventbridge = new EventBridge({ region: REGION });
 
 // ============ COGNITO AUTH ROUTES ============
 
@@ -120,9 +124,11 @@ function mapFrontendToBedrockMessages(frontendMessages = [], instruction = null)
   const out = [];
   if (instruction) {
     out.push({ role: "user", content: [{ text: instruction }] });
+    out.push({ role: "user", content: [{ text: instruction }] });
   }
   for (const m of frontendMessages) {
     const role = m.type === "ai" ? "assistant" : "user";
+    out.push({ role, content: [{ text: String(m.content) }] });
     out.push({ role, content: [{ text: String(m.content) }] });
   }
   return out;
@@ -163,6 +169,7 @@ RULES:
 async function generateImageFromBedrock(promptText, opts = {}) {
   const payload = {
     taskType: "TEXT_IMAGE",
+    textToImageParams: { text: String(promptText ?? "") },
     textToImageParams: { text: String(promptText ?? "") },
     imageGenerationConfig: {
       seed: opts.seed ?? Math.floor(Math.random() * 858993460),
@@ -252,9 +259,7 @@ app.post("/api/generate", async (req, res) => {
         }
       } catch (e) {}
 
-      if (!text) {
-        text = JSON.stringify(resp).slice(0, 4000);
-      }
+      if (!text) text = JSON.stringify(resp).slice(0, 4000);
       return res.json({ ok: true, text, raw: resp });
     }
   } catch (err) {
