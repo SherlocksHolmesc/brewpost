@@ -742,6 +742,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
              size="sm" 
              className="flex-1 border-primary/20 hover:border-primary/40"
              onClick={handleScheduleAll}
+             data-schedule-all
            >
             <Clock className="w-3 h-3 mr-2" />
             Schedule All
