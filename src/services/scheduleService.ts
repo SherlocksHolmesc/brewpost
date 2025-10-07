@@ -1,20 +1,41 @@
 import '../amplify-config';
 import { generateClient } from '@aws-amplify/api';
-import { createNode, updateNode, deleteNode } from '../graphql/mutations';
 import { listNodes } from '../graphql/queries';
 import type { NodeDTO } from './nodeService';
+import { NodeAPI } from './nodeService';
 
 const client = generateClient();
 
 export const scheduleService = {
   async createSchedules(nodes: Partial<NodeDTO>[]) {
-    // Return success immediately - actual scheduling handled by PlanningPanel
-    const results = nodes.map(node => ({
-      id: node.id,
-      ok: true,
-      action: 'scheduled',
-      scheduledDate: node.scheduledDate
-    }));
+    const results = [];
+    
+    for (const node of nodes) {
+      try {
+        // Update node status to scheduled using NodeAPI
+        await NodeAPI.update({
+          projectId: 'demo-project-123',
+          nodeId: node.id!,
+          status: 'scheduled',
+          scheduledDate: node.scheduledDate
+        });
+
+        results.push({
+          id: node.id,
+          scheduleId: node.id,
+          ok: true,
+          status: 'scheduled',
+          scheduledDate: node.scheduledDate
+        });
+      } catch (error) {
+        console.error('Failed to create schedule:', error);
+        results.push({
+          id: node.id,
+          ok: false,
+          error: error instanceof Error ? error.message : 'Unknown error'
+        });
+      }
+    }
 
     return { ok: true, results, scheduled: results };
   },
