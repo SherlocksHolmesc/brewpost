@@ -1,4 +1,5 @@
 # Welcome to your Lovable project
+<!-- Rebuild trigger 2025-01-20 -->
 
 ## Project info
 
