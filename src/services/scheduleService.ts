@@ -46,9 +46,10 @@ export const scheduleService = {
         query: listNodes
       });
 
-      const schedules = result.data.listNodes.items
-        .filter(item => item.status === 'scheduled' || item.status === 'published')
-        .map(item => ({
+      const items = (result.data.listNodes as any).items || result.data.listNodes || [];
+      const schedules = items
+        .filter((item: any) => item.status === 'scheduled' || item.status === 'published')
+        .map((item: any) => ({
           scheduleId: item.nodeId || item.id,
           userId: item.projectId,
           status: item.status,

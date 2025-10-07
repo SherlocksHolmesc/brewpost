@@ -106,7 +106,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       try {
         const { NodeAPI } = await import('@/services/nodeService');
         const apiNodes = await NodeAPI.list('demo-project-123');
-        const detectPostType = (title: string, content: string) => {
+        const detectPostType = (title: string, content: string): 'engaging' | 'promotional' | 'branding' => {
           const text = `${title} ${content}`.toLowerCase();
           if (text.match(/\b(shop|order|buy|get yours|discount|available now|limited|offer|sale|use code|sign up|join|link in bio|free shipping|diy|recipe|create|make|try|get|start)\b/)) {
             return 'promotional';
