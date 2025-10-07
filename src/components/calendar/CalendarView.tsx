@@ -337,7 +337,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   
                   <div className="space-y-1">
                     {dayContent.slice(0, 2).map(content => {
-                      const fullEvent = nodesToRender.find(node => node.id === content.id);
+                      const fullEvent = scheduledNodes.find(node => node.id === content.id);
                       return (
                         <div 
                           key={content.id} 

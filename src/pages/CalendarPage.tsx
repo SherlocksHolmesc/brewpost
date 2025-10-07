@@ -13,23 +13,20 @@ export const CalendarPage: React.FC = () => {
   useEffect(() => {
     const fetchSchedules = async () => {
       try {
-        const res = await fetch(
-          `${import.meta.env.VITE_BACKEND_URL}/api/schedules/list`,
-          { credentials: 'include' }
-        );
-        
-        if (!res.ok) {
-          console.warn(`Schedules API returned ${res.status}`);
-          setLoading(false);
-          return;
-        }
-        
-        const data = await res.json();
+        const { scheduleService } = await import('@/services/scheduleService');
+        const data = await scheduleService.listSchedules();
 
         if (data.ok && Array.isArray(data.schedules)) {
           const parsed = data.schedules.map((s: any) => ({
-            ...s,
+            id: s.scheduleId || s.id,
+            title: s.title || 'Untitled',
+            type: (s.type || 'post') as 'post' | 'image' | 'story',
+            status: (s.status || 'scheduled') as 'draft' | 'scheduled' | 'published',
             scheduledDate: s.scheduledDate ? new Date(s.scheduledDate) : undefined,
+            content: s.content || '',
+            imageUrl: s.imageUrl,
+            connections: [],
+            position: { x: 0, y: 0 }
           }));
           setNodes(parsed);
         } else {
@@ -98,7 +95,7 @@ export const CalendarPage: React.FC = () => {
           <p className="text-gray-500">Loading schedules...</p>
         ) : (
           <CalendarView
-            scheduledNodes={nodes}
+            scheduledNodes={nodes.length > 0 ? nodes : undefined}
             onClose={() => navigate("/app")}
             onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
