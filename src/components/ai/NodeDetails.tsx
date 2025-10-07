@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogTrigger } from '@/components/ui/dialog';
 import { Calendar, Clock, Eye, Target, Zap, Send, Save, Sparkles, X, RefreshCw } from 'lucide-react';
 import { format } from 'date-fns';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
+import { enhanceImagePromptWithTemplate, applyTemplateToImage, getTemplateSettings } from '@/utils/templateUtils';
 
 interface NodeDetailsProps {
   node: ContentNode | null;
@@ -133,6 +134,15 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
     try {
       const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
       
+      // Enhance prompt with template settings and stronger color emphasis
+      let enhancedPrompt = enhanceImagePromptWithTemplate(node.imagePrompt || node.title || node.content || '');
+      
+      // Add stronger color emphasis for node generation
+      const template = getTemplateSettings();
+      if (template?.selectedColor && template.selectedColor !== 'transparent') {
+        enhancedPrompt += ` Make sure to prominently feature ${template.selectedColor} color throughout the entire image composition, use it for backgrounds, accents, and key visual elements. The ${template.selectedColor} should be the dominant color theme.`;
+      }
+      
       const response = await fetch(`${BACKEND_URL}/api/canvas-generate-from-node`, {
         method: 'POST',
         headers: {
@@ -140,7 +150,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
         },
         body: JSON.stringify({
           nodeId: node.id,
-          imagePrompt: node.imagePrompt,
+          imagePrompt: enhancedPrompt,
           title: node.title,
           content: node.content
         })
@@ -153,12 +163,15 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
       }
       
       if (data.ok && data.imageUrl) {
+        // Apply template to generated image
+        const processedImageUrl = await applyTemplateToImage(data.imageUrl);
+        
         // Add new image to imageUrls array
         const existingImages = node.imageUrls || [];
         const updatedNode = {
           ...node,
-          imageUrls: [...existingImages, data.imageUrl],
-          imageUrl: data.imageUrl // Keep for backward compatibility
+          imageUrls: [...existingImages, processedImageUrl],
+          imageUrl: processedImageUrl // Keep for backward compatibility
         };
         
         if (onSaveNode) {
@@ -168,7 +181,7 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
         // Update local state immediately for UI feedback
         setEditedNode(updatedNode);
         
-        console.log('Image generated successfully:', data.imageUrl);
+        console.log('Image generated successfully:', processedImageUrl);
         console.log('Total images:', updatedNode.imageUrls.length);
       }
     } catch (error) {
@@ -390,6 +403,30 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
             )}
           </Card>
         </div>
+
+        {/* Template Color Palette */}
+        <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">
+          <h3 className="text-sm font-medium mb-2">Template Color</h3>
+          <div className="text-xs text-muted-foreground mb-2">
+            Current template color for image generation:
+          </div>
+          {(() => {
+            const template = getTemplateSettings();
+            const color = template?.selectedColor;
+            
+            if (!color || color === 'transparent') {
+              return (
+                <div className="text-sm text-muted-foreground">No color selected</div>
+              );
+            }
+            
+            return (
+              <div className="w-8 h-8 rounded border border-border/20 shadow-sm"
+                style={{ backgroundColor: color }}
+              />
+            );
+          })()}
+        </Card>
 
         {/* Image URL */}
         <Card className="p-3 bg-card/50 backdrop-blur-sm border-border/50">

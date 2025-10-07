@@ -8,6 +8,7 @@ import { Send, Image, Type, Wand2, Sparkles, ZoomIn, ZoomOut, RotateCw, Download
 import { useNavigate } from 'react-router-dom';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 import { NodeAPI } from '@/services/nodeService';
+import { enhanceImagePromptWithTemplate, applyTemplateToImage } from '@/utils/templateUtils';
 
 const cleanField = (s?: string) =>
   (s ?? '')
@@ -525,15 +526,30 @@ Return only the refined prompt, nothing else.`
       }
 
       if (data.imageUrl) {
-        appendMessage({
-          id: (Date.now() + 3).toString(),
-          type: 'ai',
-          content: 'Image generated — choose a caption below or edit it.',
-          timestamp: new Date(),
-          contentType: 'image',
-          imageUrl: data.imageUrl,
-          captions: Array.isArray(data.captions) ? data.captions : [],
-        });
+        try {
+          const finalImageUrl = await applyTemplateToImage(data.imageUrl);
+          
+          appendMessage({
+            id: (Date.now() + 3).toString(),
+            type: 'ai',
+            content: 'Image generated with template settings — choose a caption below or edit it.',
+            timestamp: new Date(),
+            contentType: 'image',
+            imageUrl: finalImageUrl,
+            captions: Array.isArray(data.captions) ? data.captions : [],
+          });
+        } catch (error) {
+          console.error('Template application failed:', error);
+          appendMessage({
+            id: (Date.now() + 3).toString(),
+            type: 'ai',
+            content: 'Image generated — choose a caption below or edit it.',
+            timestamp: new Date(),
+            contentType: 'image',
+            imageUrl: data.imageUrl,
+            captions: Array.isArray(data.captions) ? data.captions : [],
+          });
+        }
       }
     } catch (err: unknown) {
       console.error('AIChat generate error', err);

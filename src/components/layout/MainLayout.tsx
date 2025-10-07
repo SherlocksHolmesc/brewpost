@@ -7,6 +7,7 @@ import { NodeDetails } from '@/components/ai/NodeDetails';
 import { PlanningPanel, type PlanningPanelRef } from '@/components/planning/PlanningPanel';
 import { CircleCanvas } from '@/components/canvas/CircleCanvas';
 import { ComponentSidebar } from '@/components/canvas/ComponentSidebar';
+import { TemplatePopup } from '@/components/template/TemplatePopup';
 import { Sparkles, Calendar, Network, LogOut, FileText, X } from 'lucide-react';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 
@@ -24,6 +25,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [canvasNodeId, setCanvasNodeId] = useState<string | null>(null); // Store node ID for canvas mode
   const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
+  const [isTemplatePopupOpen, setIsTemplatePopupOpen] = useState(false);
   const planningPanelRef = useRef<PlanningPanelRef>(null);
 
   // Shared save function that works in both modes
@@ -279,7 +281,16 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 Canvas
               </button>
             </div>
+            
 
+            <Button 
+              size="sm" 
+              className="bg-gradient-primary hover:opacity-90 glow-hover"
+              onClick={() => setIsTemplatePopupOpen(true)}
+            >
+              <FileText className="w-4 h-4 mr-2" />
+              Template
+            </Button>
             <Button 
               size="sm" 
               className="bg-gradient-primary hover:opacity-90 glow-hover"
@@ -816,6 +827,12 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           )}
         </div>
       </div>
+
+      {/* Template Popup */}
+      <TemplatePopup 
+        isOpen={isTemplatePopupOpen}
+        onClose={() => setIsTemplatePopupOpen(false)}
+      />
     </div>
   );
 };
