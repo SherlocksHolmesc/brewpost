@@ -196,15 +196,8 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
   };
 
   const handlePostNode = async (node: ContentNode) => {
-    // Update node status to published and set posted timestamp
-    const updatedNode = {
-      ...node,
-      status: 'published' as const,
-      postedAt: new Date(),
-      postedTo: ['Twitter', 'LinkedIn'] // Default platforms
-    };
-    
-    await handleSaveNode(updatedNode);
+    // Just save the node as-is (status should already be set by caller)
+    await handleSaveNode(node);
   };
 
   // Expose methods through ref
