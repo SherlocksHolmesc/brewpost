@@ -15,21 +15,6 @@ export const scheduleService = {
     for (const node of nodes) {
       try {
         console.log('Processing node for scheduling:', node.id, node.title);
-        
-        // Update node status to scheduled using NodeAPI
-        const updateData = {
-          projectId: 'demo-project-123',
-          nodeId: node.id!,
-          status: 'scheduled',
-          scheduledDate: node.scheduledDate,
-          imageUrl: node.imageUrl,
-          imageUrls: node.imageUrls
-        };
-        
-        console.log('Calling NodeAPI.update with:', updateData);
-        const updateResult = await NodeAPI.update(updateData);
-        console.log('NodeAPI.update result:', updateResult);
-        console.log('Node status after update:', updateResult.status);
 
         // Call Lambda function via createSchedule mutation
         const scheduleInput = {
@@ -40,7 +25,7 @@ export const scheduleService = {
           imageUrls: node.imageUrls || (node.imageUrl ? [node.imageUrl] : null),
           scheduledDate: node.scheduledDate!,
           status: 'scheduled',
-          userId: 'demo-user'
+          userId: (typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null) || 'demo-user'
         };
         
         console.log('Calling Lambda function via createSchedule mutation');
