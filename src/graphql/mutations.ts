@@ -140,8 +140,8 @@ export const generateContent = /* GraphQL */ `mutation GenerateContent(
   APITypes.GenerateContentMutationVariables,
   APITypes.GenerateContentMutation
 >;
-export const createSchedule = /* GraphQL */ `mutation CreateSchedule($input: CreateScheduleInput!, $condition: ModelScheduleConditionInput) {
-  createSchedule(input: $input, condition: $condition) {
+export const createSchedule = /* GraphQL */ `mutation CreateSchedule($input: CreateScheduleInput!) {
+  createSchedule(input: $input) {
     id
     scheduleId
     title

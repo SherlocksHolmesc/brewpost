@@ -93,9 +93,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       // Handle posting in canvas mode
       const updatedNode = {
         ...node,
-        status: 'published' as const,
-        postedAt: new Date(),
-        postedTo: ['Twitter', 'LinkedIn']
+        // Do not force publish when invoked for scheduling; preserve existing status
+        status: node.status,
+        postedAt: node.postedAt,
+        postedTo: node.postedTo
       };
       handleSaveNode(updatedNode);
     }
