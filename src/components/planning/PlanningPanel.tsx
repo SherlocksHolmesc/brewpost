@@ -487,6 +487,7 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
           type: node.type || 'post',
           content: node.content || '',
           imageUrl: node.imageUrl || null,
+          imageUrls: node.imageUrls || null,
           scheduledDate: node.scheduledDate?.toISOString(),
         };
       });

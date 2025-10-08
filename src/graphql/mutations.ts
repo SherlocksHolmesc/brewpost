@@ -22,6 +22,7 @@ export const createNode = /* GraphQL */ `mutation CreateNode($input: CreateNodeI
     type
     day
     imageUrl
+    imageUrls
     imagePrompt
     scheduledDate
     createdAt
@@ -46,6 +47,7 @@ export const updateNode = /* GraphQL */ `mutation UpdateNode($input: UpdateNodeI
     type
     day
     imageUrl
+    imageUrls
     imagePrompt
     scheduledDate
     createdAt

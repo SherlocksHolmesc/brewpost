@@ -23,6 +23,7 @@ export const listNodes = /* GraphQL */ `query ListNodes($filter: ModelNodeFilter
       type
       day
       imageUrl
+      imageUrls
       imagePrompt
       scheduledDate
       createdAt

@@ -12,6 +12,7 @@ import { Calendar, Clock, Eye, Target, Zap, Send, Save, Sparkles, X, RefreshCw }
 import { format } from 'date-fns';
 import type { ContentNode } from '@/components/planning/PlanningPanel';
 import { enhanceImagePromptWithTemplate, applyTemplateToImage, getTemplateSettings } from '@/utils/templateUtils';
+import { scheduleService } from '@/services/scheduleService';
 
 interface NodeDetailsProps {
   node: ContentNode | null;
@@ -757,11 +758,43 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
               </Button>
               {onPostNode && (
                 <Button
-                  onClick={() => onPostNode(node)}
+                  onClick={async () => {
+                    if (!node.scheduledDate) {
+                      alert('Please set a scheduled date first by editing the node.');
+                      return;
+                    }
+                    
+                    try {
+                      // Schedule this individual node through AppSync
+                      const result = await scheduleService.createSchedules([{
+                        id: node.id,
+                        title: node.title,
+                        description: node.content,
+                        type: node.type,
+                        imageUrl: node.imageUrl,
+                        imageUrls: node.imageUrls,
+                        scheduledDate: node.scheduledDate.toISOString()
+                      }]);
+                      
+                      if (result.ok) {
+                        // Update node status to scheduled
+                        const updatedNode = {
+                          ...node,
+                          status: 'scheduled' as const
+                        };
+                        onPostNode(updatedNode);
+                      } else {
+                        alert('Failed to schedule node. Please try again.');
+                      }
+                    } catch (error) {
+                      console.error('Error scheduling node:', error);
+                      alert('Failed to schedule node: ' + error.message);
+                    }
+                  }}
                   className="bg-gradient-secondary hover:opacity-90 flex-1"
                 >
-                  <Send className="w-4 h-4 mr-2" />
-                  Post Now
+                  <Clock className="w-4 h-4 mr-2" />
+                  Schedule Now
                 </Button>
               )}
             </>
