@@ -1,58 +1,71 @@
 import '../amplify-config';
 import { generateClient } from '@aws-amplify/api';
 import { listNodes } from '../graphql/queries';
-import { createSchedule } from '../graphql/mutations';
 import type { NodeDTO } from './nodeService';
 import { NodeAPI } from './nodeService';
 
 const client = generateClient();
 
+// Inline mutation for Lambda-backed batch scheduling
+const CREATE_SCHEDULE_WITH_EVENTBRIDGE = /* GraphQL */ `
+  mutation CreateScheduleWithEventBridge($input: ScheduleEventBridgeInput!) {
+    createScheduleWithEventBridge(input: $input) {
+      ok
+      scheduled {
+        scheduleId
+        status
+        scheduledDate
+      }
+      __typename
+    }
+  }
+`;
+
 export const scheduleService = {
   async createSchedules(nodes: Partial<NodeDTO>[]) {
     console.log('scheduleService.createSchedules called with:', nodes);
-    const results = [];
-    
-    for (const node of nodes) {
-      try {
-        console.log('Processing node for scheduling:', node.id, node.title);
 
-        // Call Lambda function via createSchedule mutation
-        const scheduleInput = {
-          scheduleId: node.id!,
-          title: node.title || 'Untitled',
-          content: node.description || node.content || '',
-          imageUrl: node.imageUrl || null,
-          imageUrls: node.imageUrls || (node.imageUrl ? [node.imageUrl] : null),
-          scheduledDate: node.scheduledDate!,
-          status: 'scheduled',
-          userId: (typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null) || 'demo-user'
+    // Build batch payload for Lambda-backed mutation
+    const userId = (typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null) || 'demo-user';
+    const nodesPayload = nodes.map((node) => ({
+      id: node.id!,
+      projectId: 'demo-project-123',
+      nodeId: node.id!,
+      title: node.title || 'Untitled',
+      description: (node as any).description || (node as any).content || '',
+      type: (node as any).type || 'post',
+      imageUrl: node.imageUrl || null,
+      imageUrls: node.imageUrls || (node.imageUrl ? [node.imageUrl] : null),
+      scheduledDate: node.scheduledDate!,
+      status: 'scheduled',
+    }));
+
+    console.log('Calling Lambda via createScheduleWithEventBridge with nodes:', nodesPayload.length);
+    try {
+      const scheduleResult = await client.graphql({
+        query: CREATE_SCHEDULE_WITH_EVENTBRIDGE,
+        variables: { input: { nodes: nodesPayload, userId } as any },
+      });
+      console.log('Lambda batch schedule result:', scheduleResult);
+
+      const payload = (scheduleResult as any)?.data?.createScheduleWithEventBridge;
+      const scheduled = Array.isArray(payload?.scheduled) ? payload.scheduled : [];
+      // Normalize return shape to existing callers
+      const results = nodes.map((n) => {
+        const matched = scheduled.find((s: any) => s.scheduleId === n.id);
+        return {
+          id: n.id,
+          scheduleId: n.id,
+          ok: !!matched,
+          status: matched?.status || 'scheduled',
+          scheduledDate: matched?.scheduledDate || (n as any).scheduledDate,
         };
-        
-        console.log('Calling Lambda function via createSchedule mutation');
-        const scheduleResult = await client.graphql({
-          query: createSchedule,
-          variables: { input: scheduleInput }
-        });
-        console.log('Lambda schedule result:', scheduleResult);
-
-        results.push({
-          id: node.id,
-          scheduleId: node.id,
-          ok: true,
-          status: 'scheduled',
-          scheduledDate: node.scheduledDate
-        });
-      } catch (error) {
-        console.error('Failed to create schedule:', error);
-        results.push({
-          id: node.id,
-          ok: false,
-          error: error instanceof Error ? error.message : 'Unknown error'
-        });
-      }
+      });
+      return { ok: true, results, scheduled: results };
+    } catch (error) {
+      console.error('Failed to create schedules via EventBridge:', error);
+      return { ok: false, error: error instanceof Error ? error.message : 'Unknown error' } as any;
     }
-
-    return { ok: true, results, scheduled: results };
   },
 
   async listSchedules() {
