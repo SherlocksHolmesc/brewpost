@@ -72,6 +72,7 @@ export const deleteNode = /* GraphQL */ `mutation DeleteNode($input: DeleteNodeI
     type
     day
     imageUrl
+    imageUrls
     imagePrompt
     scheduledDate
     createdAt

@@ -776,12 +776,16 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                       
                       const result = await scheduleService.createSchedules([{
                         id: node.id,
+                        nodeId: node.id,
+                        projectId: 'demo-project-123',
                         title: node.title,
                         description: node.content,
                         type: node.type,
                         imageUrl: node.imageUrl,
                         imageUrls: node.imageUrls,
-                        scheduledDate: node.scheduledDate.toISOString()
+                        scheduledDate: node.scheduledDate.toISOString(),
+                        createdAt: new Date().toISOString(),
+                        updatedAt: new Date().toISOString()
                       }]);
                       
                       console.log('Schedule result:', result);
