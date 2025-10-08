@@ -29,6 +29,10 @@ export interface ContentNode {
   imageUrl?: string;
   connections: string[];
   position: { x: number; y: number };
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
+  linkedInId?: string;
 }
 
 interface CalendarViewProps {

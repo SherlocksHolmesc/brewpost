@@ -5,6 +5,7 @@
 interface PostResponse {
   ok: boolean;
   tweetId?: string;
+  postId?: string; // For LinkedIn
   id?: string; // Alternative field name for tweet ID
   error?: string;
   rate?: { retryAfterSec?: number | null; resetEpochSec?: number | null; remaining?: number | null };
@@ -62,5 +63,14 @@ export class PostingService {
     // } finally {
     //   this.inFlight = false;
     // }
+  }
+
+  static async postToLinkedIn(text: string): Promise<PostResponse> {
+    // COMMENTED OUT: Backend disabled - returning mock success
+    console.log('[MOCK] PostToLinkedIn called with text:', text);
+    return { ok: true, postId: 'linkedin-mock-' + Date.now() };
+    
+    // TODO: Implement actual LinkedIn posting when backend is enabled
+    // Similar structure to postToX but for LinkedIn API endpoint
   }
 }

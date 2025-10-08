@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -8,8 +9,21 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { Calendar, Clock, Target, Eye, Zap, Bot, Send } from 'lucide-react';
+import { Calendar, Clock, Target, Eye, Zap, Bot, Send, X, CheckCircle, Loader2 } from 'lucide-react';
 import { AIChat } from '@/components/ai/AIChat';
+import { PostingService } from '@/services/postingService';
+
+// LinkedIn Icon Component
+const LinkedInIcon = ({ className }: { className?: string }) => (
+  <svg
+    className={className}
+    viewBox="0 0 24 24"
+    fill="currentColor"
+    xmlns="http://www.w3.org/2000/svg"
+  >
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z"/>
+  </svg>
+);
 
 interface ContentNode {
   id: string;
@@ -21,6 +35,10 @@ interface ContentNode {
   imageUrl?: string;
   connections: string[];
   position: { x: number; y: number };
+  postedAt?: Date;
+  postedTo?: string[];
+  tweetId?: string;
+  linkedInId?: string;
 }
 
 interface CalendarEventModalProps {
@@ -39,6 +57,12 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   onDelete
 }) => {
   const [formData, setFormData] = useState<Partial<ContentNode>>({});
+  const [isPostingToX, setIsPostingToX] = useState(false);
+  const [isPostingToLinkedIn, setIsPostingToLinkedIn] = useState(false);
+  const [postResults, setPostResults] = useState<{
+    x?: { success: boolean; message: string };
+    linkedin?: { success: boolean; message: string };
+  }>({});
 
   useEffect(() => {
     if (event) {
@@ -51,7 +75,23 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         imageUrl: event.imageUrl
       });
     }
+    // Reset post results when event changes
+    setPostResults({});
   }, [event]);
+
+  // Auto-dismiss success messages after 5 seconds
+  useEffect(() => {
+    if (postResults.x?.success || postResults.linkedin?.success) {
+      const timer = setTimeout(() => {
+        setPostResults(prev => ({
+          ...prev,
+          ...(postResults.x?.success && { x: undefined }),
+          ...(postResults.linkedin?.success && { linkedin: undefined })
+        }));
+      }, 5000);
+      return () => clearTimeout(timer);
+    }
+  }, [postResults]);
 
   const handleSave = () => {
     if (!event) return;
@@ -78,6 +118,116 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     }
   };
 
+  const handlePostToX = async () => {
+    if (!event?.content) {
+      setPostResults(prev => ({
+        ...prev,
+        x: { success: false, message: 'No content to post' }
+      }));
+      return;
+    }
+
+    setIsPostingToX(true);
+    setPostResults(prev => ({ ...prev, x: undefined }));
+
+    try {
+      const result = await PostingService.postToX(event.content);
+      
+      if (result.ok) {
+        const updatedEvent = {
+          ...event,
+          status: 'published' as const,
+          postedAt: new Date(),
+          postedTo: [...(event.postedTo || []), 'X'],
+          tweetId: result.tweetId
+        };
+        
+        onSave(updatedEvent);
+        
+        setPostResults(prev => ({
+          ...prev,
+          x: { 
+            success: true, 
+            message: `Successfully posted to X! Tweet ID: ${result.tweetId}` 
+          }
+        }));
+      } else {
+        setPostResults(prev => ({
+          ...prev,
+          x: { 
+            success: false, 
+            message: result.error || 'Failed to post to X' 
+          }
+        }));
+      }
+    } catch (error) {
+      setPostResults(prev => ({
+        ...prev,
+        x: { 
+          success: false, 
+          message: 'An unexpected error occurred while posting to X' 
+        }
+      }));
+    } finally {
+      setIsPostingToX(false);
+    }
+  };
+
+  const handlePostToLinkedIn = async () => {
+    if (!event?.content) {
+      setPostResults(prev => ({
+        ...prev,
+        linkedin: { success: false, message: 'No content to post' }
+      }));
+      return;
+    }
+
+    setIsPostingToLinkedIn(true);
+    setPostResults(prev => ({ ...prev, linkedin: undefined }));
+
+    try {
+      const result = await PostingService.postToLinkedIn(event.content);
+      
+      if (result.ok) {
+        const updatedEvent = {
+          ...event,
+          status: 'published' as const,
+          postedAt: new Date(),
+          postedTo: [...(event.postedTo || []), 'LinkedIn'],
+          linkedInId: result.postId
+        };
+        
+        onSave(updatedEvent);
+        
+        setPostResults(prev => ({
+          ...prev,
+          linkedin: { 
+            success: true, 
+            message: `Successfully posted to LinkedIn! Post ID: ${result.postId}` 
+          }
+        }));
+      } else {
+        setPostResults(prev => ({
+          ...prev,
+          linkedin: { 
+            success: false, 
+            message: result.error || 'Failed to post to LinkedIn' 
+          }
+        }));
+      }
+    } catch (error) {
+      setPostResults(prev => ({
+        ...prev,
+        linkedin: { 
+          success: false, 
+          message: 'An unexpected error occurred while posting to LinkedIn' 
+        }
+      }));
+    } finally {
+      setIsPostingToLinkedIn(false);
+    }
+  };
+
   const getTypeIcon = (type: ContentNode['type']) => {
     switch (type) {
       case 'post': return Target;
@@ -101,7 +251,8 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const TypeIcon = getTypeIcon(event.type);
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-4xl max-h-[90vh]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
@@ -218,6 +369,24 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                 onChange={(e) => setFormData(prev => ({ ...prev, imageUrl: e.target.value }))}
                 placeholder="https://example.com/image.jpg"
               />
+              
+              {/* Image Preview */}
+              {(formData.imageUrl || event?.imageUrl) && (
+                <div className="mt-3">
+                  <Label className="text-sm font-medium mb-2 block">Image Preview</Label>
+                  <div className="border border-border/20 rounded-lg overflow-hidden bg-card/50 flex justify-start">
+                    <img 
+                      src={formData.imageUrl || event?.imageUrl} 
+                      alt="Preview" 
+                      className="max-h-60 object-cover rounded-lg"
+                      onError={(e) => {
+                        const target = e.target as HTMLImageElement;
+                        target.style.display = 'none';
+                      }}
+                    />
+                  </div>
+                </div>
+              )}
             </div>
           </TabsContent>
 
@@ -232,9 +401,42 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           <Button onClick={handleSave} className="bg-gradient-primary">
             Save Changes
           </Button>
+          
+          {/* Social Media Post Buttons */}
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handlePostToX}
+            disabled={isPostingToX || !event?.content}
+            className="border-slate-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300"
+          >
+            {isPostingToX ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <X className="w-4 h-4 mr-2" />
+            )}
+            {isPostingToX ? 'Posting...' : 'Post to X'}
+          </Button>
+          
+          <Button
+            variant="outline"
+            size="default"
+            onClick={handlePostToLinkedIn}
+            disabled={isPostingToLinkedIn || !event?.content}
+            className="border-slate-300 hover:border-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300"
+          >
+            {isPostingToLinkedIn ? (
+              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+            ) : (
+              <LinkedInIcon className="w-4 h-4 mr-2" />
+            )}
+            {isPostingToLinkedIn ? 'Posting...' : 'Post to LinkedIn'}
+          </Button>
+          
           <Button variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
+          
           {onDelete && (
             <Button 
               variant="outline" 
@@ -246,6 +448,62 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           )}
         </div>
       </DialogContent>
-    </Dialog>
+      </Dialog>
+
+      {/* Post Results - Portal to Body for Top Layer */}
+      {open && (postResults.x || postResults.linkedin) && 
+        createPortal(
+          <div 
+            className="fixed bottom-4 right-4 space-y-2" 
+            style={{ 
+              position: 'fixed', 
+              zIndex: 999999999,
+              pointerEvents: 'none'
+            }}
+          >
+            {postResults.x && (
+              <div className={`p-4 rounded-lg border-2 shadow-2xl backdrop-blur-md max-w-sm animate-in slide-in-from-right-2 pointer-events-auto transform transition-all duration-300 ${
+                postResults.x.success 
+                  ? 'bg-green-50/98 border-green-400 text-green-900 dark:bg-green-900/98 dark:border-green-500 dark:text-green-100' 
+                  : 'bg-red-50/98 border-red-400 text-red-900 dark:bg-red-900/98 dark:border-red-500 dark:text-red-100'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {postResults.x.success ? (
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  ) : (
+                    <X className="w-5 h-5 flex-shrink-0" />
+                  )}
+                  <div>
+                    <span className="text-sm font-semibold block">X (Twitter)</span>
+                    <p className="text-xs mt-1 opacity-90">{postResults.x.message}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+            
+            {postResults.linkedin && (
+              <div className={`p-4 rounded-lg border-2 shadow-2xl backdrop-blur-md max-w-sm animate-in slide-in-from-right-2 pointer-events-auto transform transition-all duration-300 ${
+                postResults.linkedin.success 
+                  ? 'bg-green-50/98 border-green-400 text-green-900 dark:bg-green-900/98 dark:border-green-500 dark:text-green-100' 
+                  : 'bg-red-50/98 border-red-400 text-red-900 dark:bg-red-900/98 dark:border-red-500 dark:text-red-100'
+              }`}>
+                <div className="flex items-center gap-3">
+                  {postResults.linkedin.success ? (
+                    <CheckCircle className="w-5 h-5 flex-shrink-0" />
+                  ) : (
+                    <X className="w-5 h-5 flex-shrink-0" />
+                  )}
+                  <div>
+                    <span className="text-sm font-semibold block">LinkedIn</span>
+                    <p className="text-xs mt-1 opacity-90">{postResults.linkedin.message}</p>
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>,
+          document.body
+        )
+      }
+    </>
   );
 };
