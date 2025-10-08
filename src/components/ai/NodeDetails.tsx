@@ -766,6 +766,14 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                     
                     try {
                       // Schedule this individual node through AppSync
+                      console.log('Scheduling individual node:', {
+                        id: node.id,
+                        title: node.title,
+                        scheduledDate: node.scheduledDate?.toISOString(),
+                        imageUrl: node.imageUrl,
+                        imageUrls: node.imageUrls
+                      });
+                      
                       const result = await scheduleService.createSchedules([{
                         id: node.id,
                         title: node.title,
@@ -775,6 +783,8 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                         imageUrls: node.imageUrls,
                         scheduledDate: node.scheduledDate.toISOString()
                       }]);
+                      
+                      console.log('Schedule result:', result);
                       
                       if (result.ok) {
                         // Update node status to scheduled
