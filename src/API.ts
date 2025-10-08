@@ -63,13 +63,17 @@ export type Content = {
 
 export type Schedule = {
   __typename: "Schedule",
+  id: string,
   scheduleId: string,
-  userId: string,
-  projectId: string,
-  nodeId: string,
-  whenISO: string,
-  channel: string,
-  status?: string | null,
+  title: string,
+  content?: string | null,
+  imageUrl?: string | null,
+  imageUrls?: string[] | null,
+  scheduledDate: string,
+  status: string,
+  userId?: string | null,
+  createdAt: string,
+  updatedAt: string,
 };
 
 export type CreateNodeMutationVariables = {
@@ -193,16 +197,36 @@ export type GenerateContentMutation = {
   },
 };
 
+export type CreateScheduleInput = {
+  scheduleId: string,
+  title: string,
+  content?: string | null,
+  imageUrl?: string | null,
+  imageUrls?: string[] | null,
+  scheduledDate: string,
+  status: string,
+  userId?: string | null,
+};
+
 export type CreateScheduleMutationVariables = {
-  contentId: string,
-  whenISO: string,
-  channel: string,
-  projectId: string,
-  nodeId: string,
+  input: CreateScheduleInput,
 };
 
 export type CreateScheduleMutation = {
-  createSchedule: string,
+  createSchedule: {
+    __typename: "Schedule",
+    id: string,
+    scheduleId: string,
+    title: string,
+    content?: string | null,
+    imageUrl?: string | null,
+    imageUrls?: string[] | null,
+    scheduledDate: string,
+    status: string,
+    userId?: string | null,
+    createdAt: string,
+    updatedAt: string,
+  },
 };
 
 export type ListNodesQueryVariables = {

@@ -140,22 +140,22 @@ export const generateContent = /* GraphQL */ `mutation GenerateContent(
   APITypes.GenerateContentMutationVariables,
   APITypes.GenerateContentMutation
 >;
-export const createSchedule = /* GraphQL */ `mutation CreateSchedule(
-  $contentId: ID!
-  $whenISO: AWSDateTime!
-  $channel: String!
-  $projectId: ID!
-  $nodeId: ID!
-) {
-  createSchedule(
-    contentId: $contentId
-    whenISO: $whenISO
-    channel: $channel
-    projectId: $projectId
-    nodeId: $nodeId
-  )
-}
-` as GeneratedMutation<
+export const createSchedule = /* GraphQL */ `mutation CreateSchedule($input: CreateScheduleInput!, $condition: ModelScheduleConditionInput) {
+  createSchedule(input: $input, condition: $condition) {
+    id
+    scheduleId
+    title
+    content
+    imageUrl
+    imageUrls
+    scheduledDate
+    status
+    userId
+    createdAt
+    updatedAt
+    __typename
+  }
+}` as GeneratedMutation<
   APITypes.CreateScheduleMutationVariables,
   APITypes.CreateScheduleMutation
 >;

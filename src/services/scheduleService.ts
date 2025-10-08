@@ -36,6 +36,7 @@ export const scheduleService = {
           title: node.title || 'Untitled',
           content: node.description || '',
           imageUrl: node.imageUrl || null,
+          imageUrls: node.imageUrls || null,
           scheduledDate: node.scheduledDate!,
           status: 'scheduled',
           userId: 'demo-user'
