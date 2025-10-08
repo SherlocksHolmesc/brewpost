@@ -17,7 +17,9 @@ export const scheduleService = {
           projectId: 'demo-project-123',
           nodeId: node.id!,
           status: 'scheduled',
-          scheduledDate: node.scheduledDate
+          scheduledDate: node.scheduledDate,
+          imageUrl: node.imageUrl,
+          imageUrls: node.imageUrls
         });
 
         results.push({
