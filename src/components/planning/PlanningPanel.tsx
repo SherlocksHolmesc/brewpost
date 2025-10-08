@@ -196,8 +196,13 @@ export const PlanningPanel = React.forwardRef<PlanningPanelRef, PlanningPanelPro
   };
 
   const handlePostNode = async (node: ContentNode) => {
-    // Just save the node as-is (status should already be set by caller)
-    await handleSaveNode(node);
+    // Only persist to NodeAPI when actually publishing; for scheduling, update UI only
+    if (node.status === 'published') {
+      await handleSaveNode(node);
+      return;
+    }
+    // For 'scheduled' or other non-published statuses, update local state only
+    setNodes(prev => prev.map(n => (n.id === node.id ? { ...n, ...node } : n)));
   };
 
   // Expose methods through ref

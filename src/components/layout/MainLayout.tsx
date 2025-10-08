@@ -91,14 +91,21 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       planningPanelRef.current.handlePostNode(node);
     } else {
       // Handle posting in canvas mode
-      const updatedNode = {
-        ...node,
-        // Do not force publish when invoked for scheduling; preserve existing status
-        status: node.status,
-        postedAt: node.postedAt,
-        postedTo: node.postedTo
-      };
-      handleSaveNode(updatedNode);
+      if (node.status === 'published') {
+        // Persist only when truly publishing
+        const updatedNode = {
+          ...node,
+          postedAt: new Date(),
+          postedTo: [...(node.postedTo || [])]
+        };
+        handleSaveNode(updatedNode);
+      } else {
+        // For scheduling or other non-published statuses, update local state only
+        debugSetNodes(prev => prev.map(n => (n.id === node.id ? { ...n, ...node } : n)));
+        if (selectedNode && selectedNode.id === node.id) {
+          setSelectedNode({ ...selectedNode, ...node });
+        }
+      }
     }
   };
   // Load nodes from AppSync only - no localStorage fallback
