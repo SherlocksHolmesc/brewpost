@@ -29,25 +29,26 @@ export const scheduleService = {
         console.log('Calling NodeAPI.update with:', updateData);
         const updateResult = await NodeAPI.update(updateData);
         console.log('NodeAPI.update result:', updateResult);
+        console.log('Node status after update:', updateResult.status);
 
-        // Also create a schedule record in the Schedule table
+        // Call Lambda function via createSchedule mutation
         const scheduleInput = {
           scheduleId: node.id!,
           title: node.title || 'Untitled',
-          content: node.description || '',
+          content: node.description || node.content || '',
           imageUrl: node.imageUrl || null,
-          imageUrls: node.imageUrls || null,
+          imageUrls: node.imageUrls || (node.imageUrl ? [node.imageUrl] : null),
           scheduledDate: node.scheduledDate!,
           status: 'scheduled',
           userId: 'demo-user'
         };
         
-        console.log('Creating schedule record with:', scheduleInput);
+        console.log('Calling Lambda function via createSchedule mutation');
         const scheduleResult = await client.graphql({
           query: createSchedule,
           variables: { input: scheduleInput }
         });
-        console.log('Schedule creation result:', scheduleResult);
+        console.log('Lambda schedule result:', scheduleResult);
 
         results.push({
           id: node.id,

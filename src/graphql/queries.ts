@@ -67,19 +67,26 @@ export const getContent = /* GraphQL */ `query GetContent($contentId: ID!) {
   APITypes.GetContentQueryVariables,
   APITypes.GetContentQuery
 >;
-export const listSchedules = /* GraphQL */ `query ListSchedules($projectId: ID!) {
-  listSchedules(projectId: $projectId) {
-    scheduleId
-    userId
-    projectId
-    nodeId
-    whenISO
-    channel
-    status
+export const listSchedules = /* GraphQL */ `query ListSchedules($filter: ModelScheduleFilterInput, $limit: Int, $nextToken: String) {
+  listSchedules(filter: $filter, limit: $limit, nextToken: $nextToken) {
+    items {
+      id
+      scheduleId
+      title
+      content
+      imageUrl
+      imageUrls
+      scheduledDate
+      status
+      userId
+      createdAt
+      updatedAt
+      __typename
+    }
+    nextToken
     __typename
   }
-}
-` as GeneratedQuery<
+}` as GeneratedQuery<
   APITypes.ListSchedulesQueryVariables,
   APITypes.ListSchedulesQuery
 >;
