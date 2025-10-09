@@ -5,6 +5,9 @@ import dotenv from "dotenv";
 import cors from "cors";
 import pkg from "aws-sdk";
 import { invokeModelViaHttp } from "./src/server/bedrock.js";
+import { readFileSync, writeFileSync } from 'fs';
+import { join } from 'path';
+import fetch from 'node-fetch';
 
 dotenv.config();
 
@@ -41,6 +44,13 @@ const COGNITO_DOMAIN =
   process.env.COGNITO_DOMAIN ||
   "https://us-east-1lnmmjkyb9.auth.us-east-1.amazoncognito.com";
 
+// X API configuration
+const X_CLIENT_ID = process.env.VITE_X_CLIENT_ID;
+const X_CLIENT_SECRET = process.env.VITE_X_CLIENT_SECRET;
+const X_REDIRECT_URI = process.env.VITE_X_REDIRECT_URI;
+const X_API_BASE_URL = 'https://api.twitter.com/2';
+const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
+
 // CORS configuration
 app.use(cors({
   origin: FRONTEND_URL,
@@ -66,6 +76,275 @@ app.use(session({
 
 const s3 = new S3({ region: REGION });
 const DDB = new DynamoDB.DocumentClient({ region: REGION });
+
+// Helper function to update Node/Schedule with X posting details
+async function updateNodeWithXPostingDetails({ nodeId, scheduleId, tweetId, tweetUrl, postedAt, status }) {
+  try {
+    console.log('📝 Updating database with X posting details...', { nodeId, scheduleId, tweetId });
+
+    if (nodeId) {
+      // Update Node in the database
+      // This assumes you have a Node table with the ID as primary key
+      // You'll need to adjust the TableName and key structure based on your actual setup
+      const updateParams = {
+        TableName: 'Node', // Adjust table name as needed
+        Key: { id: nodeId },
+        UpdateExpression: 'SET xTweetId = :tweetId, xTweetUrl = :tweetUrl, xPostedAt = :postedAt, xPostStatus = :status',
+        ExpressionAttributeValues: {
+          ':tweetId': tweetId,
+          ':tweetUrl': tweetUrl,
+          ':postedAt': postedAt,
+          ':status': status
+        },
+        ReturnValues: 'UPDATED_NEW'
+      };
+
+      const result = await DDB.update(updateParams).promise();
+      console.log('✅ Node updated with X posting details:', result.Attributes);
+    }
+
+    if (scheduleId) {
+      // Update Schedule in the database
+      const updateParams = {
+        TableName: SCHEDULES_TABLE,
+        Key: { id: scheduleId },
+        UpdateExpression: 'SET xTweetId = :tweetId, xTweetUrl = :tweetUrl, xPostedAt = :postedAt, xPostStatus = :status',
+        ExpressionAttributeValues: {
+          ':tweetId': tweetId,
+          ':tweetUrl': tweetUrl,
+          ':postedAt': postedAt,
+          ':status': status
+        },
+        ReturnValues: 'UPDATED_NEW'
+      };
+
+      const result = await DDB.update(updateParams).promise();
+      console.log('✅ Schedule updated with X posting details:', result.Attributes);
+    }
+
+  } catch (error) {
+    console.error('❌ Failed to update database with X posting details:', error);
+    // Don't throw error - we don't want to fail the posting just because DB update failed
+  }
+}
+
+// ============ X TOKEN MANAGEMENT ============
+
+class XTokenManager {
+  static TOKEN_FILE_PATH = join(process.cwd(), 'x_tokens.json');
+
+  static getStoredTokens() {
+    try {
+      const tokenData = readFileSync(this.TOKEN_FILE_PATH, 'utf8');
+      const tokens = JSON.parse(tokenData);
+      
+      // Calculate expires_at if not present but expires_in is available
+      if (!tokens.expires_at && tokens.expires_in) {
+        const now = Math.floor(Date.now() / 1000);
+        tokens.expires_at = now + tokens.expires_in;
+      }
+      
+      return tokens;
+    } catch (error) {
+      console.log('No stored X tokens found or invalid format');
+      return null;
+    }
+  }
+
+  static saveTokens(tokens) {
+    try {
+      // Add expires_at timestamp if not present
+      if (!tokens.expires_at && tokens.expires_in) {
+        const now = Math.floor(Date.now() / 1000);
+        tokens.expires_at = now + tokens.expires_in;
+      }
+      
+      writeFileSync(this.TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
+      console.log('✅ X tokens saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save X tokens:', error);
+      throw error;
+    }
+  }
+
+  static isTokenValid(tokens) {
+    if (!tokens || !tokens.access_token) {
+      return false;
+    }
+
+    // If no expiration info, assume it might be valid (let API decide)
+    if (!tokens.expires_at) {
+      return true;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const bufferTime = 300; // 5 minutes buffer
+
+    return tokens.expires_at > (now + bufferTime);
+  }
+
+  static async refreshAccessToken() {
+    const currentTokens = this.getStoredTokens();
+    
+    if (!currentTokens || !currentTokens.refresh_token) {
+      throw new Error('No refresh token available. Please re-authorize the application.');
+    }
+
+    console.log('🔄 Refreshing X access token...');
+
+    if (!X_CLIENT_ID) {
+      throw new Error('VITE_X_CLIENT_ID not configured in environment variables');
+    }
+
+    try {
+      const body = new URLSearchParams({
+        grant_type: 'refresh_token',
+        refresh_token: currentTokens.refresh_token,
+      });
+
+      const headers = {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      };
+
+      // Add authentication based on client type
+      if (X_CLIENT_SECRET) {
+        // Confidential client - use Basic Auth
+        const basic = Buffer.from(`${X_CLIENT_ID}:${X_CLIENT_SECRET}`).toString('base64');
+        headers['Authorization'] = `Basic ${basic}`;
+      } else {
+        // Public client - include client_id in body
+        body.append('client_id', X_CLIENT_ID);
+      }
+
+      const response = await fetch('https://api.x.com/2/oauth2/token', {
+        method: 'POST',
+        headers,
+        body: body.toString(),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        console.error('❌ Token refresh failed:', response.status, errorData);
+        throw new Error(`Token refresh failed: ${errorData.error_description || errorData.error || 'Unknown error'}`);
+      }
+
+      const newTokens = await response.json();
+      
+      // Merge with existing tokens (preserve refresh_token if not returned)
+      const mergedTokens = {
+        ...currentTokens,
+        ...newTokens,
+        refresh_token: newTokens.refresh_token || currentTokens.refresh_token,
+      };
+
+      // Save the new tokens
+      this.saveTokens(mergedTokens);
+
+      console.log('✅ X tokens refreshed successfully');
+      return mergedTokens;
+      
+    } catch (error) {
+      console.error('❌ Error refreshing X tokens:', error);
+      throw error;
+    }
+  }
+
+  static async getValidAccessToken() {
+    let tokens = this.getStoredTokens();
+
+    if (!tokens) {
+      throw new Error('No X tokens found. Please authorize the application first.');
+    }
+
+    // Check if token is still valid
+    if (this.isTokenValid(tokens)) {
+      console.log('✅ Using existing valid access token');
+      return tokens.access_token;
+    }
+
+    // Token expired, try to refresh
+    console.log('🔄 Access token expired, refreshing...');
+    try {
+      tokens = await this.refreshAccessToken();
+      return tokens.access_token;
+    } catch (error) {
+      throw error;
+    }
+  }
+}
+
+// Helper function to upload media to X
+async function uploadMedia(imageUrl, accessToken) {
+  try {
+    console.log('📤 Uploading media to X...');
+    
+    // Download and prepare the image
+    let imageBuffer;
+    if (imageUrl.startsWith('data:')) {
+      // Handle base64 data URLs
+      const base64Data = imageUrl.split(',')[1];
+      imageBuffer = Buffer.from(base64Data, 'base64');
+      console.log('🖼️ Processing base64 image, size:', imageBuffer.length, 'bytes');
+    } else {
+      console.log('🌐 Fetching image from URL:', imageUrl);
+      const imageResponse = await fetch(imageUrl);
+      if (!imageResponse.ok) {
+        console.error('❌ Failed to fetch image:', imageResponse.status, imageResponse.statusText);
+        return null;
+      }
+      imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+      console.log('🖼️ Downloaded image, size:', imageBuffer.length, 'bytes');
+    }
+
+    // Check authentication
+    if (!accessToken) {
+      console.error('❌ No access token provided for media upload');
+      return null;
+    }
+
+    // Upload the image using X API Media Upload endpoint
+    console.log('🚀 Uploading media using FormData...');
+    
+    const FormData = (await import('form-data')).default;
+    const formData = new FormData();
+    formData.append('media', imageBuffer, { filename: 'image.jpg', contentType: 'image/jpeg' });
+
+    const uploadResponse = await fetch(`${X_UPLOAD_URL}/media/upload.json`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        ...formData.getHeaders()
+      },
+      body: formData
+    });
+
+    if (!uploadResponse.ok) {
+      const errorText = await uploadResponse.text().catch(() => 'Unknown error');
+      console.error('❌ Media upload failed:', uploadResponse.status, uploadResponse.statusText);
+      console.error('❌ Error details:', errorText);
+      return null;
+    }
+
+    const uploadData = await uploadResponse.json();
+    console.log('✅ Media uploaded successfully, response:', uploadData);
+    
+    // Extract media_id (can be media_id or media_id_string)
+    const mediaId = uploadData.media_id_string || uploadData.media_id?.toString();
+    
+    if (!mediaId) {
+      console.error('❌ No media_id returned from upload response');
+      console.error('Upload response:', uploadData);
+      return null;
+    }
+
+    console.log('✅ Media uploaded successfully, media_id:', mediaId);
+    return mediaId;
+    
+  } catch (error) {
+    console.error('❌ Error uploading media:', error);
+    return null;
+  }
+}
 
 // ============ COGNITO AUTH ROUTES ============
 
@@ -114,6 +393,383 @@ app.get("/api/auth/logout", (req, res) => {
 
 app.get("/api/auth/status", (req, res) => {
   res.json({ authenticated: !!req.session.tokens });
+});
+
+// ============ X API ROUTES ============
+
+// Post tweet endpoint
+app.post("/api/post-tweet", async (req, res) => {
+  try {
+    const { text, imageUrl, nodeId, scheduleId } = req.body;
+
+    console.log('🐦 X Posting Request:');
+    console.log('📝 Text:', text ? `"${text}"` : '(empty - image-only post)');
+    console.log('🖼️ Image:', imageUrl ? 'Yes' : 'No');
+
+    // Validate request
+    if (!text && !imageUrl) {
+      return res.status(400).json({ error: 'Either text or image is required' });
+    }
+
+    // Check for required environment variables
+    if (!X_CLIENT_ID) {
+      return res.status(500).json({ error: 'X API credentials not configured' });
+    }
+
+    // Get valid access token (this handles refresh automatically)
+    let accessToken;
+    try {
+      accessToken = await XTokenManager.getValidAccessToken();
+      console.log('✅ Got access token for X API');
+    } catch (error) {
+      console.error('❌ Failed to get access token:', error);
+      return res.status(401).json({ 
+        error: 'No valid X authentication tokens. Please authorize the app first.',
+        details: 'Run the authorization flow or set tokens in x_tokens.json'
+      });
+    }
+
+    // Upload media first (if image is provided)
+    let mediaId = null;
+    if (imageUrl) {
+      console.log('🖼️ Image provided, uploading media first...');
+      mediaId = await uploadMedia(imageUrl, accessToken);
+      if (!mediaId) {
+        return res.status(500).json({ 
+          error: 'Failed to upload image to X. Check authentication and permissions.' 
+        });
+      }
+      console.log('✅ Media upload completed, media_id:', mediaId);
+    }
+
+    // Create the post with the media
+    const tweetData = {};
+    
+    // Add text (required for tweets, but can be empty string for image-only posts)
+    tweetData.text = text || '';
+    
+    // Add media if we have it
+    if (mediaId) {
+      tweetData.media = {
+        media_ids: [mediaId]
+      };
+    }
+
+    console.log('🚀 Creating tweet with data:', tweetData);
+
+    // Post the tweet using the X API
+    const postResponse = await fetch(`${X_API_BASE_URL}/tweets`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(tweetData)
+    });
+
+    if (!postResponse.ok) {
+      const errorData = await postResponse.json().catch(() => ({}));
+      console.error('X API error:', postResponse.status, errorData);
+      
+      // Handle specific X API errors
+      if (postResponse.status === 401) {
+        return res.status(401).json({ error: 'Authentication failed. Please re-authorize the app.' });
+      } else if (postResponse.status === 429) {
+        return res.status(429).json({ error: 'Rate limit exceeded. Please try again later.' });
+      } else if (postResponse.status === 403) {
+        // Handle specific 403 error types
+        const errorDetail = errorData.detail || errorData.message || '';
+        if (errorDetail.includes('duplicate content')) {
+          return res.status(403).json({ 
+            error: 'Duplicate content detected. X does not allow posting the same content twice.',
+            suggestion: 'Try modifying your post or adding unique content.'
+          });
+        } else if (errorDetail.includes('suspended') || errorDetail.includes('locked')) {
+          return res.status(403).json({ error: 'Account is suspended or locked. Check your X account status.' });
+        } else {
+          return res.status(403).json({ 
+            error: errorDetail || 'Forbidden. Check your app permissions or account status.',
+            details: errorData
+          });
+        }
+      } else {
+        // Update database with failed status if nodeId or scheduleId provided
+        if (nodeId || scheduleId) {
+          await updateNodeWithXPostingDetails({
+            nodeId,
+            scheduleId,
+            status: 'failed',
+            postedAt: new Date().toISOString(),
+            tweetId: null,
+            tweetUrl: null
+          });
+        }
+        
+        return res.status(postResponse.status).json({ 
+          error: errorData.detail || errorData.message || `X API error: ${postResponse.status}`,
+          details: errorData
+        });
+      }
+    }
+
+    const responseData = await postResponse.json();
+    const tweetId = responseData.data?.id;
+
+    if (!tweetId) {
+      return res.status(500).json({ error: 'Tweet posted but no ID returned' });
+    }
+
+    console.log('✅ Tweet posted successfully!');
+    console.log('🆔 Tweet ID:', tweetId);
+    console.log('🔗 Tweet URL: https://x.com/user/status/' + tweetId);
+
+    // Update database with X posting details if nodeId or scheduleId provided
+    if (nodeId || scheduleId) {
+      await updateNodeWithXPostingDetails({
+        nodeId,
+        scheduleId,
+        tweetId,
+        tweetUrl: `https://x.com/user/status/${tweetId}`,
+        postedAt: new Date().toISOString(),
+        status: 'posted'
+      });
+    }
+
+    return res.json({
+      success: true,
+      tweetId: tweetId,
+      url: `https://x.com/user/status/${tweetId}`,
+      message: imageUrl && !text 
+        ? `Image-only tweet posted successfully! View at: https://x.com/user/status/${tweetId}` 
+        : `Tweet posted successfully! View at: https://x.com/user/status/${tweetId}`
+    });
+
+  } catch (error) {
+    console.error('Error posting to X:', error);
+    return res.status(500).json({ error: 'Internal server error while posting to X' });
+  }
+});
+
+// Get X auth URL endpoint
+app.get("/api/x-auth-url", (req, res) => {
+  if (!X_CLIENT_ID || !X_REDIRECT_URI) {
+    return res.status(500).json({ error: 'X OAuth not configured' });
+  }
+
+  console.log('🔗 Generating X auth URL...');
+  console.log('📋 Client ID:', X_CLIENT_ID);
+  console.log('📋 Redirect URI:', X_REDIRECT_URI);
+
+  // Generate a random state for security
+  const state = Math.random().toString(36).substring(2, 15);
+  
+  // Use a simple code challenge for PKCE
+  const codeChallenge = 'challenge123';
+
+  const authUrl = `https://twitter.com/i/oauth2/authorize?` +
+    `response_type=code&` +
+    `client_id=${X_CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(X_REDIRECT_URI)}&` +
+    `scope=tweet.read%20tweet.write%20users.read%20offline.access&` +
+    `state=${state}&` +
+    `code_challenge=${codeChallenge}&` +
+    `code_challenge_method=plain`;
+
+  console.log('✅ Generated auth URL:', authUrl);
+  res.json({ url: authUrl });
+});
+
+// Refresh X tokens endpoint
+app.post("/api/x-refresh-token", async (req, res) => {
+  try {
+    const refreshedTokens = await XTokenManager.refreshAccessToken();
+    res.json({ success: true, tokens: refreshedTokens });
+  } catch (error) {
+    console.error('Token refresh failed:', error);
+    res.status(401).json({ 
+      success: false, 
+      error: error.message || 'Failed to refresh tokens' 
+    });
+  }
+});
+
+// Simple token validation endpoint
+app.get("/api/x-token-status", async (req, res) => {
+  try {
+    console.log('🔍 Checking X token status...');
+    
+    // Try to get a valid access token (this will handle refresh if needed)
+    const accessToken = await XTokenManager.getValidAccessToken();
+    
+    if (accessToken) {
+      console.log('✅ Valid access token available');
+      return res.json({ 
+        valid: true,
+        authorized: true,
+        message: 'Valid tokens available'
+      });
+    } else {
+      console.log('❌ No valid access token');
+      return res.json({ 
+        valid: false,
+        authorized: false,
+        message: 'No valid tokens'
+      });
+    }
+  } catch (error) {
+    console.log('❌ Token validation failed:', error.message);
+    return res.json({ 
+      valid: false,
+      authorized: false,
+      error: error.message 
+    });
+  }
+});
+
+// Check X tokens endpoint
+app.get("/api/x-refresh-token", (req, res) => {
+  try {
+    const tokens = XTokenManager.getStoredTokens();
+    const isValid = tokens && XTokenManager.isTokenValid(tokens);
+    
+    res.json({ 
+      valid: isValid,
+      hasTokens: !!tokens,
+      expiresAt: tokens?.expires_at
+    });
+  } catch (error) {
+    res.json({ valid: false, error: error.message });
+  }
+});
+
+// Get current user info endpoint (to check which account is authorized)
+app.get("/api/x-user-info", async (req, res) => {
+  try {
+    console.log('🔍 Checking X user info...');
+    const accessToken = await XTokenManager.getValidAccessToken();
+    console.log('✅ Got valid access token');
+    
+    const response = await fetch(`${X_API_BASE_URL}/users/me`, {
+      method: 'GET',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      }
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      
+      if (response.status === 429) {
+        console.log('⚠️ X API rate limited - user info unavailable');
+      } else {
+        console.error('❌ X API /users/me failed:', response.status, errorData);
+      }
+      
+      return res.status(response.status).json({ 
+        error: 'Failed to get user info', 
+        details: errorData 
+      });
+    }
+
+    const userData = await response.json();
+    console.log('✅ X API /users/me success:', userData.data?.username);
+    
+    return res.json({
+      success: true,
+      user: userData.data,
+      message: `Currently authorized as: @${userData.data?.username}`
+    });
+  } catch (error) {
+    console.error('❌ Error in x-user-info endpoint:', error);
+    return res.status(401).json({ 
+      error: 'No valid tokens found. Please authorize first.',
+      details: error.message 
+    });
+  }
+});
+
+// X callback endpoint (for OAuth flow)
+app.get("/api/x-callback", async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.status(400).json({ error: 'No authorization code provided' });
+  }
+
+  try {
+    console.log('🔄 Processing X OAuth callback...');
+    console.log('📝 Authorization code received:', code.substring(0, 20) + '...');
+
+    // Exchange code for tokens
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: X_REDIRECT_URI,
+      code_verifier: 'challenge123'
+    });
+
+    const headers = {
+      'Content-Type': 'application/x-www-form-urlencoded',
+    };
+
+    if (X_CLIENT_SECRET) {
+      const basic = Buffer.from(`${X_CLIENT_ID}:${X_CLIENT_SECRET}`).toString('base64');
+      headers['Authorization'] = `Basic ${basic}`;
+    } else {
+      body.append('client_id', X_CLIENT_ID);
+    }
+
+    const response = await fetch('https://api.x.com/2/oauth2/token', {
+      method: 'POST',
+      headers,
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ Token exchange failed:', response.status, errorData);
+      return res.status(400).json({ error: 'Token exchange failed', details: errorData });
+    }
+
+    const tokens = await response.json();
+    console.log('✅ New tokens received for account');
+    
+    // Save the new tokens (this will overwrite the old account's tokens)
+    XTokenManager.saveTokens(tokens);
+
+    // Get user info to confirm which account was authorized
+    try {
+      const userResponse = await fetch(`${X_API_BASE_URL}/users/me`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${tokens.access_token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (userResponse.ok) {
+        const userData = await userResponse.json();
+        const username = userData.data?.username;
+        console.log(`✅ Successfully authorized account: @${username}`);
+        
+        res.json({ 
+          success: true, 
+          message: `Authorization successful! Now connected to @${username}`,
+          user: userData.data
+        });
+      } else {
+        res.json({ success: true, message: 'Authorization successful! You can now post to X.' });
+      }
+    } catch (userError) {
+      console.log('Could not fetch user info, but authorization was successful');
+      res.json({ success: true, message: 'Authorization successful! You can now post to X.' });
+    }
+
+  } catch (error) {
+    console.error('❌ X callback error:', error);
+    res.status(500).json({ error: 'Callback processing failed' });
+  }
 });
 
 // ============ BEDROCK FUNCTIONALITY ============
