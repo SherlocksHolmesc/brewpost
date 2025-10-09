@@ -11,6 +11,8 @@ import NotFound from "./pages/NotFound";
 import { CalendarPage } from "./pages/CalendarPage";
 import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
+import TestTwitterPage from "./pages/TestTwitterPage";
+import XCallbackPage from "./pages/XCallbackPage";
 
 const queryClient = new QueryClient();
 
@@ -26,6 +28,8 @@ const App = () => (
             <Route path="/app" element={<Index />} />
             <Route path="/calendar" element={<CalendarPage />} />
             <Route path="/Callback" element={<Callback />} />
+            <Route path="/test-twitter" element={<TestTwitterPage />} />
+            <Route path="/x-callback" element={<XCallbackPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

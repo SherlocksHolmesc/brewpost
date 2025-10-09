@@ -59,10 +59,59 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const [formData, setFormData] = useState<Partial<ContentNode>>({});
   const [isPostingToX, setIsPostingToX] = useState(false);
   const [isPostingToLinkedIn, setIsPostingToLinkedIn] = useState(false);
+  const [xAuthorized, setXAuthorized] = useState<boolean | null>(null);
+  const [xUserInfoCached, setXUserInfoCached] = useState(false);
+  const [currentXUser, setCurrentXUser] = useState<string | null>(null);
   const [postResults, setPostResults] = useState<{
     x?: { success: boolean; message: string };
     linkedin?: { success: boolean; message: string };
   }>({});
+
+  // Check X authorization status
+  const checkXAuthStatus = async () => {
+    try {
+      console.log('🔍 Checking X authorization status in modal...');
+      
+      // First check if we have valid tokens
+      const tokenResponse = await fetch('/api/x-token-status');
+      const tokenData = await tokenResponse.json();
+      
+      if (tokenData.valid && tokenData.authorized) {
+        console.log('✅ Valid X tokens found in modal');
+        
+        // Try to get user info only if not already cached
+        if (!xUserInfoCached) {
+          try {
+            const userResponse = await fetch('/api/x-user-info');
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              const username = userData.user?.username;
+              console.log('✅ X user info retrieved in modal:', username);
+              setCurrentXUser(username);
+            } else {
+              console.log('⚠️ Valid tokens but could not get X user info in modal');
+              setCurrentXUser(null);
+            }
+            setXUserInfoCached(true);
+          } catch (userError) {
+            console.log('⚠️ X user info fetch failed, but tokens are valid in modal');
+            setCurrentXUser(null);
+            setXUserInfoCached(true);
+          }
+        }
+        
+        setXAuthorized(true);
+      } else {
+        console.log('❌ No valid X tokens in modal');
+        setCurrentXUser(null);
+        setXAuthorized(false);
+      }
+    } catch (error) {
+      console.error('❌ X auth check failed in modal:', error);
+      setCurrentXUser(null);
+      setXAuthorized(false);
+    }
+  };
 
   useEffect(() => {
     if (event) {
@@ -77,7 +126,27 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     }
     // Reset post results when event changes
     setPostResults({});
-  }, [event]);
+    
+    // Check X authorization when modal opens
+    if (open) {
+      checkXAuthStatus();
+    }
+  }, [event, open]);
+
+  // Listen for window focus to recheck auth after authorization (only if not authorized)
+  useEffect(() => {
+    if (!open) return;
+    
+    const handleFocus = () => {
+      if (xAuthorized === false) {
+        console.log('🔄 Window focused, rechecking X auth status in modal...');
+        checkXAuthStatus();
+      }
+    };
+
+    window.addEventListener('focus', handleFocus);
+    return () => window.removeEventListener('focus', handleFocus);
+  }, [open, xAuthorized]);
 
   // Auto-dismiss success messages after 5 seconds
   useEffect(() => {
@@ -118,7 +187,58 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     }
   };
 
-  const handlePostToX = async () => {
+  const handleSmartXAction = async () => {
+    if (xAuthorized === null) {
+      // Still checking auth status
+      return;
+    }
+
+    if (!xAuthorized) {
+      // Need to authorize first
+      setIsPostingToX(true);
+      try {
+        const response = await fetch('/api/x-auth-url');
+        const data = await response.json();
+        
+        if (data.url) {
+          window.open(data.url, '_blank');
+          setPostResults(prev => ({
+            ...prev,
+            x: { 
+              success: true, 
+              message: 'Authorization window opened. Complete the authorization and try again.' 
+            }
+          }));
+          
+          // Set up periodic recheck for authorization
+          const recheckInterval = setInterval(() => {
+            console.log('🔄 Rechecking X auth status in modal after authorization...');
+            checkXAuthStatus();
+          }, 5000);
+          
+          // Clear interval after 1 minute
+          setTimeout(() => {
+            clearInterval(recheckInterval);
+          }, 60000);
+          
+        } else {
+          setPostResults(prev => ({
+            ...prev,
+            x: { success: false, message: 'Failed to get authorization URL' }
+          }));
+        }
+      } catch (error) {
+        setPostResults(prev => ({
+          ...prev,
+          x: { success: false, message: 'Failed to get authorization URL' }
+        }));
+      } finally {
+        setIsPostingToX(false);
+      }
+      return;
+    }
+
+    // Already authorized, proceed with posting
     if (!event?.content) {
       setPostResults(prev => ({
         ...prev,
@@ -127,13 +247,35 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
       return;
     }
 
+    if (event.content.length > 280) {
+      setPostResults(prev => ({
+        ...prev,
+        x: { success: false, message: 'Content exceeds 280 character limit for X' }
+      }));
+      return;
+    }
+
     setIsPostingToX(true);
     setPostResults(prev => ({ ...prev, x: undefined }));
 
     try {
-      const result = await PostingService.postToX(event.content);
-      
-      if (result.ok) {
+      // Use the new XService instead of PostingService
+      const response = await fetch('/api/post-tweet', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ 
+          text: event.content,
+          imageUrl: event.imageUrl,
+          nodeId: event.id, // Pass the node/event ID for database tracking
+          scheduleId: event.scheduleId // Pass schedule ID if available
+        })
+      });
+
+      if (response.ok) {
+        const result = await response.json();
+        
         const updatedEvent = {
           ...event,
           status: 'published' as const,
@@ -152,13 +294,24 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           }
         }));
       } else {
-        setPostResults(prev => ({
-          ...prev,
-          x: { 
-            success: false, 
-            message: result.error || 'Failed to post to X' 
-          }
-        }));
+        const errorData = await response.json();
+        const errorMessage = errorData.error || 'Failed to post to X';
+        
+        // Check if it's an auth error
+        if (errorMessage.includes('401') || errorMessage.includes('Unauthorized') || errorMessage.includes('Authentication failed')) {
+          setXAuthorized(false);
+          setCurrentXUser(null);
+          setXUserInfoCached(false);
+          setPostResults(prev => ({
+            ...prev,
+            x: { success: false, message: 'Authorization expired. Click the button to re-authorize.' }
+          }));
+        } else {
+          setPostResults(prev => ({
+            ...prev,
+            x: { success: false, message: errorMessage }
+          }));
+        }
       }
     } catch (error) {
       setPostResults(prev => ({
@@ -171,6 +324,18 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     } finally {
       setIsPostingToX(false);
     }
+  };
+
+  const getXButtonText = () => {
+    if (xAuthorized === null) return 'Checking...';
+    if (!xAuthorized) return 'Authorize X Account';
+    return 'Post to X';
+  };
+
+  const getXButtonIcon = () => {
+    if (xAuthorized === null) return <Loader2 className="w-4 h-4 mr-2 animate-spin" />;
+    if (!xAuthorized) return <X className="w-4 h-4 mr-2" />;
+    return isPostingToX ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />;
   };
 
   const handlePostToLinkedIn = async () => {
@@ -402,21 +567,35 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
             Save Changes
           </Button>
           
-          {/* Social Media Post Buttons */}
+          {/* X Smart Action Button */}
           <Button
             variant="outline"
             size="default"
-            onClick={handlePostToX}
-            disabled={isPostingToX || !event?.content}
-            className="border-slate-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300"
+            onClick={handleSmartXAction}
+            disabled={
+              isPostingToX || 
+              xAuthorized === null || 
+              (xAuthorized && (!event?.content || event.content.length > 280))
+            }
+            className={`transition-all duration-200 ${
+              xAuthorized === false 
+                ? 'border-orange-300 hover:border-orange-500 hover:bg-orange-100 hover:text-orange-700 dark:border-orange-600 dark:hover:border-orange-400 dark:hover:bg-orange-900/30 dark:hover:text-orange-300' 
+                : 'border-slate-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
+            }`}
           >
-            {isPostingToX ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <X className="w-4 h-4 mr-2" />
-            )}
-            {isPostingToX ? 'Posting...' : 'Post to X'}
+            {getXButtonIcon()}
+            {isPostingToX ? 'Processing...' : getXButtonText()}
           </Button>
+
+          {/* X User Info Badge (show when authorized and have user info) */}
+          {currentXUser && xAuthorized && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded border border-green-200 dark:border-green-800">
+              <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
+              <span className="text-xs text-green-800 dark:text-green-200">
+                @{currentXUser}
+              </span>
+            </div>
+          )}
           
           <Button
             variant="outline"
