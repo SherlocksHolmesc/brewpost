@@ -67,8 +67,9 @@ jobs:
           echo "Installing dependencies..."
           rm -rf node_modules package-lock.json
           npm install --omit=dev
+          npm install express@latest dotenv@latest
           echo "Getting secrets..."
-          aws secretsmanager get-secret-value --secret-id env --query SecretString --output text > .env
+          aws secretsmanager get-secret-value --secret-id env --query SecretString --output text | python3 -c "import sys, json; [print(f'{k}={v}') for k,v in json.load(sys.stdin).items() if v]" > .env
           echo "Syncing frontend..."
           rm -rf /home/brewpost/brewpost/dist/*
           aws s3 sync s3://my-react-deploy-bucket/frontend /home/brewpost/brewpost/dist
