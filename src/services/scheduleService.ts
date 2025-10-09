@@ -71,23 +71,37 @@ export const scheduleService = {
   async listSchedules() {
     try {
       const result = await client.graphql({
-        query: listNodes
+        query: `query ListSchedules {
+          listSchedules {
+            items {
+              id
+              scheduleId
+              title
+              content
+              imageUrl
+              imageUrls
+              scheduledDate
+              status
+              userId
+              createdAt
+              updatedAt
+            }
+          }
+        }`
       });
 
-      const items = (result.data.listNodes as any).items || result.data.listNodes || [];
-      const schedules = items
-        .filter((item: any) => item.status === 'scheduled' || item.status === 'published')
-        .map((item: any) => ({
-          scheduleId: item.nodeId || item.id,
-          userId: item.projectId,
-          status: item.status,
-          createdAt: item.createdAt,
-          scheduledDate: item.scheduledDate,
-          title: item.title,
-          content: item.description,
-          imageUrl: item.imageUrl,
-          type: item.type
-        }));
+      const items = (result.data.listSchedules as any).items || [];
+      const schedules = items.map((item: any) => ({
+        scheduleId: item.scheduleId,
+        userId: item.userId,
+        status: item.status,
+        createdAt: item.createdAt,
+        scheduledDate: item.scheduledDate,
+        title: item.title,
+        content: item.content,
+        imageUrl: item.imageUrl,
+        type: 'post'
+      }));
 
       return { ok: true, schedules };
     } catch (error) {
