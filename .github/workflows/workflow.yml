@@ -1,3 +1,4 @@
+
 name: React Build & Deploy to S3 and EC2
 
 on:
@@ -33,7 +34,6 @@ jobs:
           echo "VITE_APPSYNC_API_KEY=${{ secrets.VITE_APPSYNC_API_KEY }}" >> .env
           echo "VITE_PUBLIC_MEDIA_BASE=${{ secrets.VITE_PUBLIC_MEDIA_BASE }}" >> .env
           echo "VITE_MEDIA_BUCKET=${{ secrets.VITE_MEDIA_BUCKET }}" >> .env
-
       - name: Build project
         run: npm run build
 
@@ -48,7 +48,6 @@ jobs:
         run: |
           aws s3 rm s3://my-react-deploy-bucket/frontend --recursive
           aws s3 sync dist/ s3://my-react-deploy-bucket/frontend
-
       - name: Upload server files to S3
         run: aws s3 sync . s3://my-react-deploy-bucket/server --exclude "dist/*" --exclude "node_modules/*" --exclude ".git/*" --delete
 
