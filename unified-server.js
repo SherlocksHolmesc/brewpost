@@ -1119,6 +1119,60 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
 
 app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
 
+// Generate UI/strategy components for a node using Bedrock text model
+app.post('/api/generate-components', async (req, res) => {
+  try {
+    const { node } = req.body;
+    if (!node) return res.status(400).json({ error: 'node_required' });
+    console.log('[generate-components] request received for node:', { id: node.id, title: node.title });
+
+    // Instruction: ask the model to return a JSON array of component objects
+    const instruction = `You are BrewPost assistant. Given the following node (title, content, postType, type, connections), generate an array of 8-18 components relevant for planning and creative execution. Return ONLY valid JSON (a single JSON array). Each component must be an object with at least these fields: id (unique short string), type (one of: local_data, online_trend, campaign_type, creative_asset), title (short title), name (short identifier), description (1-2 sentence description), category (human-readable category), keywords (array of short keywords), relevanceScore (0-100 number), impact (low|medium|high), color (hex or color name). Base suggestions on the node context. Node: ${JSON.stringify(node)}.`;
+
+    const payload = {
+      messages: [
+        { role: 'user', content: [{ text: instruction }] }
+      ]
+    };
+
+    const resp = await invokeModelViaHttp(REGION, TEXT_MODEL, payload, 'application/json');
+
+    // Extract text output
+    let text = null;
+    try {
+      const arr = resp?.output?.message?.content || [];
+      for (const c of arr) {
+        if (c?.text) text = c.text;
+      }
+    } catch (e) {}
+
+    if (!text) text = JSON.stringify(resp).slice(0, 4000);
+
+    // Try to parse JSON from the model output
+    let components = null;
+    try {
+      components = JSON.parse(text);
+    } catch (e) {
+      // Try to extract the first JSON array substring
+      const m = text.match(/\[.*\]/s);
+      if (m) {
+        try { components = JSON.parse(m[0]); } catch (e2) {}
+      }
+    }
+
+    if (!components || !Array.isArray(components)) {
+      console.warn('[generate-components] failed to parse components from model output', { rawTextPreview: (text || '').slice(0,400) });
+      return res.status(500).json({ error: 'failed_to_parse_components', raw: text, rawResp: resp });
+    }
+
+    console.log('[generate-components] parsed components count:', components.length);
+    return res.json({ ok: true, components, raw: resp });
+  } catch (err) {
+    console.error('generate-components error', err);
+    return res.status(500).json({ error: 'generate_components_failed', detail: err?.message || String(err) });
+  }
+});
+
 app.listen(PORT, () => {
   console.log(`✅ Server running on port ${PORT}`);
   console.log(`Environment: ${isProduction ? 'production' : 'development'}`);
@@ -1461,59 +1515,5 @@ app.post("/api/schedules/create-all", async (req, res) => {
   } catch (err) {
     console.error('Failed to invoke schedules lambda/path:', err);
     return res.status(500).json({ ok: false, error: 'invoke_failed', detail: err && err.message ? err.message : String(err) });
-  }
-});
-
-// Generate UI/strategy components for a node using Bedrock text model
-app.post('/api/generate-components', async (req, res) => {
-  try {
-    const { node } = req.body;
-    if (!node) return res.status(400).json({ error: 'node_required' });
-    console.log('[generate-components] request received for node:', { id: node.id, title: node.title });
-
-    // Instruction: ask the model to return a JSON array of component objects
-    const instruction = `You are BrewPost assistant. Given the following node (title, content, postType, type, connections), generate an array of 8-18 components relevant for planning and creative execution. Return ONLY valid JSON (a single JSON array). Each component must be an object with at least these fields: id (unique short string), type (one of: local_data, online_trend, campaign_type, creative_asset), title (short title), name (short identifier), description (1-2 sentence description), category (human-readable category), keywords (array of short keywords), relevanceScore (0-100 number), impact (low|medium|high), color (hex or color name). Base suggestions on the node context. Node: ${JSON.stringify(node)}.`;
-
-    const payload = {
-      messages: [
-        { role: 'user', content: [{ text: instruction }] }
-      ]
-    };
-
-    const resp = await invokeModelViaHttp(REGION, TEXT_MODEL, payload, 'application/json');
-
-    // Extract text output
-    let text = null;
-    try {
-      const arr = resp?.output?.message?.content || [];
-      for (const c of arr) {
-        if (c?.text) { text = c.text; break; }
-      }
-    } catch (e) {}
-
-    if (!text) text = JSON.stringify(resp).slice(0, 4000);
-
-    // Try to parse JSON from the model output
-    let components = null;
-    try {
-      components = JSON.parse(text);
-    } catch (e) {
-      // Try to extract the first JSON array substring
-      const m = text.match(/\[.*\]/s);
-      if (m) {
-        try { components = JSON.parse(m[0]); } catch (e2) { components = null; }
-      }
-    }
-
-    if (!components || !Array.isArray(components)) {
-      console.warn('[generate-components] failed to parse components from model output', { rawTextPreview: (text || '').slice(0,400) });
-      return res.status(500).json({ error: 'failed_to_parse_components', raw: text, rawResp: resp });
-    }
-
-    console.log('[generate-components] parsed components count:', components.length);
-    return res.json({ ok: true, components, raw: resp });
-  } catch (err) {
-    console.error('generate-components error', err);
-    return res.status(500).json({ error: 'generate_components_failed', detail: err?.message || String(err) });
   }
 });
