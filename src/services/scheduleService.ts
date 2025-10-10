@@ -25,47 +25,58 @@ export const scheduleService = {
   async createSchedules(nodes: Partial<NodeDTO>[]) {
     console.log('scheduleService.createSchedules called with:', nodes);
 
-    // Build batch payload for Lambda-backed mutation
-    const userId = (typeof window !== 'undefined' ? window.localStorage.getItem('userId') : null) || 'demo-user';
-    const nodesPayload = nodes.map((node) => ({
-      id: node.id!,
-      projectId: 'demo-project-123',
-      nodeId: node.id!,
-      title: node.title || 'Untitled',
-      description: (node as any).description || (node as any).content || '',
-      type: (node as any).type || 'post',
-      imageUrl: node.imageUrl || null,
-      imageUrls: node.imageUrls || (node.imageUrl ? [node.imageUrl] : null),
-      scheduledDate: node.scheduledDate!,
-      status: 'scheduled',
+    const results = await Promise.all(nodes.map(async (node) => {
+      try {
+        const scheduleData = {
+          scheduleId: node.id!,
+          title: (node as any).title || 'Untitled',
+          content: (node as any).description || (node as any).content || '',
+          imageUrl: (node as any).imageUrl || null,
+          imageUrls: (node as any).imageUrls || (node.imageUrl ? [node.imageUrl] : null),
+          scheduledDate: node.scheduledDate ? new Date(node.scheduledDate).toISOString() : null,
+          status: 'scheduled',
+          userId: 'anonymous'
+        };
+        
+        const scheduleResult = await client.graphql({
+          query: `mutation CreateSchedule($input: CreateScheduleInput!) {
+            createSchedule(input: $input) {
+              id
+              scheduleId
+              title
+              content
+              imageUrl
+              imageUrls
+              scheduledDate
+              status
+              userId
+            }
+          }`,
+          variables: { input: scheduleData }
+        });
+        
+        console.log(`✅ Created schedule: ${node.id}`, scheduleResult);
+        
+        return {
+          id: node.id,
+          scheduleId: node.id,
+          ok: true,
+          status: 'scheduled',
+          scheduledDate: node.scheduledDate,
+        };
+      } catch (error) {
+        console.error(`Failed to schedule node ${node.id}:`, error);
+        return {
+          id: node.id,
+          scheduleId: node.id,
+          ok: false,
+          status: 'error',
+          scheduledDate: node.scheduledDate,
+        };
+      }
     }));
 
-    console.log('Calling Lambda via createScheduleWithEventBridge with nodes:', nodesPayload.length);
-    try {
-      const scheduleResult = await client.graphql({
-        query: CREATE_SCHEDULE_WITH_EVENTBRIDGE,
-        variables: { input: { nodes: nodesPayload, userId } as any },
-      });
-      console.log('Lambda batch schedule result:', scheduleResult);
-
-      const payload = (scheduleResult as any)?.data?.createScheduleWithEventBridge;
-      const scheduled = Array.isArray(payload?.scheduled) ? payload.scheduled : [];
-      // Normalize return shape to existing callers
-      const results = nodes.map((n) => {
-        const matched = scheduled.find((s: any) => s.scheduleId === n.id);
-        return {
-          id: n.id,
-          scheduleId: n.id,
-          ok: !!matched,
-          status: matched?.status || 'scheduled',
-          scheduledDate: matched?.scheduledDate || (n as any).scheduledDate,
-        };
-      });
-      return { ok: true, results, scheduled: results };
-    } catch (error) {
-      console.error('Failed to create schedules via EventBridge:', error);
-      return { ok: false, error: error instanceof Error ? error.message : 'Unknown error' } as any;
-    }
+    return { ok: true, results, scheduled: results.filter(r => r.ok) };
   },
 
   async listSchedules() {
