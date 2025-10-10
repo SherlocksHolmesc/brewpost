@@ -16,7 +16,7 @@ interface SelectedComponent {
 
 interface CampaignComponent {
   id: string
-  type: "local_data" | "online_trend" | "campaign_type"
+  type: "online_trend" | "campaign_type" | "promotion_type"
   title: string
   description: string
   data: any
@@ -418,7 +418,7 @@ export function CircleCanvas({
 
             const getComponentColors = (category: string) => {
               switch (category) {
-                case "Local Data":
+                case "Target User":
                   return {
                     bg: "bg-gradient-to-br from-blue-500/20 via-blue-400/15 to-blue-600/20",
                     border: "border-blue-400/40",

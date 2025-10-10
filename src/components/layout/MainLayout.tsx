@@ -5,6 +5,7 @@ import { Tabs, TabsList, TabsTrigger, TabsContent } from '@/components/ui/tabs';
 import { AIChat } from '@/components/ai/AIChat';
 import { NodeDetails } from '@/components/ai/NodeDetails';
 import { PlanningPanel, type PlanningPanelRef } from '@/components/planning/PlanningPanel';
+import type { GeneratedComponent } from '@/services/aiService';
 import { CircleCanvas } from '@/components/canvas/CircleCanvas';
 import { ComponentSidebar } from '@/components/canvas/ComponentSidebar';
 import { TemplatePopup } from '@/components/template/TemplatePopup';
@@ -23,7 +24,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [selectedNode, setSelectedNode] = useState<ContentNode | null>(null);
   const [viewMode, setViewMode] = useState<'nodes' | 'canvas'>('nodes'); // New state for view mode
   const [canvasNodeId, setCanvasNodeId] = useState<string | null>(null); // Store node ID for canvas mode
-  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<any[]>([]); // State for canvas components
+  const [selectedCanvasComponents, setSelectedCanvasComponents] = useState<SelectedCanvasComponent[]>([]); // State for canvas components
+  const [aiComponents, setAiComponents] = useState<GeneratedComponent[] | null>(null);
+  const [aiLoading, setAiLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const [isTemplatePopupOpen, setIsTemplatePopupOpen] = useState(false);
   const planningPanelRef = useRef<PlanningPanelRef>(null);
@@ -125,11 +128,26 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           return 'engaging';
         };
         
+        const normalizeType = (t: any): 'post' | 'image' | 'story' => {
+          if (!t) return 'post';
+          const s = String(t).toLowerCase();
+          if (s === 'image') return 'image';
+          if (s === 'story') return 'story';
+          return 'post';
+        };
+        const normalizeStatus = (s: any): 'draft' | 'scheduled' | 'published' => {
+          if (!s) return 'draft';
+          const v = String(s).toLowerCase();
+          if (v === 'published') return 'published';
+          if (v === 'scheduled') return 'scheduled';
+          return 'draft';
+        };
+
         const transformedNodes = apiNodes.map(x => ({
           id: x.nodeId,
           title: x.title,
-          type: (x.type as any) ?? 'post',
-          status: (x.status as any) ?? 'draft',
+          type: normalizeType(x.type),
+          status: normalizeStatus(x.status),
           scheduledDate: x.scheduledDate ? new Date(x.scheduledDate) : undefined,
           content: x.description ?? '',
           imageUrl: x.imageUrl ?? undefined,
@@ -225,6 +243,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       console.log('Node double-clicked with prompt data, preparing for image generation');
       // Clear any existing canvas components and set up for node-based generation
       setSelectedCanvasComponents([]);
+      setAiComponents(null);
+      setAiLoading(false);
       setIsGenerating(false);
     }
   };
@@ -233,6 +253,75 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     // Remove canvas switching on background click
     // Canvas mode only accessible via node selection or manual toggle
   };
+
+  type SelectedCanvasComponent = {
+    id: string;
+    name: string;
+    category: string;
+    color: string;
+    position: { x: number; y: number };
+  };
+
+  // Demo fallback components (kept small here, identical structure to previous hardcoded demos)
+  const DEMO_COMPONENTS = [
+    { id: 'demo-2', type: 'online_trend', title: 'Social Media Buzz', description: 'Latest social media trends and engagement', relevanceScore: 92, category: 'Online trend data', keywords: ['social','engagement','viral'], impact: 'high', color: '#0EA5E9' },
+    { id: 'demo-1', type: 'promotion_type', title: 'Buy 1 Get 1', description: 'Classic BOGO promotion for limited time', relevanceScore: 85, category: 'Promotion Type', keywords: ['bogo','buy one get one','promotion'], impact: 'high', color: '#D97706' },
+    { id: 'demo-3', type: 'campaign_type', title: 'Seasonal Campaign', description: 'Autumn-themed promotional campaign', relevanceScore: 78, category: 'Campaign Type', keywords: ['autumn','seasonal','promotion'], impact: 'medium', color: '#FB7185' },
+  ];
+
+  // Small set of promotion fallbacks to show if AI returns no promotion_type items
+  const PROMOTION_DEMOS = [
+    { id: 'promo-demo-1', type: 'promotion_type', title: 'Buy 1 Get 1', description: 'BOGO — buy one get one free for same item', relevanceScore: 88, category: 'Promotion Type', keywords: ['bogo','buy one get one'], impact: 'high', color: '#06B6D4' },
+    { id: 'promo-demo-2', type: 'promotion_type', title: '20% Off', description: 'Flat 20% off the entire purchase', relevanceScore: 82, category: 'Promotion Type', keywords: ['20% off','discount'], impact: 'medium', color: '#F59E0B' },
+    { id: 'promo-demo-3', type: 'promotion_type', title: '50% Off Second Item', description: 'Buy one, get 50% off the second item', relevanceScore: 86, category: 'Promotion Type', keywords: ['50% off','second item','discount'], impact: 'high', color: '#10B981' },
+  ];
+
+  // Fetch AI components for selected node
+  useEffect(() => {
+    let canceled = false;
+    const load = async () => {
+      if (!selectedNode) return setAiComponents(null);
+      setAiLoading(true);
+      try {
+        const svc = await import('@/services/aiService');
+        // Clear cache for this node to ensure fresh components on selection
+  try { svc.clearComponentCache(selectedNode.id); } catch (e) { console.debug('[MainLayout] clearComponentCache failed', e); }
+        const comps = await svc.fetchComponentsForNode(selectedNode);
+        console.log('[MainLayout] fetched aiComponents count for node', selectedNode.id, comps?.length ?? 0);
+        if (!canceled) setAiComponents(comps && comps.length ? comps : []);
+      } catch (err) {
+        console.warn('Failed to load AI components', err);
+        if (!canceled) setAiComponents([]);
+      } finally {
+        if (!canceled) setAiLoading(false);
+      }
+    };
+    load();
+    return () => { canceled = true; };
+  }, [selectedNode]);
+
+  // Map AI components (or demo fallback) to the CampaignComponent shape expected by CircleCanvas and ComponentSidebar
+  // Use DEMO_COMPONENTS only when aiComponents is null (not yet loaded). If aiComponents is an empty array
+  // we respect that the AI returned no suggestions.
+  const sourceComponents = aiComponents !== null ? aiComponents : DEMO_COMPONENTS;
+  const activeGeneratedComponents = (sourceComponents).map((c: GeneratedComponent | typeof DEMO_COMPONENTS[number]) => ({
+    id: c.id,
+  type: (c.type === 'online_trend' || c.type === 'campaign_type' || c.type === 'promotion_type') ? c.type : 'campaign_type',
+    title: c.title ?? c.id,
+    description: c.description ?? '',
+    relevanceScore: c.relevanceScore ?? 50,
+    category: c.category ?? 'Suggested',
+    keywords: c.keywords ?? [],
+    impact: (c.impact as 'low' | 'medium' | 'high') ?? 'medium'
+  }));
+
+  // If there are no promotion_type items returned by AI, include the PROMOTION_DEMOS so UI shows promotions
+  const hasPromotion = activeGeneratedComponents.some(c => c.type === 'promotion_type')
+  const finalGeneratedComponents = hasPromotion ? activeGeneratedComponents : [...activeGeneratedComponents, ...PROMOTION_DEMOS]
+
+    // Don't show demo components in the canvas while AI is actively loading. When ai is loading,
+    // pass an empty array so the canvas shows a neutral state while the sidebar shows its loader.
+  const canvasComponents = aiLoading ? [] : finalGeneratedComponents;
 
   const handleCalendarPage = () => {
     navigate('/calendar');
@@ -383,11 +472,11 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   setIsGenerating(status);
                 }}
                 onAddComponent={(component) => {
-                  const newComponent = {
+                  const newComponent: SelectedCanvasComponent = {
                     id: component.id,
-                    name: component.name,
-                    category: component.category,
-                    color: component.color,
+                    name: (component.name ?? component.title ?? component.id) as string,
+                    category: component.category ?? 'Suggested',
+                    color: component.color ?? '#60A5FA',
                     position: { x: 0, y: 0 }
                   };
                   setSelectedCanvasComponents(prev => {
@@ -400,211 +489,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onRemoveComponent={(id) => {
                   setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
                 }}
-                generatedComponents={[
-                  // Local Data Components
-                  {
-                    id: "demo-1",
-                    type: "local_data",
-                    title: "Local Coffee Trends",
-                    description: "Trending coffee preferences in your area",
-                    data: {},
-                    relevanceScore: 85,
-                    category: "Local Data",
-                    keywords: ["coffee", "local", "trends"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-4",
-                    type: "local_data",
-                    title: "Regional Demographics",
-                    description: "Local customer demographics and behavior patterns",
-                    data: {},
-                    relevanceScore: 79,
-                    category: "Local Data",
-                    keywords: ["demographics", "local", "customers"],
-                    impact: "medium"
-                  },
-                  {
-                    id: "demo-5",
-                    type: "local_data",
-                    title: "Competitor Analysis",
-                    description: "Local competitor pricing and offerings",
-                    data: {},
-                    relevanceScore: 73,
-                    category: "Local Data",
-                    keywords: ["competitors", "pricing", "local"],
-                    impact: "medium"
-                  },
-                  {
-                    id: "demo-6",
-                    type: "local_data",
-                    title: "Weather Impact",
-                    description: "How local weather affects customer behavior",
-                    data: {},
-                    relevanceScore: 68,
-                    category: "Local Data",
-                    keywords: ["weather", "behavior", "seasonal"],
-                    impact: "low"
-                  },
-                  {
-                    id: "demo-7",
-                    type: "local_data",
-                    title: "Peak Hours Analysis",
-                    description: "Busiest times and customer flow patterns",
-                    data: {},
-                    relevanceScore: 88,
-                    category: "Local Data",
-                    keywords: ["peak", "hours", "traffic"],
-                    impact: "high"
-                  },
-
-                  // Online Trend Data Components
-                  {
-                    id: "demo-2", 
-                    type: "online_trend",
-                    title: "Social Media Buzz",
-                    description: "Latest social media trends and engagement",
-                    data: {},
-                    relevanceScore: 92,
-                    category: "Online trend data",
-                    keywords: ["social", "engagement", "viral"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-8",
-                    type: "online_trend",
-                    title: "Hashtag Performance",
-                    description: "Trending hashtags in your industry",
-                    data: {},
-                    relevanceScore: 84,
-                    category: "Online trend data",
-                    keywords: ["hashtags", "trending", "social"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-9",
-                    type: "online_trend",
-                    title: "Viral Content Types",
-                    description: "Most shared content formats this week",
-                    data: {},
-                    relevanceScore: 76,
-                    category: "Online trend data",
-                    keywords: ["viral", "content", "formats"],
-                    impact: "medium"
-                  },
-                  {
-                    id: "demo-10",
-                    type: "online_trend",
-                    title: "Influencer Mentions",
-                    description: "Key influencers talking about your niche",
-                    data: {},
-                    relevanceScore: 81,
-                    category: "Online trend data",
-                    keywords: ["influencers", "mentions", "niche"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-11",
-                    type: "online_trend",
-                    title: "Search Trends",
-                    description: "Rising search queries related to your business",
-                    data: {},
-                    relevanceScore: 87,
-                    category: "Online trend data",
-                    keywords: ["search", "queries", "trending"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-12",
-                    type: "online_trend",
-                    title: "Platform Analytics",
-                    description: "Cross-platform engagement metrics",
-                    data: {},
-                    relevanceScore: 72,
-                    category: "Online trend data",
-                    keywords: ["analytics", "platforms", "engagement"],
-                    impact: "medium"
-                  },
-
-                  // Campaign Type Components
-                  {
-                    id: "demo-3",
-                    type: "campaign_type",
-                    title: "Seasonal Campaign",
-                    description: "Autumn-themed promotional campaign",
-                    data: {},
-                    relevanceScore: 78,
-                    category: "Campaign Type", 
-                    keywords: ["autumn", "seasonal", "promotion"],
-                    impact: "medium"
-                  },
-                  {
-                    id: "demo-13",
-                    type: "campaign_type",
-                    title: "Flash Sale Event",
-                    description: "Limited-time promotional offers",
-                    data: {},
-                    relevanceScore: 89,
-                    category: "Campaign Type",
-                    keywords: ["flash", "sale", "limited"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-14",
-                    type: "campaign_type",
-                    title: "Brand Awareness",
-                    description: "Build recognition and recall campaigns",
-                    data: {},
-                    relevanceScore: 75,
-                    category: "Campaign Type",
-                    keywords: ["brand", "awareness", "recognition"],
-                    impact: "medium"
-                  },
-                  {
-                    id: "demo-15",
-                    type: "campaign_type",
-                    title: "Customer Loyalty",
-                    description: "Reward and retain existing customers",
-                    data: {},
-                    relevanceScore: 82,
-                    category: "Campaign Type",
-                    keywords: ["loyalty", "retention", "rewards"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-16",
-                    type: "campaign_type",
-                    title: "Product Launch",
-                    description: "Introduce new products or services",
-                    data: {},
-                    relevanceScore: 91,
-                    category: "Campaign Type",
-                    keywords: ["launch", "new", "product"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-17",
-                    type: "campaign_type",
-                    title: "Holiday Special",
-                    description: "Holiday-themed promotional content",
-                    data: {},
-                    relevanceScore: 86,
-                    category: "Campaign Type",
-                    keywords: ["holiday", "special", "themed"],
-                    impact: "high"
-                  },
-                  {
-                    id: "demo-18",
-                    type: "campaign_type",
-                    title: "User Generated Content",
-                    description: "Encourage customers to create content",
-                    data: {},
-                    relevanceScore: 77,
-                    category: "Campaign Type",
-                    keywords: ["ugc", "user", "generated"],
-                    impact: "medium"
-                  }
-                ]}
+                  generatedComponents={canvasComponents}
               />
               
               {/* ComponentSidebar positioned at bottom */}
@@ -626,209 +511,10 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                     });
                   }}
                   onRemoveFromCanvas={(id) => {
-                    setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
-                  }}
-                  generatedComponents={[
-                    // Same demo components as CircleCanvas for consistency
-                    {
-                      id: "demo-1",
-                      type: "local_data",
-                      title: "Local Coffee Trends",
-                      description: "Trending coffee preferences in your area",
-                      data: {},
-                      relevanceScore: 85,
-                      category: "Local Data",
-                      keywords: ["coffee", "local", "trends"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-4",
-                      type: "local_data",
-                      title: "Regional Demographics", 
-                      description: "Local customer demographics and behavior patterns",
-                      data: {},
-                      relevanceScore: 79,
-                      category: "Local Data",
-                      keywords: ["demographics", "local", "customers"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-5",
-                      type: "local_data",
-                      title: "Competitor Analysis",
-                      description: "Local competitor pricing and offerings",
-                      data: {},
-                      relevanceScore: 73,
-                      category: "Local Data",
-                      keywords: ["competitors", "pricing", "local"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-6",
-                      type: "local_data",
-                      title: "Weather Impact",
-                      description: "How local weather affects customer behavior",
-                      data: {},
-                      relevanceScore: 68,
-                      category: "Local Data",
-                      keywords: ["weather", "behavior", "seasonal"],
-                      impact: "low"
-                    },
-                    {
-                      id: "demo-7",
-                      type: "local_data",
-                      title: "Peak Hours Analysis",
-                      description: "Busiest times and customer flow patterns",
-                      data: {},
-                      relevanceScore: 88,
-                      category: "Local Data",
-                      keywords: ["peak", "hours", "traffic"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-2", 
-                      type: "online_trend",
-                      title: "Social Media Buzz",
-                      description: "Latest social media trends and engagement",
-                      data: {},
-                      relevanceScore: 92,
-                      category: "Online trend data",
-                      keywords: ["social", "engagement", "viral"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-8",
-                      type: "online_trend",
-                      title: "Hashtag Performance",
-                      description: "Trending hashtags in your industry",
-                      data: {},
-                      relevanceScore: 84,
-                      category: "Online trend data",
-                      keywords: ["hashtags", "trending", "social"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-9",
-                      type: "online_trend", 
-                      title: "Viral Content Types",
-                      description: "Most shared content formats this week",
-                      data: {},
-                      relevanceScore: 76,
-                      category: "Online trend data",
-                      keywords: ["viral", "content", "formats"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-10",
-                      type: "online_trend",
-                      title: "Influencer Mentions",
-                      description: "Key influencers talking about your niche", 
-                      data: {},
-                      relevanceScore: 81,
-                      category: "Online trend data",
-                      keywords: ["influencers", "mentions", "niche"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-11",
-                      type: "online_trend",
-                      title: "Search Trends",
-                      description: "Rising search queries related to your business",
-                      data: {},
-                      relevanceScore: 87,
-                      category: "Online trend data",
-                      keywords: ["search", "queries", "trending"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-12",
-                      type: "online_trend",
-                      title: "Platform Analytics",
-                      description: "Cross-platform engagement metrics",
-                      data: {},
-                      relevanceScore: 72,
-                      category: "Online trend data", 
-                      keywords: ["analytics", "platforms", "engagement"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-3",
-                      type: "campaign_type",
-                      title: "Seasonal Campaign",
-                      description: "Autumn-themed promotional campaign",
-                      data: {},
-                      relevanceScore: 78,
-                      category: "Campaign Type",
-                      keywords: ["autumn", "seasonal", "promotion"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-13",
-                      type: "campaign_type",
-                      title: "Flash Sale Event",
-                      description: "Limited-time promotional offers",
-                      data: {},
-                      relevanceScore: 89,
-                      category: "Campaign Type",
-                      keywords: ["flash", "sale", "limited"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-14", 
-                      type: "campaign_type",
-                      title: "Brand Awareness",
-                      description: "Build recognition and recall campaigns",
-                      data: {},
-                      relevanceScore: 75,
-                      category: "Campaign Type",
-                      keywords: ["brand", "awareness", "recognition"],
-                      impact: "medium"
-                    },
-                    {
-                      id: "demo-15",
-                      type: "campaign_type",
-                      title: "Customer Loyalty",
-                      description: "Reward and retain existing customers",
-                      data: {},
-                      relevanceScore: 82,
-                      category: "Campaign Type",
-                      keywords: ["loyalty", "retention", "rewards"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-16",
-                      type: "campaign_type",
-                      title: "Product Launch",
-                      description: "Introduce new products or services",
-                      data: {},
-                      relevanceScore: 91,
-                      category: "Campaign Type",
-                      keywords: ["launch", "new", "product"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-17",
-                      type: "campaign_type",
-                      title: "Holiday Special",
-                      description: "Holiday-themed promotional content",
-                      data: {},
-                      relevanceScore: 86,
-                      category: "Campaign Type",
-                      keywords: ["holiday", "special", "themed"],
-                      impact: "high"
-                    },
-                    {
-                      id: "demo-18",
-                      type: "campaign_type",
-                      title: "User Generated Content",
-                      description: "Encourage customers to create content",
-                      data: {},
-                      relevanceScore: 77,
-                      category: "Campaign Type",
-                      keywords: ["ugc", "user", "generated"],
-                      impact: "medium"
-                    }
-                  ]}
+                      setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
+                    }}
+                  generatedComponents={finalGeneratedComponents}
+                  isLoadingAi={aiLoading}
                 />
               </div>
             </div>

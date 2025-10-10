@@ -25,7 +25,7 @@ if (process.env.ACCESS_KEY_ID && process.env.SECRET_ACCESS_KEY) {
 
 const { S3, DynamoDB } = pkg;
 const app = express();
-const PORT = process.env.PORT || 8080;
+const PORT = process.env.PORT || 8081;
 const REGION = process.env.REGION || "us-east-1";
 const TEXT_MODEL = process.env.TEXT_MODEL;
 const IMAGE_MODEL = process.env.IMAGE_MODEL;
@@ -52,12 +52,27 @@ const X_API_BASE_URL = 'https://api.twitter.com/2';
 const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
 
 // CORS configuration
+// Configure CORS to allow the frontend and local development origins
+const allowedOrigins = [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8082'].filter(Boolean);
+console.log('CORS allowed origins:', allowedOrigins.join(', '));
+
 app.use(cors({
-  origin: FRONTEND_URL,
+  origin: (origin, callback) => {
+    // Allow requests with no origin (like curl, server-to-server)
+    if (!origin) return callback(null, true);
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      return callback(null, true);
+    }
+    console.warn('Blocked CORS request from origin:', origin);
+    return callback(new Error('Not allowed by CORS'));
+  },
   methods: ["GET", "POST", "OPTIONS"],
   allowedHeaders: ["Content-Type", "Authorization"],
   credentials: true,
 }));
+
+// Ensure preflight OPTIONS requests are handled
+// Note: explicit app.options handler removed because it caused path parsing errors
 
 app.use(bodyParser.json());
 app.use(express.json());
@@ -1446,5 +1461,59 @@ app.post("/api/schedules/create-all", async (req, res) => {
   } catch (err) {
     console.error('Failed to invoke schedules lambda/path:', err);
     return res.status(500).json({ ok: false, error: 'invoke_failed', detail: err && err.message ? err.message : String(err) });
+  }
+});
+
+// Generate UI/strategy components for a node using Bedrock text model
+app.post('/api/generate-components', async (req, res) => {
+  try {
+    const { node } = req.body;
+    if (!node) return res.status(400).json({ error: 'node_required' });
+    console.log('[generate-components] request received for node:', { id: node.id, title: node.title });
+
+    // Instruction: ask the model to return a JSON array of component objects
+    const instruction = `You are BrewPost assistant. Given the following node (title, content, postType, type, connections), generate an array of 8-18 components relevant for planning and creative execution. Return ONLY valid JSON (a single JSON array). Each component must be an object with at least these fields: id (unique short string), type (one of: local_data, online_trend, campaign_type, creative_asset), title (short title), name (short identifier), description (1-2 sentence description), category (human-readable category), keywords (array of short keywords), relevanceScore (0-100 number), impact (low|medium|high), color (hex or color name). Base suggestions on the node context. Node: ${JSON.stringify(node)}.`;
+
+    const payload = {
+      messages: [
+        { role: 'user', content: [{ text: instruction }] }
+      ]
+    };
+
+    const resp = await invokeModelViaHttp(REGION, TEXT_MODEL, payload, 'application/json');
+
+    // Extract text output
+    let text = null;
+    try {
+      const arr = resp?.output?.message?.content || [];
+      for (const c of arr) {
+        if (c?.text) { text = c.text; break; }
+      }
+    } catch (e) {}
+
+    if (!text) text = JSON.stringify(resp).slice(0, 4000);
+
+    // Try to parse JSON from the model output
+    let components = null;
+    try {
+      components = JSON.parse(text);
+    } catch (e) {
+      // Try to extract the first JSON array substring
+      const m = text.match(/\[.*\]/s);
+      if (m) {
+        try { components = JSON.parse(m[0]); } catch (e2) { components = null; }
+      }
+    }
+
+    if (!components || !Array.isArray(components)) {
+      console.warn('[generate-components] failed to parse components from model output', { rawTextPreview: (text || '').slice(0,400) });
+      return res.status(500).json({ error: 'failed_to_parse_components', raw: text, rawResp: resp });
+    }
+
+    console.log('[generate-components] parsed components count:', components.length);
+    return res.json({ ok: true, components, raw: resp });
+  } catch (err) {
+    console.error('generate-components error', err);
+    return res.status(500).json({ error: 'generate_components_failed', detail: err?.message || String(err) });
   }
 });
