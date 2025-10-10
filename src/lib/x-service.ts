@@ -30,7 +30,7 @@ interface RefreshTokensResponse {
 }
 
 export class XService {
-  private static readonly BASE_URL = '/api';
+  private static readonly BASE_URL = import.meta.env.VITE_BACKEND_URL || '/api';
 
   /**
    * Post a text-only tweet

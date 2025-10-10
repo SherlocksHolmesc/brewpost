@@ -6,6 +6,7 @@ import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../g
 // import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions.js';
 
 const client = generateClient();
+const baseUrl = import.meta.env.VITE_BACKEND_URL || '';
 
 export type NodeDTO = {
   id: string;
@@ -29,11 +30,26 @@ export type NodeDTO = {
 
 
 export const NodeAPI = {
+  async uploadImage(file: File): Promise<{ url: string }> {
+    const endpoint = `${baseUrl}/api/upload-image`;
+    const formData = new FormData();
+    formData.append('image', file);
+
+    const response = await fetch(endpoint, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      throw new Error('Failed to upload image');
+    }
+
+    return response.json();
+  },
   async list(projectId: string) {
     try {
       console.log('Fetching nodes for project:', projectId);
-      const filter = { projectId: { eq: projectId } };
-      const response = await client.graphql({ query: listNodes, variables: { filter } });
+      const response = await client.graphql({ query: listNodes, variables: { filter: { projectId: { eq: projectId } } } });
       console.log('List nodes response:', response);
       const items = (response as any).data.listNodes.items || [];
       console.log('List nodes data:', items);
@@ -83,8 +99,7 @@ export const NodeAPI = {
       // If no id provided, try to find the node first
       let updateInput = input;
       if (!input.id) {
-        const filter = { projectId: { eq: input.projectId }, nodeId: { eq: input.nodeId } };
-        const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+        const listResponse = await client.graphql({ query: listNodes, variables: { filter: { projectId: { eq: input.projectId }, nodeId: { eq: input.nodeId } } } });
         const items = (listResponse as any).data.listNodes.items || [];
         if (items.length > 0) {
           updateInput = { ...input, id: items[0].id };
@@ -112,8 +127,7 @@ export const NodeAPI = {
     try {
       console.log('Deleting node:', { projectId, nodeId });
       // Find the node first to get the database id
-      const filter = { projectId: { eq: projectId }, nodeId: { eq: nodeId } };
-      const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+      const listResponse = await client.graphql({ query: listNodes, variables: { filter: { projectId: { eq: projectId }, nodeId: { eq: nodeId } } } });
       const items = (listResponse as any).data.listNodes.items || [];
       
       if (items.length === 0) {
@@ -121,9 +135,7 @@ export const NodeAPI = {
       }
       
       const nodeToDelete = items[0];
-      const deleteInput = { id: nodeToDelete.id };
-      
-      const response = await client.graphql({ query: deleteNode, variables: { input: deleteInput } });
+      const response = await client.graphql({ query: deleteNode, variables: { input: { id: nodeToDelete.id } } });
       console.log('Delete node response:', response);
       return response;
     } catch (error) {
@@ -153,8 +165,7 @@ export const NodeAPI = {
   async listEdges(projectId: string) {
     try {
       console.log('Fetching edges for project:', projectId);
-      const filter = { projectId: { eq: projectId } };
-      const response = await client.graphql({ query: listEdges, variables: { filter } });
+      const response = await client.graphql({ query: listEdges, variables: { filter: { projectId: { eq: projectId } } } });
       console.log('List edges response:', response);
       const items = (response as any).data.listEdges.items || [];
       console.log('List edges data:', items);
@@ -169,15 +180,13 @@ export const NodeAPI = {
       console.log('Creating edge:', { projectId, from, to, label });
       
       // Check if edge already exists in either direction
-      const filter = { 
+      const existingResponse = await client.graphql({ query: listEdges, variables: { filter: { 
         projectId: { eq: projectId },
         or: [
           { and: [{ from: { eq: from } }, { to: { eq: to } }] },
           { and: [{ from: { eq: to } }, { to: { eq: from } }] }
         ]
-      };
-      
-      const existingResponse = await client.graphql({ query: listEdges, variables: { filter } });
+      } } });
       const existingEdges = (existingResponse as any).data.listEdges.items || [];
       
       if (existingEdges.length > 0) {
@@ -185,13 +194,12 @@ export const NodeAPI = {
         return existingEdges[0]; // Return existing edge
       }
       
-      const edgeInput = {
+      const response = await client.graphql({ query: createEdge, variables: { input: {
         projectId,
         edgeId: `edge-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
         from,
         to
-      };
-      const response = await client.graphql({ query: createEdge, variables: { input: edgeInput } });
+      } } });
       console.log('Create edge response:', response);
       return (response as any).data.createEdge;
     } catch (error) {
@@ -204,8 +212,7 @@ export const NodeAPI = {
       console.log('Deleting edge:', { projectId, edgeId });
       
       // First find the edge to get the database ID
-      const filter = { projectId: { eq: projectId }, edgeId: { eq: edgeId } };
-      const listResponse = await client.graphql({ query: listEdges, variables: { filter } });
+      const listResponse = await client.graphql({ query: listEdges, variables: { filter: { projectId: { eq: projectId }, edgeId: { eq: edgeId } } } });
       const items = (listResponse as any).data.listEdges.items || [];
       
       if (items.length === 0) {
@@ -214,9 +221,7 @@ export const NodeAPI = {
       }
       
       const edgeToDelete = items[0];
-      const deleteInput = { id: edgeToDelete.id };
-      
-      const response = await client.graphql({ query: deleteEdge, variables: { input: deleteInput } });
+      const response = await client.graphql({ query: deleteEdge, variables: { input: { id: edgeToDelete.id } } });
       console.log('Delete edge response:', response);
       return response;
     } catch (error) {
