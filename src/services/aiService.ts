@@ -19,8 +19,9 @@ const cache: Record<string, GeneratedComponent[]> = {};
 export async function fetchComponentsForNode(node: ContentNode | null): Promise<GeneratedComponent[]> {
   if (!node || !node.id) return [];
   if (cache[node.id]) return cache[node.id];
-  // Use relative path so Vite dev server proxy (vite.config.ts) forwards to backend in dev
-  const endpoint = '/api/generate-components';
+  // Determine API base for production vs dev. In dev we rely on Vite proxy and use relative paths.
+  const API_BASE = (import.meta.env.VITE_BACKEND_URL || '').toString();
+  const endpoint = API_BASE ? `${API_BASE.replace(/\/$/, '')}/api/generate-components` : '/api/generate-components';
   // Try with one retry on server errors / transient failures
   let attempt = 0;
   const maxAttempts = 2;
