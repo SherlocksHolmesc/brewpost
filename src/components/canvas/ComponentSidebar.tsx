@@ -11,31 +11,32 @@ interface Component {
   name: string
   category: string
   color: string
+  type?: "online_trend" | "campaign_type" | "promotion_type"
 }
 
 interface CampaignComponent {
   id: string
-  type: "local_data" | "online_trend" | "campaign_type"
+  type: "online_trend" | "campaign_type" | "promotion_type"
   title: string
   description: string
-  data: any
+  data?: unknown
   relevanceScore: number
   category: string
   keywords: string[]
   impact: "high" | "medium" | "low"
 }
-
-const CATEGORIES = ["Local Data", "Online trend data", "Campaign Type"] as const
+const CATEGORIES = ["Online trend data", "Campaign Type", "Promotion Type"] as const
 const STORAGE_KEY = "kedai.customComponents.v1"
 
 interface ComponentSidebarProps {
   onAddComponent: (component: Component) => void
   generatedComponents?: CampaignComponent[]
   onRemoveFromCanvas?: (id: string) => void
+  isLoadingAi?: boolean
 }
 
 function colorByType(t: CampaignComponent["type"]) {
-  if (t === "local_data") return "bg-gradient-to-br from-blue-500 via-blue-400 to-blue-600"
+  if (t === "promotion_type") return "bg-gradient-to-br from-blue-500 via-blue-400 to-blue-600"
   if (t === "online_trend") return "bg-gradient-to-br from-purple-500 via-purple-400 to-indigo-500"
   return "bg-gradient-to-br from-pink-500 via-rose-400 to-red-500"
 }
@@ -44,6 +45,7 @@ export function ComponentSidebar({
   onAddComponent,
   generatedComponents = [],
   onRemoveFromCanvas,
+  isLoadingAi = false,
 }: ComponentSidebarProps) {
   // Only AI-generated components (no mocks)
   const [allComponents, setAllComponents] = useState<Component[]>([])
@@ -60,12 +62,15 @@ export function ComponentSidebar({
       id: comp.id,
       name: comp.title,
       category:
-        comp.type === "local_data"
-          ? "Local Data"
-          : comp.type === "online_trend"
+        comp.type === "online_trend"
           ? "Online trend data"
-          : "Campaign Type",
+          : comp.type === "campaign_type"
+          ? "Campaign Type"
+          : comp.type === "promotion_type"
+          ? "Promotion Type"
+          : "Suggested",
       color: colorByType(comp.type),
+      type: comp.type,
     }))
 
     // uniquify by id (in case backend sends duplicates)
@@ -80,21 +85,21 @@ export function ComponentSidebar({
     try {
       const raw = localStorage.getItem(STORAGE_KEY)
       if (raw) setCustomComponents(JSON.parse(raw) as Component[])
-    } catch {}
+    } catch (e) { console.debug('[ComponentSidebar] failed to read custom components', e) }
   }, [mounted])
 
   useEffect(() => {
     if (!mounted) return
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(customComponents))
-    } catch {}
+    } catch (e) { console.debug('[ComponentSidebar] failed to save custom components', e) }
   }, [customComponents, mounted])
 
   useEffect(() => {
     if (!mounted) return
     const onStorage = (e: StorageEvent) => {
       if (e.key === STORAGE_KEY && e.newValue) {
-        try { setCustomComponents(JSON.parse(e.newValue) as Component[]) } catch {}
+        try { setCustomComponents(JSON.parse(e.newValue) as Component[]) } catch (err) { console.debug('[ComponentSidebar] failed to parse storage event', err) }
       }
     }
     window.addEventListener("storage", onStorage)
@@ -131,8 +136,33 @@ export function ComponentSidebar({
 
   if (!mounted) return null
 
+  if (isLoadingAi) {
+    return (
+      <div className="w-full border-t border-border/50 bg-card/80 backdrop-blur-xl p-3 max-h-64 overflow-y-auto flex items-center justify-center">
+        <style dangerouslySetInnerHTML={{ __html: `
+          @keyframes dot {
+            0% { transform: translateY(0) }
+            50% { transform: translateY(-4px) }
+            100% { transform: translateY(0) }
+          }
+          .dot { display:inline-block; width:6px; height:6px; border-radius:999px; background:currentColor; margin-left:6px; }
+          .dot:nth-child(1){ animation: dot 1s infinite 0s }
+          .dot:nth-child(2){ animation: dot 1s infinite 0.15s }
+          .dot:nth-child(3){ animation: dot 1s infinite 0.3s }
+        `}} />
+        <div className="flex items-center gap-3 text-muted-foreground">
+          <div className="text-sm font-medium">Generating components</div>
+          <div className="flex items-center"><span className="dot" /><span className="dot" /><span className="dot" /></div>
+        </div>
+      </div>
+    )
+  }
+
   return (
     <div className="w-full border-t border-border/50 bg-card/80 backdrop-blur-xl p-3 max-h-64 overflow-y-auto">
+      {/** Loading state: when AI is generating components, show a subtle skeleton instead of demo content */}
+      {/** If parent passes isLoadingAi, don't render the demo/components list */}
+      
       <style dangerouslySetInnerHTML={{
         __html: `
           .horizontal-scroll-container::-webkit-scrollbar {
@@ -162,18 +192,20 @@ export function ComponentSidebar({
 
         {CATEGORIES.map((category) => {
           const categoryComponents = allComponents.filter((c) => c.category === category)
-          const generatedInCategory = generatedComponents.filter(
-            (gc) =>
-              (gc.type === "local_data" && category === "Local Data") ||
-              (gc.type === "online_trend" && category === "Online trend data") ||
-              (gc.type === "campaign_type" && category === "Campaign Type"),
-          )
+          // Debug: log AI raw results so you can inspect in browser console
+          console.debug('[ComponentSidebar] generatedComponents', { category, generatedComponents })
 
-          if (categoryComponents.length === 0) return null
+          const generatedInCategory = generatedComponents.filter((gc) =>
+            (gc.type === 'online_trend' && category === 'Online trend data') ||
+            (gc.type === 'campaign_type' && category === 'Campaign Type') ||
+            (gc.type === 'promotion_type' && category === 'Promotion Type')
+          )
 
           const isExpanded = !!expanded[category]
           const visible = isExpanded ? categoryComponents : categoryComponents.slice(0, 4)
           const hiddenCount = Math.max(0, categoryComponents.length - visible.length)
+
+          if (categoryComponents.length === 0) return null
 
           return (
             <div key={category} className="space-y-1">
@@ -182,6 +214,7 @@ export function ComponentSidebar({
                   <Badge variant="outline" className="text-xs">
                     {category}
                   </Badge>
+                  
                   {generatedInCategory.length > 0 && (
                     <Badge variant="secondary" className="text-xs bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">
                       AI Generated ({generatedInCategory.length})
@@ -240,6 +273,7 @@ export function ComponentSidebar({
                               <p className="text-[8px] text-muted-foreground line-clamp-2 leading-tight">
                                 {generatedComp.description}
                               </p>
+                              
                             </>
                           )}
                         </div>

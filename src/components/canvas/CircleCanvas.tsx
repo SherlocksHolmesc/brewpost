@@ -5,6 +5,7 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Minus, Sparkles } from "lucide-react"
 import { ComponentSidebar } from "./ComponentSidebar"
+import { enhanceImagePromptWithTemplate, applyTemplateToImage, getTemplateSettings } from '@/utils/templateUtils'
 
 interface SelectedComponent {
   id: string
@@ -16,10 +17,10 @@ interface SelectedComponent {
 
 interface CampaignComponent {
   id: string
-  type: "local_data" | "online_trend" | "campaign_type"
+  type: "online_trend" | "campaign_type" | "promotion_type"
   title: string
   description: string
-  data: any
+  data?: unknown
   relevanceScore: number
   category: string
   keywords: string[]
@@ -29,6 +30,7 @@ interface CampaignComponent {
 interface Component {
   id: string
   name: string
+  title?: string
   category: string
   color: string
 }
@@ -42,8 +44,16 @@ interface CircleCanvasProps {
   onForecastAnalysisClick?: () => void
   generatedComponents?: CampaignComponent[]
   onAddComponent?: (component: Component) => void
-  selectedNode?: any // Add support for selected node
-  onSaveNode?: (node: any) => void // Add support for saving node updates
+  selectedNode?: {
+    id: string
+    title?: string
+    content?: string
+    imagePrompt?: string
+    imageUrl?: string
+    imageUrls?: string[]
+    scheduledDate?: Date | string
+  }
+  onSaveNode?: (node: { id: string; imageUrl?: string; imageUrls?: string[]; scheduledDate?: Date | string; title?: string; content?: string }) => void // Add support for saving node updates
 }
 
 export function CircleCanvas({
@@ -130,15 +140,34 @@ export function CircleCanvas({
     }
   `
   
-  const handleGenerateFromNode = async () => {
+  const handleGenerateFromNode = async (components: SelectedComponent[] = []) => {
     if (!selectedNode) return;
-    
+
     console.log('🔥 Generate from node clicked!', selectedNode.title);
     onGenerate("GENERATING");
-    
+
     try {
       const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
-      
+
+      // Combine node-level image prompt with selected component names for richer guidance
+      const compNames = (components || []).map(c => c.name).join(', ');
+      const basePrompt = selectedNode.imagePrompt || selectedNode.title || selectedNode.content || '';
+      const combinedPrompt = compNames ? `${basePrompt}. Include visual elements: ${compNames}` : basePrompt;
+
+      // Enhance prompt with template settings (if user has a template configured) before sending
+      let promptToSend = combinedPrompt;
+      try {
+        promptToSend = enhanceImagePromptWithTemplate(combinedPrompt);
+        // If template has a dominant color, emphasize it
+        const tpl = getTemplateSettings();
+        if (tpl?.selectedColor && tpl.selectedColor !== 'transparent') {
+          promptToSend += ` Make sure to prominently feature ${tpl.selectedColor} color throughout the entire image composition, use it for backgrounds, accents, and key visual elements.`;
+        }
+      } catch (e) {
+        console.debug('Failed to enhance prompt with template', e);
+        promptToSend = combinedPrompt;
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/canvas-generate-from-node`, {
         method: 'POST',
         headers: {
@@ -146,31 +175,40 @@ export function CircleCanvas({
         },
         body: JSON.stringify({
           nodeId: selectedNode.id,
-          imagePrompt: selectedNode.imagePrompt,
+          imagePrompt: promptToSend,
           title: selectedNode.title,
-          content: selectedNode.content
+          content: selectedNode.content,
+          components: components.map(c => ({ id: c.id, name: c.name, title: (c as unknown as { title?: string }).title, category: c.category, type: (c as unknown as { type?: string }).type, color: c.color }))
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate image');
       }
-      
+
       if (data.ok && data.imageUrl) {
         console.log('✅ Node image generation completed successfully:', data.imageUrl);
-        onGenerate(data.imageUrl); // Show image in canvas
-        
+        // Apply template overlay on client if configured (mirrors NodeDetails behavior)
+        let processedImageUrl = data.imageUrl;
+        try {
+          processedImageUrl = await applyTemplateToImage(data.imageUrl);
+        } catch (e) {
+          console.warn('Failed to apply template to generated image, using original URL', e);
+        }
+
+        onGenerate(processedImageUrl); // Show processed image in canvas
+
         // Add new image to imageUrls array (same logic as NodeDetails)
         const existingImages = selectedNode.imageUrls || [];
         const updatedNode = {
           ...selectedNode,
-          imageUrls: [...existingImages, data.imageUrl],
-          imageUrl: data.imageUrl // Keep for backward compatibility
+          imageUrls: [...existingImages, processedImageUrl],
+          imageUrl: processedImageUrl // Keep for backward compatibility
         };
         onSaveNode(updatedNode);
-        
+
         console.log('Total images after canvas generation:', updatedNode.imageUrls.length);
       } else {
         throw new Error('No image URL returned');
@@ -183,9 +221,9 @@ export function CircleCanvas({
   };
 
   const handleGenerateImage = async () => {
-    // If we have a selected node, generate from node instead of components
-    if (selectedNode && (selectedNode.imagePrompt || selectedNode.title || selectedNode.content)) {
-      return handleGenerateFromNode();
+    // If we have a selected node, generate from node and include selected components
+    if (selectedNode && (selectedNode.imagePrompt || selectedNode.title || selectedNode.content || selectedComponents.length > 0)) {
+      return handleGenerateFromNode(selectedComponents);
     }
     
     console.log('🔥 Generate button clicked!');
@@ -418,7 +456,7 @@ export function CircleCanvas({
 
             const getComponentColors = (category: string) => {
               switch (category) {
-                case "Local Data":
+                case "Target User":
                   return {
                     bg: "bg-gradient-to-br from-blue-500/20 via-blue-400/15 to-blue-600/20",
                     border: "border-blue-400/40",

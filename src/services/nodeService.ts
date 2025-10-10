@@ -6,6 +6,23 @@ import { createNode, updateNode, deleteNode, createEdge, deleteEdge } from '../g
 // import { onNodeCreated, onNodeUpdated, onNodeDeleted, onEdgeChanged } from '../graphql/subscriptions.js';
 
 const client = generateClient();
+// Direct AppSync endpoint (matches amplify-config.ts)
+const APPSYNC_ENDPOINT = 'https://hgaezqpz7jbztedzzsrn74hqki.appsync-api.us-east-1.amazonaws.com/graphql';
+
+async function fetchGraphqlDirect(query: string, variables: Record<string, unknown>) {
+  // Use server-side proxy endpoint which signs requests with IAM credentials
+  try {
+    const res = await fetch('/api/proxy-appsync', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ query, variables }),
+    });
+    const body = await res.json().catch(() => ({}));
+    return { ok: res.ok, status: res.status, body };
+  } catch (err) {
+    return { ok: false, status: 0, body: { error: String(err) } };
+  }
+}
 
 export type NodeDTO = {
   id: string;
@@ -33,7 +50,7 @@ export const NodeAPI = {
     try {
       console.log('Fetching nodes for project:', projectId);
       const filter = { projectId: { eq: projectId } };
-      const response = await client.graphql({ query: listNodes, variables: { filter } });
+  const response = await (client.graphql as any)({ query: listNodes, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       console.log('List nodes response:', response);
       const items = (response as any).data.listNodes.items || [];
       console.log('List nodes data:', items);
@@ -65,7 +82,7 @@ export const NodeAPI = {
         imagePrompt: input.imagePrompt,
         scheduledDate: input.scheduledDate
       };
-      const response = await client.graphql({ query: createNode, variables: { input: nodeInput } }); 
+  const response = await (client.graphql as any)({ query: createNode, variables: { input: nodeInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } }); 
       console.log('Create node response:', response);
       console.log('Create node data:', (response as any).data.createNode);
       return (response as any).data.createNode as NodeDTO;
@@ -78,13 +95,13 @@ export const NodeAPI = {
     id?: string; projectId: string; nodeId: string; title?: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
     type?: string; day?: string; imageUrl?: string; imageUrls?: string[]; imagePrompt?: string; scheduledDate?: string;
   }) { 
+    let updateInput: any = input;
     try {
       console.log('Updating node:', input);
       // If no id provided, try to find the node first
-      let updateInput = input;
       if (!input.id) {
         const filter = { projectId: { eq: input.projectId }, nodeId: { eq: input.nodeId } };
-        const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+  const listResponse = await (client.graphql as any)({ query: listNodes, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
         const items = (listResponse as any).data.listNodes.items || [];
         if (items.length > 0) {
           updateInput = { ...input, id: items[0].id };
@@ -92,11 +109,25 @@ export const NodeAPI = {
           throw new Error(`Node not found: ${input.nodeId}`);
         }
       }
-      const response = await client.graphql({ query: updateNode, variables: { input: updateInput } }); 
+  const response = await (client.graphql as any)({ query: updateNode, variables: { input: updateInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } }); 
       console.log('Update node response:', response);
       return (response as any).data.updateNode as NodeDTO;
     } catch (error) {
-      console.error('Error updating node:', error);
+      console.error('Error updating node via Amplify client:', error);
+      // Always attempt direct fetch fallback to AppSync with x-api-key for robustness
+      try {
+        console.warn('Attempting direct fetch fallback to AppSync with x-api-key (update)');
+        const res = await fetchGraphqlDirect(updateNode, { input: updateInput });
+        console.log('Direct fetch fallback result:', res);
+        if (res.ok && res.body && res.body.data && res.body.data.updateNode) {
+          console.log('Direct fetch fallback succeeded, returning updateNode');
+          return res.body.data.updateNode as NodeDTO;
+        }
+        // If direct fetch failed, log body for diagnosis
+        console.error('Direct fetch fallback body:', res.body);
+      } catch (fbErr) {
+        console.error('Fallback fetch error:', fbErr);
+      }
       if (error && typeof error === 'object' && 'errors' in error) {
         console.error('GraphQL errors:', (error as any).errors);
         (error as any).errors?.forEach((err: any, index: number) => {
@@ -113,7 +144,7 @@ export const NodeAPI = {
       console.log('Deleting node:', { projectId, nodeId });
       // Find the node first to get the database id
       const filter = { projectId: { eq: projectId }, nodeId: { eq: nodeId } };
-      const listResponse = await client.graphql({ query: listNodes, variables: { filter } });
+  const listResponse = await (client.graphql as any)({ query: listNodes, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       const items = (listResponse as any).data.listNodes.items || [];
       
       if (items.length === 0) {
@@ -123,7 +154,7 @@ export const NodeAPI = {
       const nodeToDelete = items[0];
       const deleteInput = { id: nodeToDelete.id };
       
-      const response = await client.graphql({ query: deleteNode, variables: { input: deleteInput } });
+  const response = await (client.graphql as any)({ query: deleteNode, variables: { input: deleteInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       console.log('Delete node response:', response);
       return response;
     } catch (error) {
@@ -154,7 +185,7 @@ export const NodeAPI = {
     try {
       console.log('Fetching edges for project:', projectId);
       const filter = { projectId: { eq: projectId } };
-      const response = await client.graphql({ query: listEdges, variables: { filter } });
+  const response = await (client.graphql as any)({ query: listEdges, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       console.log('List edges response:', response);
       const items = (response as any).data.listEdges.items || [];
       console.log('List edges data:', items);
@@ -177,7 +208,7 @@ export const NodeAPI = {
         ]
       };
       
-      const existingResponse = await client.graphql({ query: listEdges, variables: { filter } });
+  const existingResponse = await (client.graphql as any)({ query: listEdges, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       const existingEdges = (existingResponse as any).data.listEdges.items || [];
       
       if (existingEdges.length > 0) {
@@ -191,7 +222,7 @@ export const NodeAPI = {
         from,
         to
       };
-      const response = await client.graphql({ query: createEdge, variables: { input: edgeInput } });
+  const response = await (client.graphql as any)({ query: createEdge, variables: { input: edgeInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       console.log('Create edge response:', response);
       return (response as any).data.createEdge;
     } catch (error) {
@@ -205,7 +236,7 @@ export const NodeAPI = {
       
       // First find the edge to get the database ID
       const filter = { projectId: { eq: projectId }, edgeId: { eq: edgeId } };
-      const listResponse = await client.graphql({ query: listEdges, variables: { filter } });
+  const listResponse = await (client.graphql as any)({ query: listEdges, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       const items = (listResponse as any).data.listEdges.items || [];
       
       if (items.length === 0) {
@@ -216,7 +247,7 @@ export const NodeAPI = {
       const edgeToDelete = items[0];
       const deleteInput = { id: edgeToDelete.id };
       
-      const response = await client.graphql({ query: deleteEdge, variables: { input: deleteInput } });
+  const response = await (client.graphql as any)({ query: deleteEdge, variables: { input: deleteInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
       console.log('Delete edge response:', response);
       return response;
     } catch (error) {
