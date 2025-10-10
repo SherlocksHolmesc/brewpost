@@ -1,5 +1,5 @@
 import React from 'react';
-import { PostToLinkedIn } from '../components/post-to-linkedin';
+import { PostToLinkedIn } from '@/components/post-to-linkedin';
 import { Card } from '../components/ui/card';
 
 export default function TestLinkedInPage() {

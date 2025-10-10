@@ -13,6 +13,7 @@ import { AuthProvider } from "./contexts/AuthContext";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import TestTwitterPage from "./pages/TestTwitterPage";
 import XCallbackPage from "./pages/XCallbackPage";
+import TestLinkedInPage from "./pages/TestLinkedInPage";
 
 const queryClient = new QueryClient();
 
@@ -30,6 +31,7 @@ const App = () => (
             <Route path="/Callback" element={<Callback />} />
             <Route path="/test-twitter" element={<TestTwitterPage />} />
             <Route path="/x-callback" element={<XCallbackPage />} />
+            <Route path="/test-linkedin" element={<TestLinkedInPage />} />
             {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
             <Route path="*" element={<NotFound />} />
           </Routes>

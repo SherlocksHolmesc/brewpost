@@ -51,6 +51,12 @@ const X_REDIRECT_URI = process.env.VITE_X_REDIRECT_URI;
 const X_API_BASE_URL = 'https://api.twitter.com/2';
 const X_UPLOAD_URL = 'https://upload.twitter.com/1.1';
 
+// LinkedIn API configuration
+const LINKEDIN_CLIENT_ID = process.env.LINKEDIN_CLIENT_ID;
+const LINKEDIN_CLIENT_SECRET = process.env.LINKEDIN_CLIENT_SECRET;
+const LINKEDIN_REDIRECT_URI = process.env.LINKEDIN_REDIRECT_URI || 'http://localhost:8080/Callback';
+const LINKEDIN_API_BASE_URL = 'https://api.linkedin.com/v2';
+
 // CORS configuration
 // Configure CORS to allow the frontend and local development origins
 const allowedOrigins = [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8082'].filter(Boolean);
@@ -74,8 +80,11 @@ app.use(cors({
 // Ensure preflight OPTIONS requests are handled
 // Note: explicit app.options handler removed because it caused path parsing errors
 
-app.use(bodyParser.json());
-app.use(express.json());
+// Configure body parsing with increased limits for image uploads
+app.use(bodyParser.json({ limit: '50mb' }));
+app.use(bodyParser.urlencoded({ limit: '50mb', extended: true }));
+app.use(express.json({ limit: '50mb' }));
+app.use(express.urlencoded({ limit: '50mb', extended: true }));
 
 // Configure session
 app.use(session({
@@ -319,6 +328,99 @@ class XTokenManager {
       tokens = await this.refreshAccessToken();
       return tokens.access_token;
     } catch (error) {
+      throw error;
+    }
+  }
+}
+
+// LinkedIn Token Manager Class
+class LinkedInTokenManager {
+  static TOKEN_FILE_PATH = join(process.cwd(), 'linkedin_tokens.json');
+
+  static getStoredTokens() {
+    try {
+      const tokenData = readFileSync(this.TOKEN_FILE_PATH, 'utf8');
+      const tokens = JSON.parse(tokenData);
+      
+      // Calculate expires_at if not present but expires_in is available
+      if (!tokens.expires_at && tokens.expires_in) {
+        const now = Math.floor(Date.now() / 1000);
+        tokens.expires_at = now + tokens.expires_in;
+      }
+      
+      return tokens;
+    } catch (error) {
+      console.log('No stored LinkedIn tokens found or invalid format');
+      return null;
+    }
+  }
+
+  static saveTokens(tokens) {
+    try {
+      // Add expires_at timestamp if not present
+      if (!tokens.expires_at && tokens.expires_in) {
+        const now = Math.floor(Date.now() / 1000);
+        tokens.expires_at = now + tokens.expires_in;
+      }
+      
+      writeFileSync(this.TOKEN_FILE_PATH, JSON.stringify(tokens, null, 2));
+      console.log('✅ LinkedIn tokens saved successfully');
+    } catch (error) {
+      console.error('❌ Failed to save LinkedIn tokens:', error);
+      throw error;
+    }
+  }
+
+  static isTokenValid(tokens) {
+    if (!tokens || !tokens.access_token) {
+      return false;
+    }
+
+    // If no expiration info, assume it might be valid (let API decide)
+    if (!tokens.expires_at) {
+      return true;
+    }
+
+    const now = Math.floor(Date.now() / 1000);
+    const bufferTime = 300; // 5 minutes buffer
+
+    return tokens.expires_at > (now + bufferTime);
+  }
+
+  static async getValidAccessToken() {
+    let tokens = this.getStoredTokens();
+
+    if (!tokens) {
+      throw new Error('No LinkedIn tokens found. Please authorize the application first.');
+    }
+
+    // LinkedIn tokens cannot be refreshed, so we just check if they're valid
+    if (this.isTokenValid(tokens)) {
+      console.log('✅ Using existing valid LinkedIn access token');
+      return tokens.access_token;
+    }
+
+    throw new Error('LinkedIn token expired. Please re-authorize the application.');
+  }
+
+  static async getUserInfo(accessToken) {
+    try {
+      const response = await fetch(`${LINKEDIN_API_BASE_URL}/userinfo`, {
+        method: 'GET',
+        headers: {
+          'Authorization': `Bearer ${accessToken}`,
+          'Content-Type': 'application/json'
+        }
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(`LinkedIn API error: ${response.status} ${errorData.message || response.statusText}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      console.error('❌ Failed to get LinkedIn user info:', error);
       throw error;
     }
   }
@@ -820,6 +922,303 @@ app.get("/api/x-callback", async (req, res) => {
   } catch (error) {
     console.error('❌ X callback error:', error);
     res.status(500).json({ error: 'Callback processing failed' });
+  }
+});
+
+// ============ LINKEDIN API ROUTES ============
+
+// Get LinkedIn auth URL endpoint
+app.get("/api/linkedin-auth-url", (req, res) => {
+  if (!LINKEDIN_CLIENT_ID || !LINKEDIN_REDIRECT_URI) {
+    return res.status(500).json({ error: 'LinkedIn OAuth not configured' });
+  }
+
+  console.log('🔗 Generating LinkedIn auth URL...');
+  console.log('📋 Client ID:', LINKEDIN_CLIENT_ID);
+  console.log('📋 Redirect URI:', LINKEDIN_REDIRECT_URI);
+
+  // Generate a random state for security
+  const state = Math.random().toString(36).substring(2, 15);
+  
+  const scopes = ['openid', 'profile', 'w_member_social'];
+  const authUrl = `https://www.linkedin.com/oauth/v2/authorization?` +
+    `response_type=code&` +
+    `client_id=${LINKEDIN_CLIENT_ID}&` +
+    `redirect_uri=${encodeURIComponent(LINKEDIN_REDIRECT_URI)}&` +
+    `scope=${scopes.join('%20')}&` +
+    `state=${state}`;
+
+  console.log('✅ Generated LinkedIn auth URL:', authUrl);
+  res.json({ url: authUrl });
+});
+
+// LinkedIn token status endpoint
+app.get("/api/linkedin-token-status", async (req, res) => {
+  try {
+    console.log('🔍 Checking LinkedIn token status...');
+    
+    const tokens = LinkedInTokenManager.getStoredTokens();
+    
+    if (tokens && LinkedInTokenManager.isTokenValid(tokens)) {
+      console.log('✅ Valid LinkedIn access token available');
+      return res.json({ 
+        valid: true,
+        authorized: true,
+        message: 'Valid tokens available'
+      });
+    } else {
+      console.log('❌ No valid LinkedIn access token');
+      return res.json({ 
+        valid: false,
+        authorized: false,
+        message: 'No valid tokens'
+      });
+    }
+  } catch (error) {
+    console.log('❌ LinkedIn token validation failed:', error.message);
+    return res.json({ 
+      valid: false,
+      authorized: false,
+      error: error.message 
+    });
+  }
+});
+
+// LinkedIn callback endpoint (for OAuth flow)
+app.get("/api/linkedin-callback", async (req, res) => {
+  const { code, state } = req.query;
+
+  if (!code) {
+    return res.status(400).json({ error: 'No authorization code provided' });
+  }
+
+  try {
+    console.log('🔄 Processing LinkedIn OAuth callback...');
+    console.log('📝 Authorization code received:', code.substring(0, 20) + '...');
+
+    // Exchange code for tokens
+    const body = new URLSearchParams({
+      grant_type: 'authorization_code',
+      code,
+      redirect_uri: LINKEDIN_REDIRECT_URI,
+      client_id: LINKEDIN_CLIENT_ID,
+      client_secret: LINKEDIN_CLIENT_SECRET
+    });
+
+    const response = await fetch('https://www.linkedin.com/oauth/v2/accessToken', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: body.toString(),
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      console.error('❌ LinkedIn token exchange failed:', response.status, errorData);
+      return res.status(400).json({ error: 'Token exchange failed', details: errorData });
+    }
+
+    const tokens = await response.json();
+    console.log('✅ New LinkedIn tokens received');
+    
+    // Save the new tokens
+    LinkedInTokenManager.saveTokens(tokens);
+
+    // Get user info to confirm which account was authorized
+    try {
+      const userInfo = await LinkedInTokenManager.getUserInfo(tokens.access_token);
+      const name = userInfo.name || userInfo.given_name + ' ' + userInfo.family_name;
+      console.log(`✅ Successfully authorized LinkedIn account: ${name}`);
+      
+      res.json({ 
+        success: true, 
+        message: `Authorization successful! Now connected to ${name}`,
+        user: userInfo
+      });
+    } catch (userError) {
+      console.log('Could not fetch user info, but authorization was successful');
+      res.json({ success: true, message: 'Authorization successful! You can now post to LinkedIn.' });
+    }
+
+  } catch (error) {
+    console.error('❌ LinkedIn callback error:', error);
+    res.status(500).json({ error: 'Callback processing failed' });
+  }
+});
+
+// LinkedIn refresh token endpoint (LinkedIn doesn't support refresh tokens, so this is a no-op)
+app.post("/api/linkedin-refresh-token", async (req, res) => {
+  try {
+    // LinkedIn tokens cannot be refreshed, user needs to re-authorize
+    res.json({ 
+      success: false, 
+      error: 'LinkedIn tokens cannot be refreshed. Please re-authorize the application.' 
+    });
+  } catch (error) {
+    console.error('LinkedIn refresh attempt:', error);
+    res.status(500).json({ 
+      success: false, 
+      error: 'LinkedIn tokens cannot be refreshed' 
+    });
+  }
+});
+
+// Post to LinkedIn endpoint
+app.post("/api/post-linkedin", async (req, res) => {
+  try {
+    const { text, imageUrl } = req.body;
+
+    if (!text && !imageUrl) {
+      return res.status(400).json({ error: 'Either text or imageUrl is required' });
+    }
+
+    console.log('📤 Posting to LinkedIn...');
+    console.log('📝 Text length:', text?.length || 0);
+    console.log('🖼️ Has image:', !!imageUrl);
+
+    // Get valid access token
+    const accessToken = await LinkedInTokenManager.getValidAccessToken();
+
+    // Get user profile info to get person URN
+    const userInfo = await LinkedInTokenManager.getUserInfo(accessToken);
+    const personUrn = userInfo.sub; // OpenID Connect subject is the person URN
+
+    let shareData = {
+      author: `urn:li:person:${personUrn}`,
+      lifecycleState: 'PUBLISHED',
+      specificContent: {
+        'com.linkedin.ugc.ShareContent': {
+          shareCommentary: {
+            text: text || ''
+          },
+          shareMediaCategory: imageUrl ? 'IMAGE' : 'NONE'
+        }
+      },
+      visibility: {
+        'com.linkedin.ugc.MemberNetworkVisibility': 'PUBLIC'
+      }
+    };
+
+    // If there's an image, handle media upload
+    if (imageUrl) {
+      try {
+        console.log('📤 Uploading image to LinkedIn...');
+        
+        // Step 1: Register upload
+        const registerResponse = await fetch(`${LINKEDIN_API_BASE_URL}/assets?action=registerUpload`, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            registerUploadRequest: {
+              recipes: ['urn:li:digitalmediaRecipe:feedshare-image'],
+              owner: `urn:li:person:${personUrn}`,
+              serviceRelationships: [{
+                relationshipType: 'OWNER',
+                identifier: 'urn:li:userGeneratedContent'
+              }]
+            }
+          })
+        });
+
+        if (!registerResponse.ok) {
+          const errorData = await registerResponse.json().catch(() => ({}));
+          throw new Error(`Upload registration failed: ${errorData.message || registerResponse.statusText}`);
+        }
+
+        const registerData = await registerResponse.json();
+        const uploadUrl = registerData.value.uploadMechanism['com.linkedin.digitalmedia.uploading.MediaUploadHttpRequest'].uploadUrl;
+        const asset = registerData.value.asset;
+
+        // Step 2: Upload the image
+        let imageBuffer;
+        if (imageUrl.startsWith('data:')) {
+          const base64Data = imageUrl.split(',')[1];
+          imageBuffer = Buffer.from(base64Data, 'base64');
+        } else {
+          const imageResponse = await fetch(imageUrl);
+          if (!imageResponse.ok) {
+            throw new Error(`Failed to fetch image: ${imageResponse.statusText}`);
+          }
+          imageBuffer = Buffer.from(await imageResponse.arrayBuffer());
+        }
+
+        const uploadResponse = await fetch(uploadUrl, {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+            'Content-Type': 'application/octet-stream'
+          },
+          body: imageBuffer
+        });
+
+        if (!uploadResponse.ok) {
+          throw new Error(`Image upload failed: ${uploadResponse.statusText}`);
+        }
+
+        // Step 3: Update share data with media
+        shareData.specificContent['com.linkedin.ugc.ShareContent'].media = [{
+          status: 'READY',
+          description: {
+            text: 'Shared image'
+          },
+          media: asset,
+          title: {
+            text: 'Image'
+          }
+        }];
+
+        console.log('✅ Image uploaded successfully');
+      } catch (imageError) {
+        console.error('❌ Image upload failed:', imageError);
+        // Continue with text-only post
+        console.log('📝 Posting text-only instead');
+      }
+    }
+
+    // Post the share
+    const shareResponse = await fetch(`${LINKEDIN_API_BASE_URL}/ugcPosts`, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${accessToken}`,
+        'Content-Type': 'application/json'
+      },
+      body: JSON.stringify(shareData)
+    });
+
+    if (!shareResponse.ok) {
+      const errorData = await shareResponse.json().catch(() => ({}));
+      console.error('❌ LinkedIn post failed:', shareResponse.status, errorData);
+      return res.status(shareResponse.status).json({ 
+        error: errorData.message || `LinkedIn API error: ${shareResponse.status} ${shareResponse.statusText}` 
+      });
+    }
+
+    const shareResult = await shareResponse.json();
+    const postId = shareResult.id;
+
+    console.log('✅ Successfully posted to LinkedIn');
+    console.log('📋 Post ID:', postId);
+
+    res.json({
+      success: true,
+      postId: postId,
+      message: 'Successfully posted to LinkedIn!'
+    });
+
+  } catch (error) {
+    console.error('❌ LinkedIn posting error:', error);
+    
+    if (error.message.includes('No LinkedIn tokens found') || error.message.includes('token expired')) {
+      return res.status(401).json({ 
+        error: 'LinkedIn authorization required. Please authorize the application first.' 
+      });
+    }
+    
+    return res.status(500).json({ error: 'Internal server error while posting to LinkedIn' });
   }
 });
 
