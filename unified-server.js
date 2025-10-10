@@ -997,6 +997,49 @@ async function uploadBase64ToS3(base64, keyPrefix = "generated/") {
   }
 }
 
+app.post("/api/generate-components", async (req, res) => {
+  try {
+    const { node } = req.body;
+    if (!node) {
+      return res.status(400).json({ error: "Node is required" });
+    }
+
+    // Create a prompt that describes what we want to generate
+    const prompt = `Generate component suggestions for a content node with the following details:
+Title: ${node.title || 'Untitled'}
+Description: ${node.description || 'No description'}
+Type: ${node.type || 'Unknown'}
+
+Please suggest relevant components that would work well with this content. Each component should have:
+- A descriptive title
+- A component type (e.g., 'image', 'text', 'chart', 'social-media', etc.)
+- Optional description and category
+- Relevance score (0-1)
+- Impact level (low/medium/high)`;
+
+    const response = await invokeModelViaHttp(prompt, true);
+    let components = [];
+    try {
+      components = JSON.parse(response);
+    } catch (e) {
+      console.error("Failed to parse components:", e);
+      components = [{
+        id: Math.random().toString(36).substr(2, 9),
+        type: "text",
+        title: "Error parsing components",
+        description: "Failed to generate components. Please try again.",
+        relevanceScore: 0.5,
+        impact: "low"
+      }];
+    }
+    
+    res.json(components);
+  } catch (error) {
+    console.error("Error generating components:", error);
+    res.status(500).json({ error: "Failed to generate components" });
+  }
+});
+
 app.post("/api/generate", async (req, res) => {
   try {
     const { prompt, messages } = req.body;
