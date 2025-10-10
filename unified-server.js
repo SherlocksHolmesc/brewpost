@@ -92,6 +92,42 @@ app.use(session({
 const s3 = new S3({ region: REGION });
 const DDB = new DynamoDB.DocumentClient({ region: REGION });
 
+// --- AppSync proxy endpoint (signs requests with AWS SigV4 using server credentials) ---
+app.post('/api/proxy-appsync', async (req, res) => {
+  try {
+    const { query, variables } = req.body;
+    if (!query) return res.status(400).json({ error: 'Missing query' });
+
+    const AWS = pkg; // aws-sdk
+    const url = new URL(process.env.APPSYNC_ENDPOINT || process.env.VITE_APPSYNC_ENDPOINT || 'https://hgaezqpz7jbztedzzsrn74hqki.appsync-api.us-east-1.amazonaws.com/graphql');
+    const endpoint = new AWS.Endpoint(url.hostname);
+
+    const httpRequest = new AWS.HttpRequest(endpoint, REGION);
+    httpRequest.method = 'POST';
+    httpRequest.path = url.pathname || '/graphql';
+    httpRequest.body = JSON.stringify({ query, variables });
+    httpRequest.headers['host'] = url.hostname;
+    httpRequest.headers['Content-Type'] = 'application/json';
+
+    const signer = new AWS.Signers.V4(httpRequest, 'appsync', true);
+    // Use configured AWS credentials (from env or IAM role)
+    signer.addAuthorization(AWS.config.credentials, new Date());
+
+    // Forward signed request to AppSync
+    const fetchRes = await fetch(url.toString(), {
+      method: 'POST',
+      headers: httpRequest.headers,
+      body: httpRequest.body,
+    });
+    const body = await fetchRes.text();
+    res.status(fetchRes.status).send(body);
+  } catch (err) {
+    console.error('Error in /api/proxy-appsync:', err);
+    res.status(500).json({ error: String(err) });
+  }
+});
+
+
 // Helper function to update Node/Schedule with X posting details
 async function updateNodeWithXPostingDetails({ nodeId, scheduleId, tweetId, tweetUrl, postedAt, status }) {
   try {
@@ -948,22 +984,23 @@ app.post("/api/generate-image-nova", async (req, res) => {
 
     console.log('Generating image with Nova Canvas for prompt:', prompt);
     
-    // Use Nova Canvas model (amazon.nova-canvas-v1:0)
-    const novaCanvasModel = "amazon.nova-canvas-v1:0";
+    // Use configured IMAGE_MODEL if present, otherwise use Nova Canvas
+    const modelToUse = IMAGE_MODEL || "amazon.nova-canvas-v1:0";
     
     const payload = {
       taskType: "TEXT_IMAGE",
       textToImageParams: { text: String(prompt) },
       imageGenerationConfig: {
         seed: Math.floor(Math.random() * 858993460),
-        quality: "premium", // Use premium quality for Nova Canvas
+        quality: "premium",
         width: 1024,
         height: 1024,
         numberOfImages: 1,
       },
     };
 
-    const imageResp = await invokeModelViaHttp(REGION, novaCanvasModel, payload, "application/json");
+    console.log('Invoking image model for /api/generate-image-nova:', modelToUse);
+    const imageResp = await invokeModelViaHttp(REGION, modelToUse, payload, "application/json");
     const maybeB64 = imageResp?.images?.[0] || imageResp?.outputs?.[0]?.body || 
       imageResp?.b64_image || imageResp?.image_base64 || imageResp?.base64;
 
@@ -1044,7 +1081,7 @@ Make it suitable for Nova Canvas image generation. Focus on creating realistic, 
 // Canvas image generation from node prompt
 app.post("/api/canvas-generate-from-node", async (req, res) => {
   try {
-    const { nodeId, imagePrompt, title, content } = req.body;
+    const { nodeId, imagePrompt, title, content, components } = req.body;
     if (!imagePrompt && !title && !content) {
       return res.status(400).json({ error: "Node must have imagePrompt, title, or content" });
     }
@@ -1057,17 +1094,48 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
         finalPrompt += `. Content context: ${content.substring(0, 200)}`;
       }
     }
-    
+
+    // If the client provided selected components, incorporate them into the prompt
+    try {
+      const comps = Array.isArray(components) ? components : [];
+      if (comps.length > 0) {
+        // Build readable names and categorize promotions
+        const names = comps.map(c => (c && (c.name || c.title || c.id)) || '').filter(Boolean).slice(0, 8);
+        const promoNames = comps
+          .filter(c => {
+            const cat = (c && (c.category || c.type || '') || '').toString().toLowerCase();
+            return cat.includes('promotion') || cat.includes('promo') || (c && c.type === 'promotion_type');
+          })
+          .map(c => (c && (c.name || c.title || c.id)) || '')
+          .filter(Boolean)
+          .slice(0, 3);
+
+        if (promoNames.length > 0) {
+          // Ask the model to include a prominent promotional badge with the promotion text
+          // Provide styling cues: position (top-right), bold white text, circular badge, and prefer provided color
+          const promoText = promoNames[0];
+          finalPrompt += ` Include a large promotional badge reading "${promoText}" placed at the top-right corner. The badge should be circular, with bold white text and high contrast. If a preferred color is provided for the component, use that color for the badge background; otherwise use a saturated red. Make the badge clearly legible even on busy backgrounds.`;
+        }
+
+        const nonPromo = names.filter(n => !promoNames.includes(n));
+        if (nonPromo.length > 0) {
+          finalPrompt += ` Also incorporate visual elements and stylistic cues for: ${nonPromo.join(', ')}.`;
+        }
+      }
+    } catch (e) {
+      console.debug('Failed to incorporate components into prompt', e);
+    }
+
     // Only add basic enhancement if no detailed prompt exists
     if (!imagePrompt && finalPrompt.length < 100) {
       finalPrompt += '. Professional, high-quality, social media ready, modern design, vibrant colors';
     }
-    
+
     console.log('Generating image from node:', nodeId, 'with prompt:', finalPrompt);
     
-    // Use Nova Canvas model
-    const novaCanvasModel = "amazon.nova-canvas-v1:0";
-    
+    // Use configured IMAGE_MODEL if present (Bedrock inference id in env), otherwise fallback to Nova Canvas
+    const modelToUse = IMAGE_MODEL || "amazon.nova-canvas-v1:0";
+
     const payload = {
       taskType: "TEXT_IMAGE",
       textToImageParams: { text: finalPrompt },
@@ -1080,7 +1148,8 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
       },
     };
 
-    const imageResp = await invokeModelViaHttp(REGION, novaCanvasModel, payload, "application/json");
+    console.log('Invoking Bedrock model for image generation:', modelToUse);
+    const imageResp = await invokeModelViaHttp(REGION, modelToUse, payload, "application/json");
     const maybeB64 = imageResp?.images?.[0] || imageResp?.outputs?.[0]?.body || 
       imageResp?.b64_image || imageResp?.image_base64 || imageResp?.base64;
 

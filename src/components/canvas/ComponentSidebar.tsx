@@ -11,6 +11,7 @@ interface Component {
   name: string
   category: string
   color: string
+  type?: "online_trend" | "campaign_type" | "promotion_type"
 }
 
 interface CampaignComponent {
@@ -18,7 +19,7 @@ interface CampaignComponent {
   type: "online_trend" | "campaign_type" | "promotion_type"
   title: string
   description: string
-  data: any
+  data?: unknown
   relevanceScore: number
   category: string
   keywords: string[]
@@ -69,6 +70,7 @@ export function ComponentSidebar({
           ? "Promotion Type"
           : "Suggested",
       color: colorByType(comp.type),
+      type: comp.type,
     }))
 
     // uniquify by id (in case backend sends duplicates)

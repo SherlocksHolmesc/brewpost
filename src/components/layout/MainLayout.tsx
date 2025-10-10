@@ -64,26 +64,51 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
       
       // Import and call NodeAPI directly
-      import('@/services/nodeService').then(({ NodeAPI }) => {
-        const updateData = {
-          projectId: 'demo-project-123',
-          nodeId: updatedNode.id,
-          title: updatedNode.title,
-          description: updatedNode.content,
-          status: updatedNode.status,
-          type: updatedNode.type,
-          day: updatedNode.day,
-          imageUrl: updatedNode.imageUrl,
-          imageUrls: updatedNode.imageUrls,
-          imagePrompt: updatedNode.imagePrompt,
-          scheduledDate: updatedNode.scheduledDate ? updatedNode.scheduledDate.toISOString() : null,
-        };
-        console.log('Canvas mode: Sending update to NodeAPI:', updateData);
-        
-        NodeAPI.update(updateData)
-          .then(() => console.log('Canvas mode: Node updated successfully'))
-          .catch(error => console.error('Canvas mode: Failed to update node:', error));
-      });
+      (async () => {
+        try {
+          const { NodeAPI } = await import('@/services/nodeService');
+          const raw = {
+            projectId: 'demo-project-123',
+            nodeId: updatedNode.id,
+            title: updatedNode.title,
+            description: updatedNode.content,
+            status: updatedNode.status,
+            type: updatedNode.type,
+            day: updatedNode.day,
+            imageUrl: updatedNode.imageUrl,
+            imageUrls: updatedNode.imageUrls,
+            imagePrompt: updatedNode.imagePrompt,
+            // only include scheduledDate if present to avoid sending explicit nulls
+            ...(updatedNode.scheduledDate ? { scheduledDate: updatedNode.scheduledDate.toISOString() } : {}),
+          } as Record<string, unknown>;
+
+          // Remove undefined properties to avoid GraphQL "Cannot return null for non-nullable type" errors
+          const updateData: Record<string, unknown> = {};
+          Object.keys(raw).forEach((k) => {
+            const v = (raw as Record<string, unknown>)[k];
+            if (v !== undefined && v !== null) updateData[k] = v;
+          });
+
+          console.log('Canvas mode: Sending update to NodeAPI:', updateData);
+          // cast to the NodeAPI.update input type at runtime-safe boundary
+          const resp = await NodeAPI.update(updateData as unknown as Parameters<typeof NodeAPI.update>[0]);
+          console.log('Canvas mode: Node updated successfully', resp);
+        } catch (error) {
+          console.error('Canvas mode: Failed to update node:', error);
+          try {
+            // Log common GraphQL/Apollo error properties when present
+            const e = error as unknown as { message?: string; graphQLErrors?: unknown; networkError?: unknown; response?: unknown; errors?: unknown; data?: unknown };
+            console.error('Error message:', e?.message);
+            if (e?.graphQLErrors) console.error('graphQLErrors:', e.graphQLErrors);
+            if (e?.networkError) console.error('networkError:', e.networkError);
+            if (e?.response) console.error('response:', e.response);
+            if (e?.errors) console.error('errors:', e.errors);
+            if (e?.data) console.error('data:', e.data);
+          } catch (logErr) {
+            console.error('Failed to stringify GraphQL error details:', logErr);
+          }
+        }
+      })();
     }
     console.log('=== END MAIN LAYOUT HANDLE SAVE NODE DEBUG ===');
   };
@@ -128,14 +153,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           return 'engaging';
         };
         
-        const normalizeType = (t: any): 'post' | 'image' | 'story' => {
+        const normalizeType = (t: unknown): 'post' | 'image' | 'story' => {
           if (!t) return 'post';
           const s = String(t).toLowerCase();
           if (s === 'image') return 'image';
           if (s === 'story') return 'story';
           return 'post';
         };
-        const normalizeStatus = (s: any): 'draft' | 'scheduled' | 'published' => {
+        const normalizeStatus = (s: unknown): 'draft' | 'scheduled' | 'published' => {
           if (!s) return 'draft';
           const v = String(s).toLowerCase();
           if (v === 'published') return 'published';
@@ -260,6 +285,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     category: string;
     color: string;
     position: { x: number; y: number };
+  };
+
+  // Local CampaignComponent type to align with CircleCanvas / ComponentSidebar expectations
+  type CampaignComponentLocal = {
+    id: string;
+    type: 'online_trend' | 'campaign_type' | 'promotion_type';
+    title: string;
+    description: string;
+    data?: unknown;
+    relevanceScore: number;
+    category: string;
+    keywords: string[];
+    impact: 'high' | 'medium' | 'low';
+    color?: string;
   };
 
   // Demo fallback components (kept small here, identical structure to previous hardcoded demos)
@@ -474,7 +513,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onAddComponent={(component) => {
                   const newComponent: SelectedCanvasComponent = {
                     id: component.id,
-                    name: (component.name ?? component.title ?? component.id) as string,
+                    name: (component.name ?? component.id) as string,
                     category: component.category ?? 'Suggested',
                     color: component.color ?? '#60A5FA',
                     position: { x: 0, y: 0 }
@@ -489,7 +528,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onRemoveComponent={(id) => {
                   setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
                 }}
-                  generatedComponents={canvasComponents}
+          generatedComponents={canvasComponents as unknown as CampaignComponentLocal[]}
               />
               
               {/* ComponentSidebar positioned at bottom */}
@@ -513,7 +552,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   onRemoveFromCanvas={(id) => {
                       setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
                     }}
-                  generatedComponents={finalGeneratedComponents}
+                  generatedComponents={finalGeneratedComponents as unknown as CampaignComponentLocal[]}
                   isLoadingAi={aiLoading}
                 />
               </div>
