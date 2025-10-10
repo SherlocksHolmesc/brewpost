@@ -68,11 +68,11 @@ jobs:
             --region ${{ secrets.AWS_REGION }} \
             --query 'Command.CommandId' \
             --output text)
-          
+
           echo "Command ID: $COMMAND_ID"
           aws ssm wait command-executed \
             --command-id "$COMMAND_ID" \
             --instance-id "${{ secrets.EC2_INSTANCE_ID }}" \
             --region ${{ secrets.AWS_REGION }}
-          
+
           echo "Deployment completed!"
