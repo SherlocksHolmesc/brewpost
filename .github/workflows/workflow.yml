@@ -57,15 +57,18 @@ jobs:
             --exclude ".git/*" \
             --delete
 
-      - name: Deploy to EC2
+      - name: Deploy to EC2 using PM2
         run: |
           # Create a temporary script file
           cat > deploy.sh << 'EOL'
           #!/bin/bash
           set -e
           
-          # Stop any running server
-          pkill -f unified-server || true
+          # Install PM2 globally if not already installed
+          if ! command -v pm2 &> /dev/null; then
+            echo "Installing PM2..."
+            sudo npm install -g pm2
+          fi
           
           # Create directories
           mkdir -p /home/brewpost/brewpost/{server,dist,logs}
@@ -93,10 +96,25 @@ jobs:
           sudo chown -R www-data:www-data /home/brewpost/brewpost/dist
           sudo chmod -R 755 /home/brewpost/brewpost/dist
           
-          # Start server
-          echo "Starting server..."
+          # Start server with PM2
+          echo "Starting server with PM2..."
           cd /home/brewpost/brewpost/server
-          nohup node unified-server.js > /home/brewpost/brewpost/logs/server.log 2>&1 &
+          
+          # Stop existing PM2 process if running
+          pm2 delete brewpost-server || true
+          
+          # Start the server with PM2
+          NODE_ENV=production pm2 start unified-server.js --name "brewpost-server" \
+            --log /home/brewpost/brewpost/logs/server.log \
+            --time \
+            --restart-delay=3000 \
+            --max-memory-restart 1G
+          
+          # Save PM2 process list
+          pm2 save
+          
+          # Set PM2 to start on system boot
+          sudo env PATH=$PATH:/usr/bin /usr/lib/node_modules/pm2/bin/pm2 startup systemd -u ssm-user --hp /home/ssm-user
           
           # Reload nginx
           echo "Reloading nginx..."
