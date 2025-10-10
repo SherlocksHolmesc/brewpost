@@ -1,12 +1,17 @@
 import express from 'express';
 import session from 'express-session';
 import cors from 'cors';
+import dotenv from 'dotenv';
+
+dotenv.config();
 
 const app = express();
 app.use(express.json());
 
 // Simple CORS configuration to allow frontend during development
-const allowedOrigins = ['http://localhost:8080', 'http://localhost:8082'].filter(Boolean);
+// Include FRONTEND_URL from environment so production frontend can be allowed
+const FRONTEND_URL = process.env.FRONTEND_URL || process.env.VITE_FRONTEND_URL || '';
+const allowedOrigins = [FRONTEND_URL, 'http://localhost:8080', 'http://localhost:8082'].filter(Boolean);
 app.use(cors({
   origin: (origin, callback) => {
     if (!origin) return callback(null, true);
