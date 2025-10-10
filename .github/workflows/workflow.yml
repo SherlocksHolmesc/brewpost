@@ -49,7 +49,15 @@ jobs:
           aws s3 rm s3://my-react-deploy-bucket/frontend --recursive
           aws s3 sync dist/ s3://my-react-deploy-bucket/frontend
       - name: Upload server files to S3
-        run: aws s3 sync . s3://my-react-deploy-bucket/server --exclude "dist/*" --exclude "node_modules/*" --exclude ".git/*" --delete
+        run: |
+          aws s3 sync server/ s3://my-react-deploy-bucket/server \
+            --exclude "dist/*" \
+            --exclude "node_modules/*" \
+            --exclude ".git/*" \
+            --exclude "ecosystem.config.cjs" \
+            --delete
+          # Upload ecosystem.config.cjs separately without delete flag
+          aws s3 cp server/ecosystem.config.cjs s3://my-react-deploy-bucket/server/ecosystem.config.cjs
 
       - name: Trigger EC2 update via SSM
         run: |
