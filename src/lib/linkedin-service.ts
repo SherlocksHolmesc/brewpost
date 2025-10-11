@@ -31,7 +31,7 @@ interface RefreshTokensResponse {
 }
 
 export class LinkedInService {
-  private static readonly BASE_URL = 'http://localhost:8081/api';
+  private static readonly BASE_URL = 'https://brewpost.duckdns.org/api';
 
   /**
    * Post a text-only LinkedIn post
