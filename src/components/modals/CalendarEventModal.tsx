@@ -69,54 +69,48 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const [linkedInAuthorized, setLinkedInAuthorized] = useState<boolean | null>(null);
 
  const checkXAuthStatus = async () => {
-
-    // With auth checks
-    // try {
-    //   console.log('🔍 Checking X authorization status in modal...');
+    try {
+      console.log('🔍 Checking X authorization status in modal...');
       
-    //   // First check if we have valid tokens
-    //   const tokenResponse = await fetch('/api/x-token-status');
-    //   const tokenData = await tokenResponse.json();
+      // First check if we have valid tokens
+      const tokenResponse = await fetch('/api/x-token-status');
+      const tokenData = await tokenResponse.json();
       
-    //   if (tokenData.valid && tokenData.authorized) {
-    //     console.log('✅ Valid X tokens found in modal');
+      if (tokenData.valid && tokenData.authorized) {
+        console.log('✅ Valid X tokens found in modal');
         
-    //     // Try to get user info only if not already cached
-    //     if (!xUserInfoCached) {
-    //       try {
-    //         const userResponse = await fetch('/api/x-user-info');
-    //         if (userResponse.ok) {
-    //           const userData = await userResponse.json();
-    //           const username = userData.user?.username;
-    //           console.log('✅ X user info retrieved in modal:', username);
-    //           setCurrentXUser(username);
-    //         } else {
-    //           console.log('⚠ Valid tokens but could not get X user info in modal');
-    //           setCurrentXUser(null);
-    //         }
-    //         setXUserInfoCached(true);
-    //       } catch (userError) {
-    //         console.log('⚠ X user info fetch failed, but tokens are valid in modal');
-    //         setCurrentXUser(null);
-    //         setXUserInfoCached(true);
-    //       }
-    //     }
+        // Try to get user info only if not already cached
+        if (!xUserInfoCached) {
+          try {
+            const userResponse = await fetch('/api/x-user-info');
+            if (userResponse.ok) {
+              const userData = await userResponse.json();
+              const username = userData.user?.username;
+              console.log('✅ X user info retrieved in modal:', username);
+              setCurrentXUser(username);
+            } else {
+              console.log('⚠️ Valid tokens but could not get X user info in modal');
+              setCurrentXUser(null);
+            }
+            setXUserInfoCached(true);
+          } catch (userError) {
+            console.log('⚠️ X user info fetch failed, but tokens are valid in modal');
+            setCurrentXUser(null);
+            setXUserInfoCached(true);
+          }
+        }
         
-    //     setXAuthorized(true);
-    //   } else {
-    //     console.log('❌ No valid X tokens in modal');
-    //     setCurrentXUser(null);
-    //     setXAuthorized(false);
-    //   }
-    // } catch (error) {
-    //   console.error('❌ X auth check failed in modal:', error);
-    //   setCurrentXUser(null);
-    //   setXAuthorized(false);
-    // }
-
-    // Skip X auth checks - allow anonymous scheduling
-    setXAuthorized(false);
-    setCurrentXUser(null);
+        setXAuthorized(true);
+      } else {
+        console.log('❌ No valid X tokens in modal');
+        setCurrentXUser(null);
+        setXAuthorized(false);
+      }
+    } catch (error) {
+      console.error('❌ X auth check failed in modal:', error);
+      setCurrentXUser(null);
+      setXAuthorized(false);
+    }
   };
 
   const checkLinkedInAuthStatus = async () => {
