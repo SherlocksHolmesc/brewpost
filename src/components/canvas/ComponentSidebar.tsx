@@ -159,7 +159,7 @@ export function ComponentSidebar({
   }
 
   return (
-    <div className="w-full border-t border-border/50 bg-card/80 backdrop-blur-xl p-3 max-h-64 overflow-y-auto">
+    <div className="w-full border-t border-border/50 bg-card/80 backdrop-blur-xl p-3 max-h-80 overflow-y-auto">
       {/** Loading state: when AI is generating components, show a subtle skeleton instead of demo content */}
       {/** If parent passes isLoadingAi, don't render the demo/components list */}
       
