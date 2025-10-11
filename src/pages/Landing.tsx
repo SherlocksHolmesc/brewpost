@@ -166,6 +166,44 @@ export const Landing: React.FC = () => {
     return () => obs.disconnect();
   }, []);
 
+  // animate pricing amounts when the Pricing section scrolls into view
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const elems = Array.from(document.querySelectorAll<HTMLElement>('.pricing-amount'));
+    if (!elems.length) return;
+
+    const format = (n:number) => n.toString();
+
+    const animateTo = (el: HTMLElement, target: number, duration = 900) => {
+      const start = performance.now();
+      const from = Number(el.textContent) || 0;
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const cur = Math.round(from + (target - from) * eased);
+        el.textContent = format(cur);
+        if (t < 1) requestAnimationFrame(step);
+        else el.textContent = format(target);
+      };
+      requestAnimationFrame(step);
+    };
+
+    const reset = (el: HTMLElement) => { el.textContent = '0'; };
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const el = entry.target as HTMLElement;
+        const target = Number(el.getAttribute('data-target') || 0);
+        if (entry.isIntersecting) animateTo(el, target);
+        else reset(el);
+      });
+    }, { threshold: 0.6 });
+
+    elems.forEach(e => obs.observe(e));
+    return () => obs.disconnect();
+  }, []);
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden">
       {/* snow / ambience (unchanged) */}
@@ -526,8 +564,43 @@ export const Landing: React.FC = () => {
               </div>
             </Card>
           </section>
+          {/* PRICING (moved below Content Network) */}
+          <section className="mb-32">
+            <div className="max-w-7xl mx-auto text-center">
+              <h2 className="text-4xl md:text-5xl font-extrabold mb-8">Pricing Plan</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="p-8 bg-card/10 rounded-2xl border border-gray-300/20 dark:border-gray-700/30">
+                  <div className="text-sm font-semibold mb-4">Free-tier</div>
+                  <div className="text-5xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="0">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>2 monthly plans</li>
+                    <li>4-6 images per month</li>
+                    <li>Basic copywriting and visual generating features</li>
+                  </ul>
+                </div>
 
-          
+                <div className="p-8 bg-gradient-primary rounded-2xl border border-primary/10 transform scale-105 shadow-2xl">
+                  <div className="text-sm font-semibold mb-4">SME-tier</div>
+                  <div className="text-6xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="60">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>Unlimited plan</li>
+                    <li>8-10 images per month</li>
+                    <li>Advanced copywriting & visual generating features</li>
+                  </ul>
+                </div>
+
+                <div className="p-8 bg-card/10 rounded-2xl border border-gray-300/20 dark:border-gray-700/30">
+                  <div className="text-sm font-semibold mb-4">Pro-tier</div>
+                  <div className="text-5xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="150">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>Unlimited plan & image</li>
+                    <li>Advanced copywriting & visual generating features</li>
+                    <li>Access to one-click posting</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
+          </section>
         </div>
       </div>
 
