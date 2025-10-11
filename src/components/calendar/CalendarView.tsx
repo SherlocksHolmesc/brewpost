@@ -170,8 +170,6 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           console.log('First schedule raw data:', JSON.stringify(data.schedules[0], null, 2));
           
           const parsed = data.schedules.map((s: any) => {
-            console.log('Processing schedule item:', s);
-            console.log('Schedule title value:', s.title, 'Type:', typeof s.title);
             return {
               id: s.scheduleId || s.id,
               title: s.title || 'Untitled',
