@@ -1482,12 +1482,18 @@ app.post("/api/generate-image-nova", async (req, res) => {
 
     console.log("Generating image with Nova Canvas for prompt:", prompt);
 
-    // Use Nova Canvas model (amazon.nova-canvas-v1:0)
-    const novaCanvasModel = "amazon.nova-canvas-v1:0";
+  // Use configured IMAGE_MODEL if present, otherwise use Nova Canvas model
+  const imageModelId = IMAGE_MODEL || "amazon.nova-canvas-v1:0";
 
-    const payload = {
+      let promptText = String(prompt);
+      if (promptText.length > 1000) {
+        console.warn("[generate-image-nova] prompt too long, truncating to 1000 chars", { length: promptText.length });
+        promptText = promptText.slice(0, 1000);
+      }
+
+      const payload = {
       taskType: "TEXT_IMAGE",
-      textToImageParams: { text: String(prompt) },
+      textToImageParams: { text: promptText },
       imageGenerationConfig: {
         seed: Math.floor(Math.random() * 858993460),
         quality: "premium", // Use premium quality for Nova Canvas
@@ -1499,7 +1505,7 @@ app.post("/api/generate-image-nova", async (req, res) => {
 
     const imageResp = await invokeModelViaHttp(
       REGION,
-      novaCanvasModel,
+      imageModelId,
       payload,
       "application/json"
     );
@@ -1607,14 +1613,19 @@ Make it suitable for Nova Canvas image generation. Focus on creating realistic, 
 // Canvas image generation from node prompt
 app.post("/api/canvas-generate-from-node", async (req, res) => {
   try {
-    const { nodeId, imagePrompt, title, content } = req.body;
+    const { nodeId, imagePrompt, title, content, selectedComponents, components, template } = req.body;
+    // normalize components (frontend may send `components` or legacy `selectedComponents`)
+    const uiComponents = Array.isArray(components)
+      ? components
+      : Array.isArray(selectedComponents)
+      ? selectedComponents
+      : [];
     if (!imagePrompt && !title && !content) {
       return res
         .status(400)
         .json({ error: "Node must have imagePrompt, title, or content" });
     }
-
-    // Create a comprehensive prompt from node data
+    // Create a comprehensive prompt from node data and supplied UI state (components/template)
     let finalPrompt = imagePrompt || "";
     if (!finalPrompt && title) {
       finalPrompt = `Create a professional social media image for: ${title}`;
@@ -1629,6 +1640,38 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
         ". Professional, high-quality, social media ready, modern design, vibrant colors";
     }
 
+    // If selected components are provided, explicitly integrate them into the prompt
+    try {
+      if (Array.isArray(uiComponents) && uiComponents.length > 0) {
+        // Promotions: ensure we draw the selected promotion badge
+        const promotions = uiComponents.filter(c => (c.category && String(c.category).toLowerCase().includes('promotion')) || (c.name && /%|off|discount/i.test(String(c.name))));
+        if (promotions.length > 0) {
+          const p = promotions[0];
+          finalPrompt += ` Add a circular promotional badge that shows: "${p.name || p.id || 'Offer'}". Render the badge with a high-contrast ring and place it top-right.`;
+        }
+
+        // Campaign types and trends influence style (visual-only cues — DO NOT render as text)
+        const trends = uiComponents.filter(c => c.category && String(c.category).toLowerCase().includes('trend'));
+        if (trends.length > 0) {
+          finalPrompt += ` Add visual-only trend cues (sparklines, subtle data waveforms, small chart motifs, or glows) to convey trending performance — do NOT include textual labels for trend names.`;
+        }
+
+        const campaigns = uiComponents.filter(c => c.category && String(c.category).toLowerCase().includes('campaign'));
+        if (campaigns.length > 0) {
+          finalPrompt += ` Infuse campaign-specific visual styling (color accents, background motifs, badges, iconography, or composition changes) that reflect the campaign theme — DO NOT render the campaign name as visible text.`;
+        }
+      }
+
+      // If a template is provided (company name, palette, logo), instruct model to include them
+      if (template) {
+  if (template.companyName) finalPrompt += ` Apply brand-consistent styling informed by the company (do NOT render the company name as text); prefer logo, color palette, and brand motifs.`;
+  if (template.colorPalette) finalPrompt += ` Use the brand color palette for accents and composition (use colors, gradients, and accents — no textual color labels).`;
+  if (template.logoUrl) finalPrompt += ` Reserve space for the logo (bottom-left corner preferred) and incorporate it visually; do not generate the logo as plain text.`;
+      }
+    } catch (e) {
+      console.warn('Failed to integrate selectedComponents/template into prompt', e && (e.message || e));
+    }
+
     console.log(
       "Generating image from node:",
       nodeId,
@@ -1636,12 +1679,18 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
       finalPrompt
     );
 
-    // Use Nova Canvas model
-    const novaCanvasModel = "amazon.nova-canvas-v1:0";
+  // Use configured IMAGE_MODEL if present, otherwise use Nova Canvas model
+  const imageModelId = IMAGE_MODEL || "amazon.nova-canvas-v1:0";
+
+    let nodePromptText = String(finalPrompt || "");
+    if (nodePromptText.length > 1000) {
+      console.warn("[canvas-generate-from-node] finalPrompt too long, truncating to 1000 chars", { length: nodePromptText.length });
+      nodePromptText = nodePromptText.slice(0, 1000);
+    }
 
     const payload = {
       taskType: "TEXT_IMAGE",
-      textToImageParams: { text: finalPrompt },
+      textToImageParams: { text: nodePromptText },
       imageGenerationConfig: {
         seed: Math.floor(Math.random() * 858993460),
         quality: "premium",
@@ -1653,7 +1702,7 @@ app.post("/api/canvas-generate-from-node", async (req, res) => {
 
     const imageResp = await invokeModelViaHttp(
       REGION,
-      novaCanvasModel,
+      imageModelId,
       payload,
       "application/json"
     );
@@ -1757,6 +1806,66 @@ app.post('/api/generate-components', async (req, res) => {
 });
 
 app.get("/health", (req, res) => res.json({ ok: true, pid: process.pid }));
+
+// Proxy AppSync GraphQL requests from the client. This endpoint will use an API key
+// if configured (VITE_APPSYNC_API_KEY). Otherwise, it will sign the request with
+// AWS SigV4 using the server credentials so the client does not need IAM creds.
+app.post('/api/proxy-appsync', async (req, res) => {
+  try {
+    const { query, variables } = req.body || {};
+    if (!APPSYNC_ENDPOINT) return res.status(500).json({ error: 'appsync_endpoint_not_configured' });
+
+    const payload = JSON.stringify({ query, variables });
+
+    // If API key is provided in env, use it (simpler for dev)
+    if (process.env.VITE_APPSYNC_API_KEY) {
+      const resp = await fetch(APPSYNC_ENDPOINT, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': process.env.VITE_APPSYNC_API_KEY,
+        },
+        body: payload,
+      });
+      const text = await resp.text();
+      // Attempt to parse JSON, otherwise return raw text
+      try { return res.status(resp.status).json(JSON.parse(text)); } catch (e) { return res.status(resp.status).send(text); }
+    }
+
+    // No API key: sign the request with SigV4 using aws-sdk
+    try {
+      const urlObj = new URL(APPSYNC_ENDPOINT);
+      const httpRequest = new pkg.HttpRequest(urlObj.origin, REGION);
+      httpRequest.method = 'POST';
+      httpRequest.path = urlObj.pathname + urlObj.search;
+      httpRequest.body = payload;
+      httpRequest.headers = {
+        'host': urlObj.host,
+        'Content-Type': 'application/json',
+        'Content-Length': Buffer.byteLength(payload),
+      };
+
+      // Ensure credentials are available
+      const creds = pkg.config.credentials || new pkg.Credentials({ accessKeyId: process.env.ACCESS_KEY_ID, secretAccessKey: process.env.SECRET_ACCESS_KEY });
+      await new Promise((resolve, reject) => { creds.get ? creds.get(err => (err ? reject(err) : resolve())) : resolve(); });
+
+      const signer = new pkg.Signers.V4(httpRequest, 'appsync');
+      signer.addAuthorization(creds, new Date());
+
+      // Make the actual fetch with signed headers
+      const signedHeaders = httpRequest.headers;
+      const finalResp = await fetch(APPSYNC_ENDPOINT, { method: 'POST', headers: signedHeaders, body: payload });
+      const finalText = await finalResp.text();
+      try { return res.status(finalResp.status).json(JSON.parse(finalText)); } catch (e) { return res.status(finalResp.status).send(finalText); }
+    } catch (signErr) {
+      console.error('Failed to sign AppSync request:', signErr);
+      return res.status(500).json({ error: 'failed_to_sign_request', detail: String(signErr) });
+    }
+  } catch (err) {
+    console.error('proxy-appsync error', err);
+    return res.status(500).json({ error: 'proxy_appsync_failed', detail: String(err) });
+  }
+});
 
 app.get("/api/schedules/list", async (req, res) => {
   try {

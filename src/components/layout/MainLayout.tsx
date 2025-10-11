@@ -30,6 +30,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false); // State for generation status
   const [isTemplatePopupOpen, setIsTemplatePopupOpen] = useState(false);
   const planningPanelRef = useRef<PlanningPanelRef>(null);
+  const prevNodeIdRef = useRef<string | null>(null);
 
   // Shared save function that works in both modes
   const handleSaveNode = (updatedNode: ContentNode) => {
@@ -64,26 +65,51 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
       
       // Import and call NodeAPI directly
-      import('@/services/nodeService').then(({ NodeAPI }) => {
-        const updateData = {
-          projectId: 'demo-project-123',
-          nodeId: updatedNode.id,
-          title: updatedNode.title,
-          description: updatedNode.content,
-          status: updatedNode.status,
-          type: updatedNode.type,
-          day: updatedNode.day,
-          imageUrl: updatedNode.imageUrl,
-          imageUrls: updatedNode.imageUrls,
-          imagePrompt: updatedNode.imagePrompt,
-          scheduledDate: updatedNode.scheduledDate ? updatedNode.scheduledDate.toISOString() : null,
-        };
-        console.log('Canvas mode: Sending update to NodeAPI:', updateData);
-        
-        NodeAPI.update(updateData)
-          .then(() => console.log('Canvas mode: Node updated successfully'))
-          .catch(error => console.error('Canvas mode: Failed to update node:', error));
-      });
+      (async () => {
+        try {
+          const { NodeAPI } = await import('@/services/nodeService');
+          const raw = {
+            projectId: 'demo-project-123',
+            nodeId: updatedNode.id,
+            title: updatedNode.title,
+            description: updatedNode.content,
+            status: updatedNode.status,
+            type: updatedNode.type,
+            day: updatedNode.day,
+            imageUrl: updatedNode.imageUrl,
+            imageUrls: updatedNode.imageUrls,
+            imagePrompt: updatedNode.imagePrompt,
+            // only include scheduledDate if present to avoid sending explicit nulls
+            ...(updatedNode.scheduledDate ? { scheduledDate: updatedNode.scheduledDate.toISOString() } : {}),
+          } as Record<string, unknown>;
+
+          // Remove undefined properties to avoid GraphQL "Cannot return null for non-nullable type" errors
+          const updateData: Record<string, unknown> = {};
+          Object.keys(raw).forEach((k) => {
+            const v = (raw as Record<string, unknown>)[k];
+            if (v !== undefined && v !== null) updateData[k] = v;
+          });
+
+          console.log('Canvas mode: Sending update to NodeAPI:', updateData);
+          // cast to the NodeAPI.update input type at runtime-safe boundary
+          const resp = await NodeAPI.update(updateData as unknown as Parameters<typeof NodeAPI.update>[0]);
+          console.log('Canvas mode: Node updated successfully', resp);
+        } catch (error) {
+          console.error('Canvas mode: Failed to update node:', error);
+          try {
+            // Log common GraphQL/Apollo error properties when present
+            const e = error as unknown as { message?: string; graphQLErrors?: unknown; networkError?: unknown; response?: unknown; errors?: unknown; data?: unknown };
+            console.error('Error message:', e?.message);
+            if (e?.graphQLErrors) console.error('graphQLErrors:', e.graphQLErrors);
+            if (e?.networkError) console.error('networkError:', e.networkError);
+            if (e?.response) console.error('response:', e.response);
+            if (e?.errors) console.error('errors:', e.errors);
+            if (e?.data) console.error('data:', e.data);
+          } catch (logErr) {
+            console.error('Failed to stringify GraphQL error details:', logErr);
+          }
+        }
+      })();
     }
     console.log('=== END MAIN LAYOUT HANDLE SAVE NODE DEBUG ===');
   };
@@ -128,14 +154,14 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
           return 'engaging';
         };
         
-        const normalizeType = (t: any): 'post' | 'image' | 'story' => {
+        const normalizeType = (t: unknown): 'post' | 'image' | 'story' => {
           if (!t) return 'post';
           const s = String(t).toLowerCase();
           if (s === 'image') return 'image';
           if (s === 'story') return 'story';
           return 'post';
         };
-        const normalizeStatus = (s: any): 'draft' | 'scheduled' | 'published' => {
+        const normalizeStatus = (s: unknown): 'draft' | 'scheduled' | 'published' => {
           if (!s) return 'draft';
           const v = String(s).toLowerCase();
           if (v === 'published') return 'published';
@@ -230,6 +256,8 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setActiveTab('details');
     setViewMode('nodes'); // Switch to nodes view when a node is selected
     setCanvasNodeId(null); // Clear canvas node ID when switching to nodes view
+    // Clear any previously generated image/url state so images from other nodes don't persist
+    setIsGenerating(false);
   };
 
   const handleNodeDoubleClick = (node: ContentNode) => {
@@ -237,13 +265,15 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     setActiveTab('details');
     setViewMode('canvas'); // Switch to canvas view on double-click
     setCanvasNodeId(node.id); // Store node ID for future reference if needed
+    // Clear any stale generated image state when switching nodes
+    setIsGenerating(false);
     
     // If node has image prompt, automatically start generation
     if (node.imagePrompt || node.title || node.content) {
       console.log('Node double-clicked with prompt data, preparing for image generation');
       // Clear any existing canvas components and set up for node-based generation
       setSelectedCanvasComponents([]);
-      setAiComponents(null);
+      // Preserve previously fetched aiComponents so we don't force a regeneration
       setAiLoading(false);
       setIsGenerating(false);
     }
@@ -260,6 +290,20 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
     category: string;
     color: string;
     position: { x: number; y: number };
+  };
+
+  // Local CampaignComponent type to align with CircleCanvas / ComponentSidebar expectations
+  type CampaignComponentLocal = {
+    id: string;
+    type: 'online_trend' | 'campaign_type' | 'promotion_type';
+    title: string;
+    description: string;
+    data?: unknown;
+    relevanceScore: number;
+    category: string;
+    keywords: string[];
+    impact: 'high' | 'medium' | 'low';
+    color?: string;
   };
 
   // Demo fallback components (kept small here, identical structure to previous hardcoded demos)
@@ -280,12 +324,24 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
   useEffect(() => {
     let canceled = false;
     const load = async () => {
-      if (!selectedNode) return setAiComponents(null);
+      if (!selectedNode) {
+        prevNodeIdRef.current = null;
+        return setAiComponents(null);
+      }
+      // If the selected node id hasn't changed and we already have components, keep them
+      if (selectedNode && prevNodeIdRef.current === selectedNode.id && aiComponents !== null) {
+        // nothing to do — components already present for this node
+        return;
+      }
       setAiLoading(true);
       try {
         const svc = await import('@/services/aiService');
-        // Clear cache for this node to ensure fresh components on selection
-  try { svc.clearComponentCache(selectedNode.id); } catch (e) { console.debug('[MainLayout] clearComponentCache failed', e); }
+        // Clear cache for this node only if the node id changed
+        try {
+          if (prevNodeIdRef.current !== selectedNode.id) {
+            svc.clearComponentCache(selectedNode.id);
+          }
+        } catch (e) { console.debug('[MainLayout] clearComponentCache failed', e); }
         const comps = await svc.fetchComponentsForNode(selectedNode);
         console.log('[MainLayout] fetched aiComponents count for node', selectedNode.id, comps?.length ?? 0);
         if (!canceled) setAiComponents(comps && comps.length ? comps : []);
@@ -297,8 +353,9 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
       }
     };
     load();
+    prevNodeIdRef.current = selectedNode ? selectedNode.id : null;
     return () => { canceled = true; };
-  }, [selectedNode]);
+  }, [selectedNode, aiComponents]);
 
   // Map AI components (or demo fallback) to the CampaignComponent shape expected by CircleCanvas and ComponentSidebar
   // Use DEMO_COMPONENTS only when aiComponents is null (not yet loaded). If aiComponents is an empty array
@@ -474,7 +531,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onAddComponent={(component) => {
                   const newComponent: SelectedCanvasComponent = {
                     id: component.id,
-                    name: (component.name ?? component.title ?? component.id) as string,
+                    name: (component.name ?? component.id) as string,
                     category: component.category ?? 'Suggested',
                     color: component.color ?? '#60A5FA',
                     position: { x: 0, y: 0 }
@@ -489,7 +546,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                 onRemoveComponent={(id) => {
                   setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
                 }}
-                  generatedComponents={canvasComponents}
+                  generatedComponents={canvasComponents as unknown as CampaignComponentLocal[]}
               />
               
               {/* ComponentSidebar positioned at bottom */}
@@ -513,7 +570,7 @@ export const MainLayout: React.FC<MainLayoutProps> = ({ children }) => {
                   onRemoveFromCanvas={(id) => {
                       setSelectedCanvasComponents(prev => prev.filter(c => c.id !== id));
                     }}
-                  generatedComponents={finalGeneratedComponents}
+                  generatedComponents={finalGeneratedComponents as unknown as CampaignComponentLocal[]}
                   isLoadingAi={aiLoading}
                 />
               </div>

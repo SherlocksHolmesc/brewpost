@@ -5,6 +5,8 @@ import { Card } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Minus, Sparkles } from "lucide-react"
 import { ComponentSidebar } from "./ComponentSidebar"
+import { enhanceImagePromptWithTemplate, applyTemplateToImage, applyComponentsToImage, getTemplateSettings } from '@/utils/templateUtils'
+import { useState, useRef, useEffect } from 'react'
 
 interface SelectedComponent {
   id: string
@@ -19,7 +21,7 @@ interface CampaignComponent {
   type: "online_trend" | "campaign_type" | "promotion_type"
   title: string
   description: string
-  data: any
+  data?: unknown
   relevanceScore: number
   category: string
   keywords: string[]
@@ -29,6 +31,7 @@ interface CampaignComponent {
 interface Component {
   id: string
   name: string
+  title?: string
   category: string
   color: string
 }
@@ -42,8 +45,16 @@ interface CircleCanvasProps {
   onForecastAnalysisClick?: () => void
   generatedComponents?: CampaignComponent[]
   onAddComponent?: (component: Component) => void
-  selectedNode?: any // Add support for selected node
-  onSaveNode?: (node: any) => void // Add support for saving node updates
+  selectedNode?: {
+    id: string
+    title?: string
+    content?: string
+    imagePrompt?: string
+    imageUrl?: string
+    imageUrls?: string[]
+    scheduledDate?: Date | string
+  }
+  onSaveNode?: (node: { id: string; imageUrl?: string; imageUrls?: string[]; scheduledDate?: Date | string; title?: string; content?: string }) => void // Add support for saving node updates
 }
 
 export function CircleCanvas({
@@ -130,15 +141,34 @@ export function CircleCanvas({
     }
   `
   
-  const handleGenerateFromNode = async () => {
+  const handleGenerateFromNode = async (components: SelectedComponent[] = []) => {
     if (!selectedNode) return;
-    
+
     console.log('🔥 Generate from node clicked!', selectedNode.title);
     onGenerate("GENERATING");
-    
+
     try {
       const BACKEND_URL = (import.meta.env.VITE_BACKEND_URL as string) ?? 'http://localhost:8081';
-      
+
+      // Combine node-level image prompt with selected component names for richer guidance
+      const compNames = (components || []).map(c => c.name).join(', ');
+      const basePrompt = selectedNode.imagePrompt || selectedNode.title || selectedNode.content || '';
+      const combinedPrompt = compNames ? `${basePrompt}. Include visual elements: ${compNames}` : basePrompt;
+
+      // Enhance prompt with template settings (if user has a template configured) before sending
+      let promptToSend = combinedPrompt;
+      try {
+        promptToSend = enhanceImagePromptWithTemplate(combinedPrompt);
+        // If template has a dominant color, emphasize it
+        const tpl = getTemplateSettings();
+        if (tpl?.selectedColor && tpl.selectedColor !== 'transparent') {
+          promptToSend += ` Make sure to prominently feature ${tpl.selectedColor} color throughout the entire image composition, use it for backgrounds, accents, and key visual elements.`;
+        }
+      } catch (e) {
+        console.debug('Failed to enhance prompt with template', e);
+        promptToSend = combinedPrompt;
+      }
+
       const response = await fetch(`${BACKEND_URL}/api/canvas-generate-from-node`, {
         method: 'POST',
         headers: {
@@ -146,31 +176,49 @@ export function CircleCanvas({
         },
         body: JSON.stringify({
           nodeId: selectedNode.id,
-          imagePrompt: selectedNode.imagePrompt,
+          imagePrompt: promptToSend,
           title: selectedNode.title,
-          content: selectedNode.content
+          content: selectedNode.content,
+          components: components.map(c => ({ id: c.id, name: c.name, title: (c as unknown as { title?: string }).title, category: c.category, type: (c as unknown as { type?: string }).type, color: c.color }))
         })
       });
-      
+
       const data = await response.json();
-      
+
       if (!response.ok) {
         throw new Error(data.error || 'Failed to generate image');
       }
-      
+
       if (data.ok && data.imageUrl) {
         console.log('✅ Node image generation completed successfully:', data.imageUrl);
-        onGenerate(data.imageUrl); // Show image in canvas
-        
+        // Apply template overlay on client if configured (mirrors NodeDetails behavior)
+        let processedImageUrl = data.imageUrl;
+        try {
+          processedImageUrl = await applyTemplateToImage(data.imageUrl);
+        } catch (e) {
+          console.warn('Failed to apply template to generated image, using original URL', e);
+        }
+
+        // Apply UI components (e.g., promotion badge) on top of the templated image
+        try {
+          const compList: SelectedComponent[] = components as SelectedComponent[] || [];
+          const mapped = compList.map(c => ({ id: c.id, name: c.name, title: undefined, category: c.category, color: c.color, position: c.position }));
+          processedImageUrl = await applyComponentsToImage(processedImageUrl, mapped);
+        } catch (e) {
+          console.warn('Failed to apply components to image, continuing with templated image', e);
+        }
+
+  onGenerate(processedImageUrl); // Show processed image in canvas
+
         // Add new image to imageUrls array (same logic as NodeDetails)
         const existingImages = selectedNode.imageUrls || [];
         const updatedNode = {
           ...selectedNode,
-          imageUrls: [...existingImages, data.imageUrl],
-          imageUrl: data.imageUrl // Keep for backward compatibility
+          imageUrls: [...existingImages, processedImageUrl],
+          imageUrl: processedImageUrl // Keep for backward compatibility
         };
         onSaveNode(updatedNode);
-        
+
         console.log('Total images after canvas generation:', updatedNode.imageUrls.length);
       } else {
         throw new Error('No image URL returned');
@@ -183,9 +231,9 @@ export function CircleCanvas({
   };
 
   const handleGenerateImage = async () => {
-    // If we have a selected node, generate from node instead of components
-    if (selectedNode && (selectedNode.imagePrompt || selectedNode.title || selectedNode.content)) {
-      return handleGenerateFromNode();
+    // If we have a selected node, generate from node and include selected components
+    if (selectedNode && (selectedNode.imagePrompt || selectedNode.title || selectedNode.content || selectedComponents.length > 0)) {
+      return handleGenerateFromNode(selectedComponents);
     }
     
     console.log('🔥 Generate button clicked!');
@@ -242,6 +290,92 @@ export function CircleCanvas({
     }
   }
 
+  // Drag-after-generation state for promo placement
+  const [isPlacingPromo, setIsPlacingPromo] = useState(false);
+  const [promoPos, setPromoPos] = useState<{ x: number; y: number } | null>(null); // normalized 0..1
+  const canvasRef = useRef<HTMLDivElement | null>(null);
+
+  // Start placement: initialize from existing selectedNode component if present
+  const startPromoPlacement = () => {
+    if (!selectedNode) return;
+    const promoComp = (selectedComponents || []).find(c => /%|off|discount|promo/i.test(String(c.name)) || (c.category && c.category.toLowerCase().includes('promotion')));
+    if (!promoComp) return;
+    // use any existing saved position on node.imageUrl mapping or component position if present
+  const existingPos = (promoComp as unknown as { position?: { x?: number; y?: number } }).position;
+    if (existingPos && typeof existingPos.x === 'number' && typeof existingPos.y === 'number') {
+      if (existingPos.x > 0 && existingPos.x <= 1 && existingPos.y > 0 && existingPos.y <= 1) {
+        setPromoPos({ x: existingPos.x, y: existingPos.y });
+      } else {
+        setPromoPos({ x: 0.9, y: 0.1 });
+      }
+    } else {
+      setPromoPos({ x: 0.85, y: 0.12 }); // default top-right-ish
+    }
+    setIsPlacingPromo(true);
+  };
+
+  // Drag handlers
+  useEffect(() => {
+    let dragging = false;
+  const offset = { dx: 0, dy: 0 };
+    const onMouseMove = (e: MouseEvent) => {
+      if (!dragging || !canvasRef.current || !promoPos) return;
+      const rect = canvasRef.current.getBoundingClientRect();
+      const x = clamp((e.clientX - rect.left) / rect.width, 0, 1);
+      const y = clamp((e.clientY - rect.top) / rect.height, 0, 1);
+      setPromoPos({ x, y });
+    };
+    const onMouseUp = () => { dragging = false; };
+    const el = document;
+    el.addEventListener('mousemove', onMouseMove);
+    el.addEventListener('mouseup', onMouseUp);
+    return () => {
+      el.removeEventListener('mousemove', onMouseMove);
+      el.removeEventListener('mouseup', onMouseUp);
+    };
+  }, [promoPos]);
+
+  const clamp = (v: number, a = 0, b = 1) => Math.min(b, Math.max(a, v));
+
+  const savePromoPosition = async () => {
+    if (!selectedNode || !promoPos) return;
+    // find promo component and attach position
+    const promoCompIndex = selectedComponents.findIndex(c => /%|off|discount|promo/i.test(String(c.name)) || (c.category && c.category.toLowerCase().includes('promotion')));
+    if (promoCompIndex === -1) return;
+    const promoComp = selectedComponents[promoCompIndex];
+    // persist to component (here we call onSaveNode to save node-level imageUrls updated and component position)
+    const normalized = { x: promoPos.x, y: promoPos.y };
+    // Update the in-memory component and node, then call onSaveNode
+    const updatedComp = { ...promoComp, position: normalized };
+    const updatedComponents = [...selectedComponents];
+    updatedComponents[promoCompIndex] = updatedComp;
+
+    // Re-run composition to generate final image dataURL with positioned badge
+    try {
+      const processed = await applyTemplateToImage(selectedNode.imageUrl || '');
+      const mapped = updatedComponents.map(c => ({ id: c.id, name: c.name, category: c.category, color: c.color, position: c.position }));
+      const finalData = await applyComponentsToImage(processed, mapped);
+      const existingImages = selectedNode.imageUrls || [];
+      const updatedNode = {
+        ...selectedNode,
+        imageUrls: [...existingImages, finalData],
+        imageUrl: finalData
+      };
+      // attach component positions into node content if desired (simple persistence)
+      // Note: this onSaveNode should persist the component positions in your application's state/store
+      onSaveNode(updatedNode);
+    } catch (e) {
+      console.warn('Failed to save promo position and recompose image', e);
+    }
+
+    setIsPlacingPromo(false);
+  };
+
+  const cancelPromoPlacement = () => {
+    setIsPlacingPromo(false);
+    setPromoPos(null);
+  };
+
   return (
     <div className="flex-1 flex flex-col transition-all duration-300 ease-out">
       <style dangerouslySetInnerHTML={{ __html: customStyles }} />
@@ -276,7 +410,7 @@ export function CircleCanvas({
             <div
               className={[
                 "absolute inset-[-20px]",
-                "rounded-[70%_30%_40%_60%_/_50%_70%_30%_50%]",
+                "rounded-[70%30%_40%_60%/_50%_70%_30%_50%]",
                 "backdrop-blur-[40px] border",
                 isGenerating
                   ? [
@@ -299,7 +433,7 @@ export function CircleCanvas({
             <div
               className={[
                 "absolute inset-[-15px]",
-                "rounded-[60%_40%_30%_70%_/_60%_30%_70%_40%]",
+                "rounded-[60%40%_30%_70%/_60%_30%_70%_40%]",
                 "backdrop-blur-[30px] border",
                 isGenerating
                   ? [
@@ -322,7 +456,7 @@ export function CircleCanvas({
             <div
               className={[
                 "absolute inset-[-8px]",
-                "rounded-[40%_60%_70%_30%_/_40%_70%_30%_60%]",
+                "rounded-[40%60%_70%_30%/_40%_70%_30%_60%]",
                 "backdrop-blur-md border",
                 "bg-[linear-gradient(45deg,rgba(110,243,255,0.25),rgba(120,255,214,0.2),rgba(0,212,255,0.25))]",
                 "border-cyan-300/10",
@@ -336,7 +470,7 @@ export function CircleCanvas({
             <div
               className={[
                 "absolute inset-[3px]",
-                "rounded-[50%_40%_60%_50%_/_40%_60%_40%_60%]",
+                "rounded-[50%40%_60%_50%/_40%_60%_40%_60%]",
                 "border border-cyan-300/10 backdrop-blur-[15px]",
                 "bg-[linear-gradient(225deg,rgba(120,255,214,0.2),rgba(0,212,255,0.15),rgba(110,243,255,0.2))]",
                 "shadow-[0_2px_12px_rgba(120,255,214,0.25)]",
@@ -367,7 +501,7 @@ export function CircleCanvas({
                 <div 
                   className="w-32 h-32 rounded-full overflow-hidden cursor-pointer hover:scale-105 hover:shadow-3xl transition-all duration-500 shadow-2xl border-2 border-white/40 backdrop-blur-sm relative group"
                   onClick={() => {
-                    console.log('🖼️ Image clicked, showing preview for:', isGenerating)
+                    console.log('🖼 Image clicked, showing preview for:', isGenerating)
                     // Show preview layout instead of modal
                     onGenerate(`PREVIEW:${isGenerating}`)
                   }}
