@@ -90,7 +90,7 @@ export const CalendarModal: React.FC<CalendarModalProps> = ({
             scheduledNodes={scheduledNodes}
             onClose={() => onOpenChange(false)}
             editable={editable}
-            onEditNode={handleUpdateNode}
+            onUpdateNode={handleUpdateNode}
             onDeleteNode={handleDeleteNode}
           />
         </div>

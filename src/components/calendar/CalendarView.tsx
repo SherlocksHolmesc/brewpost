@@ -413,6 +413,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
           if (onUpdateNode) {
             console.log('Calling parent onUpdateNode...');
             onUpdateNode(updatedEvent);
+          } else {
+            console.log('No onUpdateNode handler provided!');
           }
         }}
         onDelete={(eventId) => {
