@@ -749,6 +749,10 @@ export const RedesignedMainLayout: React.FC<RedesignedMainLayoutProps> = ({ chil
         scheduledNodes={nodes.filter(node => node.status === 'scheduled')}
         editable={true}
         onEditNode={handleSaveNode}
+        onDeleteNode={(nodeId) => {
+          // Remove from nodes state immediately for instant UI update
+          setNodes(prev => prev.filter(node => node.id !== nodeId));
+        }}
       />
 
       <TemplatePopup 
