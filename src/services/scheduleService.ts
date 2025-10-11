@@ -27,6 +27,21 @@ export const scheduleService = {
 
     const results = await Promise.all(nodes.map(async (node) => {
       try {
+        // Check if schedule already exists
+        const existingScheduleResult = await client.graphql({
+          query: `query ListSchedules {
+            listSchedules(filter: { scheduleId: { eq: "${node.id}" } }) {
+              items {
+                id
+                scheduleId
+              }
+            }
+          }`
+        });
+        
+        const existingSchedules = (existingScheduleResult as any).data.listSchedules.items;
+        const existingSchedule = existingSchedules.length > 0 ? existingSchedules[0] : null;
+        
         const scheduleData = {
           scheduleId: node.id!,
           title: (node as any).title || 'Untitled',
@@ -38,24 +53,52 @@ export const scheduleService = {
           userId: 'anonymous'
         };
         
-        const scheduleResult = await client.graphql({
-          query: `mutation CreateSchedule($input: CreateScheduleInput!) {
-            createSchedule(input: $input) {
-              id
-              scheduleId
-              title
-              content
-              imageUrl
-              imageUrls
-              scheduledDate
-              status
-              userId
-            }
-          }`,
-          variables: { input: scheduleData }
-        });
+        let scheduleResult;
         
-        console.log(`✅ Created schedule: ${node.id}`, scheduleResult);
+        if (existingSchedule) {
+          // Update existing schedule
+          scheduleResult = await client.graphql({
+            query: `mutation UpdateSchedule($input: UpdateScheduleInput!) {
+              updateSchedule(input: $input) {
+                id
+                scheduleId
+                title
+                content
+                imageUrl
+                imageUrls
+                scheduledDate
+                status
+                userId
+              }
+            }`,
+            variables: { 
+              input: {
+                id: existingSchedule.id,
+                ...scheduleData
+              }
+            }
+          });
+          console.log(`✅ Updated schedule: ${node.id}`, scheduleResult);
+        } else {
+          // Create new schedule
+          scheduleResult = await client.graphql({
+            query: `mutation CreateSchedule($input: CreateScheduleInput!) {
+              createSchedule(input: $input) {
+                id
+                scheduleId
+                title
+                content
+                imageUrl
+                imageUrls
+                scheduledDate
+                status
+                userId
+              }
+            }`,
+            variables: { input: scheduleData }
+          });
+          console.log(`✅ Created schedule: ${node.id}`, scheduleResult);
+        }
         
         return {
           id: node.id,
@@ -101,7 +144,7 @@ export const scheduleService = {
         }`
       });
 
-      const items = (result.data.listSchedules as any).items || [];
+      const items = (result as any).data.listSchedules.items || [];
       const schedules = items.map((item: any) => ({
         scheduleId: item.scheduleId,
         userId: item.userId,

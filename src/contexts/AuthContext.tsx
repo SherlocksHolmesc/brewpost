@@ -25,18 +25,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const BACKEND_URL = import.meta.env.VITE_BACKEND_URL || 'https://54.242.36.109';
 
   const checkAuth = async () => {
-    try {
-      const response = await fetch(`${BACKEND_URL}/api/auth/status`, {
-        credentials: 'include',
-      });
-      const data = await response.json();
-      setIsAuthenticated(data.authenticated);
-    } catch (error) {
-      console.error('Auth check failed:', error);
-      setIsAuthenticated(false);
-    } finally {
-      setLoading(false);
-    }
+    // Skip authentication check - allow anonymous access
+    setIsAuthenticated(true);
+    setLoading(false);
   };
 
   const login = () => {
@@ -48,7 +39,23 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   };
 
   useEffect(() => {
-    checkAuth();
+
+    // With auth check
+    // try {
+    //   const response = await fetch(`${BACKEND_URL}/api/auth/status`, {
+    //     credentials: 'include',
+    //   });
+    //   const data = await response.json();
+    //   setIsAuthenticated(data.authenticated);
+    // } catch (error) {
+    //   console.error('Auth check failed:', error);
+    //   setIsAuthenticated(false);
+    // }
+      
+
+    // Skip auth check - set as authenticated immediately
+    setIsAuthenticated(true);
+    setLoading(false);
   }, []);
 
   return (

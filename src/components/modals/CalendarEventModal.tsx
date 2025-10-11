@@ -11,7 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Calendar, Clock, Target, Eye, Zap, Bot, Send, X, CheckCircle, Loader2 } from 'lucide-react';
 import { AIChat } from '@/components/ai/AIChat';
-import { PostingService } from '@/services/postingService';
+import { LinkedInService } from '@/lib/linkedin-service';
 
 // LinkedIn Icon Component
 const LinkedInIcon = ({ className }: { className?: string }) => (
@@ -66,50 +66,68 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     x?: { success: boolean; message: string };
     linkedin?: { success: boolean; message: string };
   }>({});
+  const [linkedInAuthorized, setLinkedInAuthorized] = useState<boolean | null>(null);
 
-  // Check X authorization status
-  const checkXAuthStatus = async () => {
+ const checkXAuthStatus = async () => {
+
+    // With auth checks
+    // try {
+    //   console.log('🔍 Checking X authorization status in modal...');
+      
+    //   // First check if we have valid tokens
+    //   const tokenResponse = await fetch('/api/x-token-status');
+    //   const tokenData = await tokenResponse.json();
+      
+    //   if (tokenData.valid && tokenData.authorized) {
+    //     console.log('✅ Valid X tokens found in modal');
+        
+    //     // Try to get user info only if not already cached
+    //     if (!xUserInfoCached) {
+    //       try {
+    //         const userResponse = await fetch('/api/x-user-info');
+    //         if (userResponse.ok) {
+    //           const userData = await userResponse.json();
+    //           const username = userData.user?.username;
+    //           console.log('✅ X user info retrieved in modal:', username);
+    //           setCurrentXUser(username);
+    //         } else {
+    //           console.log('⚠ Valid tokens but could not get X user info in modal');
+    //           setCurrentXUser(null);
+    //         }
+    //         setXUserInfoCached(true);
+    //       } catch (userError) {
+    //         console.log('⚠ X user info fetch failed, but tokens are valid in modal');
+    //         setCurrentXUser(null);
+    //         setXUserInfoCached(true);
+    //       }
+    //     }
+        
+    //     setXAuthorized(true);
+    //   } else {
+    //     console.log('❌ No valid X tokens in modal');
+    //     setCurrentXUser(null);
+    //     setXAuthorized(false);
+    //   }
+    // } catch (error) {
+    //   console.error('❌ X auth check failed in modal:', error);
+    //   setCurrentXUser(null);
+    //   setXAuthorized(false);
+    // }
+
+    // Skip X auth checks - allow anonymous scheduling
+    setXAuthorized(false);
+    setCurrentXUser(null);
+  };
+
+  const checkLinkedInAuthStatus = async () => {
     try {
-      console.log('🔍 Checking X authorization status in modal...');
-      
-      // First check if we have valid tokens
-      const tokenResponse = await fetch('/api/x-token-status');
-      const tokenData = await tokenResponse.json();
-      
-      if (tokenData.valid && tokenData.authorized) {
-        console.log('✅ Valid X tokens found in modal');
-        
-        // Try to get user info only if not already cached
-        if (!xUserInfoCached) {
-          try {
-            const userResponse = await fetch('/api/x-user-info');
-            if (userResponse.ok) {
-              const userData = await userResponse.json();
-              const username = userData.user?.username;
-              console.log('✅ X user info retrieved in modal:', username);
-              setCurrentXUser(username);
-            } else {
-              console.log('⚠️ Valid tokens but could not get X user info in modal');
-              setCurrentXUser(null);
-            }
-            setXUserInfoCached(true);
-          } catch (userError) {
-            console.log('⚠️ X user info fetch failed, but tokens are valid in modal');
-            setCurrentXUser(null);
-            setXUserInfoCached(true);
-          }
-        }
-        
-        setXAuthorized(true);
-      } else {
-        console.log('❌ No valid X tokens in modal');
-        setCurrentXUser(null);
-        setXAuthorized(false);
-      }
+      console.log('🔍 Checking LinkedIn authorization status in modal...');
+      const result = await LinkedInService.checkTokens();
+      console.log('LinkedIn auth check result:', result);
+      setLinkedInAuthorized(result.valid);
     } catch (error) {
-      console.error('❌ X auth check failed in modal:', error);
-      setCurrentXUser(null);
-      setXAuthorized(false);
+      console.error('❌ LinkedIn auth check failed in modal:', error);
+      setLinkedInAuthorized(false);
     }
   };
 
@@ -130,6 +148,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     // Check X authorization when modal opens
     if (open) {
       checkXAuthStatus();
+      checkLinkedInAuthStatus();
     }
   }, [event, open]);
 
@@ -142,13 +161,17 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         console.log('🔄 Window focused, rechecking X auth status in modal...');
         checkXAuthStatus();
       }
+      if (linkedInAuthorized === false) {
+        console.log('🔄 Window focused, rechecking LinkedIn auth status in modal...');
+        checkLinkedInAuthStatus();
+      }
     };
 
     window.addEventListener('focus', handleFocus);
     return () => window.removeEventListener('focus', handleFocus);
-  }, [open, xAuthorized]);
+  }, [open, xAuthorized, linkedInAuthorized]);
 
-  // Auto-dismiss success messages after 5 seconds
+  // Auto-dismiss success messages after 10 seconds
   useEffect(() => {
     if (postResults.x?.success || postResults.linkedin?.success) {
       const timer = setTimeout(() => {
@@ -157,7 +180,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           ...(postResults.x?.success && { x: undefined }),
           ...(postResults.linkedin?.success && { linkedin: undefined })
         }));
-      }, 5000);
+      }, 10000);
       return () => clearTimeout(timer);
     }
   }, [postResults]);
@@ -338,11 +361,85 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     return isPostingToX ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <X className="w-4 h-4 mr-2" />;
   };
 
+  const getLinkedInButtonText = () => {
+    if (linkedInAuthorized === null) return 'Checking...';
+    if (!linkedInAuthorized) return 'Authorize LinkedIn';
+    return 'Post to LinkedIn';
+  };
+
+  const getLinkedInButtonIcon = () => {
+    if (linkedInAuthorized === null) return <Loader2 className="w-4 h-4 mr-2 animate-spin" />;
+    if (!linkedInAuthorized) return <LinkedInIcon className="w-4 h-4 mr-2" />;
+    return isPostingToLinkedIn ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : <LinkedInIcon className="w-4 h-4 mr-2" />;
+  };
+
+  const handleSmartLinkedInAction = async () => {
+    if (linkedInAuthorized === null) {
+      // Still checking auth status
+      return;
+    }
+
+    if (!linkedInAuthorized) {
+      // Need to authorize first
+      setIsPostingToLinkedIn(true);
+      try {
+        const result = await LinkedInService.getAuthUrl();
+        
+        if (result.url) {
+          window.open(result.url, '_blank');
+          setPostResults(prev => ({
+            ...prev,
+            linkedin: { 
+              success: true, 
+              message: 'Authorization window opened. Complete the authorization and try again.' 
+            }
+          }));
+          
+          // Set up periodic recheck for authorization
+          const recheckInterval = setInterval(() => {
+            console.log('🔄 Rechecking LinkedIn auth status in modal after authorization...');
+            checkLinkedInAuthStatus();
+          }, 5000);
+          
+          // Clear interval after 1 minute
+          setTimeout(() => {
+            clearInterval(recheckInterval);
+          }, 60000);
+          
+        } else {
+          setPostResults(prev => ({
+            ...prev,
+            linkedin: { success: false, message: result.error || 'Failed to get authorization URL' }
+          }));
+        }
+      } catch (error) {
+        setPostResults(prev => ({
+          ...prev,
+          linkedin: { success: false, message: 'Failed to get authorization URL' }
+        }));
+      } finally {
+        setIsPostingToLinkedIn(false);
+      }
+      return;
+    }
+
+    // Already authorized, proceed with posting
+    await handlePostToLinkedIn();
+  };
+
   const handlePostToLinkedIn = async () => {
-    if (!event?.content) {
+    if (!event?.content && !event?.imageUrl) {
       setPostResults(prev => ({
         ...prev,
-        linkedin: { success: false, message: 'No content to post' }
+        linkedin: { success: false, message: 'No content or image to post' }
+      }));
+      return;
+    }
+
+    if (event.content && event.content.length > 3000) {
+      setPostResults(prev => ({
+        ...prev,
+        linkedin: { success: false, message: 'Content exceeds 3000 character limit for LinkedIn' }
       }));
       return;
     }
@@ -351,9 +448,20 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
     setPostResults(prev => ({ ...prev, linkedin: undefined }));
 
     try {
-      const result = await PostingService.postToLinkedIn(event.content);
+      let result;
       
-      if (result.ok) {
+      // If we have both content and image, or just image
+      if (event.imageUrl) {
+        result = await LinkedInService.postToLinkedInWithImage({ 
+          text: event.content || '', 
+          imageUrl: event.imageUrl 
+        });
+      } else {
+        // Text only post
+        result = await LinkedInService.postToLinkedIn(event.content);
+      }
+      
+      if (result.ok && result.postId) {
         const updatedEvent = {
           ...event,
           status: 'published' as const,
@@ -372,11 +480,12 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           }
         }));
       } else {
+        const errorMessage = result.error || 'Failed to post to LinkedIn';
         setPostResults(prev => ({
           ...prev,
           linkedin: { 
             success: false, 
-            message: result.error || 'Failed to post to LinkedIn' 
+            message: errorMessage
           }
         }));
       }
@@ -588,28 +697,43 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
           </Button>
 
           {/* X User Info Badge (show when authorized and have user info) */}
-          {currentXUser && xAuthorized && (
+          {/* {currentXUser && xAuthorized && (
             <div className="flex items-center gap-1 px-2 py-1 bg-green-50 dark:bg-green-950/20 rounded border border-green-200 dark:border-green-800">
               <CheckCircle className="w-3 h-3 text-green-600 dark:text-green-400" />
               <span className="text-xs text-green-800 dark:text-green-200">
                 @{currentXUser}
               </span>
             </div>
-          )}
+          )} */}
+          
+          {/* LinkedIn User Info Badge (show when authorized) */}
+          {/* {linkedInAuthorized && (
+            <div className="flex items-center gap-1 px-2 py-1 bg-blue-50 dark:bg-blue-950/20 rounded border border-blue-200 dark:border-blue-800">
+              <CheckCircle className="w-3 h-3 text-blue-600 dark:text-blue-400" />
+              <span className="text-xs text-blue-800 dark:text-blue-200">
+                LinkedIn Connected
+              </span>
+            </div>
+          )} */}
           
           <Button
             variant="outline"
             size="default"
-            onClick={handlePostToLinkedIn}
-            disabled={isPostingToLinkedIn || !event?.content}
-            className="border-slate-300 hover:border-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300"
+            onClick={handleSmartLinkedInAction}
+            disabled={
+              isPostingToLinkedIn || 
+              linkedInAuthorized === null || 
+              (linkedInAuthorized && (!event?.content && !event?.imageUrl)) ||
+              (linkedInAuthorized && event?.content && event.content.length > 3000)
+            }
+            className={`transition-all duration-200 ${
+              linkedInAuthorized === false 
+                ? 'border-blue-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-blue-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300' 
+                : 'border-slate-300 hover:border-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
+            }`}
           >
-            {isPostingToLinkedIn ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <LinkedInIcon className="w-4 h-4 mr-2" />
-            )}
-            {isPostingToLinkedIn ? 'Posting...' : 'Post to LinkedIn'}
+            {getLinkedInButtonIcon()}
+            {isPostingToLinkedIn ? 'Processing...' : getLinkedInButtonText()}
           </Button>
           
           <Button variant="outline" onClick={() => onOpenChange(false)}>
@@ -652,10 +776,16 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                   ) : (
                     <X className="w-5 h-5 flex-shrink-0" />
                   )}
-                  <div>
+                  <div className="flex-1">
                     <span className="text-sm font-semibold block">X (Twitter)</span>
                     <p className="text-xs mt-1 opacity-90">{postResults.x.message}</p>
                   </div>
+                  <button
+                    onClick={() => setPostResults(prev => ({ ...prev, x: undefined }))}
+                    className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             )}
@@ -672,10 +802,16 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
                   ) : (
                     <X className="w-5 h-5 flex-shrink-0" />
                   )}
-                  <div>
+                  <div className="flex-1">
                     <span className="text-sm font-semibold block">LinkedIn</span>
                     <p className="text-xs mt-1 opacity-90">{postResults.linkedin.message}</p>
                   </div>
+                  <button
+                    onClick={() => setPostResults(prev => ({ ...prev, linkedin: undefined }))}
+                    className="ml-2 opacity-70 hover:opacity-100 transition-opacity"
+                  >
+                    <X className="w-4 h-4" />
+                  </button>
                 </div>
               </div>
             )}
