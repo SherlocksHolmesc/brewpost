@@ -71,7 +71,7 @@ export default function TestLinkedInPage() {
               <ul className="list-disc list-inside ml-4 space-y-1">
                 <li>Go to <a href="https://developer.linkedin.com/" target="_blank" rel="noopener noreferrer" className="underline">LinkedIn Developer Console</a></li>
                 <li>Create a new app and configure OAuth 2.0 settings</li>
-                <li>Add redirect URI: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">http://localhost:8081/api/linkedin-callback</code></li>
+                <li>Add redirect URI: <code className="bg-blue-100 dark:bg-blue-900 px-1 rounded">https://brewpost.duckdns.org/api/linkedin-callback</code></li>
                 <li>Request access to the "Share on LinkedIn" and "Sign In with LinkedIn using OpenID Connect" products</li>
               </ul>
             </div>
@@ -80,7 +80,7 @@ export default function TestLinkedInPage() {
               <pre className="bg-blue-100 dark:bg-blue-900 p-2 rounded text-xs overflow-x-auto">
 {`LINKEDIN_CLIENT_ID=your_linkedin_client_id
 LINKEDIN_CLIENT_SECRET=your_linkedin_client_secret
-LINKEDIN_REDIRECT_URI=http://localhost:8081/api/linkedin-callback`}
+LINKEDIN_REDIRECT_URI=https://brewpost.duckdns.org/api/linkedin-callback`}
               </pre>
             </div>
           </div>
