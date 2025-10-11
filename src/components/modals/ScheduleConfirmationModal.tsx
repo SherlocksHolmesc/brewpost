@@ -87,14 +87,17 @@ export const ScheduleConfirmationModal: React.FC<ScheduleConfirmationModalProps>
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent 
+        className="max-w-md border-[#03624C]/50" 
+        style={{backgroundColor: 'rgba(3, 34, 33, 0.95)', backdropFilter: 'blur(12px)'}}
+      >
         <DialogHeader>
-          <DialogTitle className="flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-primary" />
+          <DialogTitle className="flex items-center gap-2 text-white">
+            <Calendar className="w-5 h-5" style={{color: '#00DF81'}} />
             Schedule All Content
-            {loading && <RefreshCw className="w-4 h-4 animate-spin" />}
+            {loading && <RefreshCw className="w-4 h-4 animate-spin" style={{color: '#2CC295'}} />}
           </DialogTitle>
-          <DialogDescription>
+          <DialogDescription className="text-[#00DF81]/70">
             The following {displayNodes.length} content items will be scheduled:
           </DialogDescription>
         </DialogHeader>
@@ -134,13 +137,28 @@ export const ScheduleConfirmationModal: React.FC<ScheduleConfirmationModalProps>
         </div>
 
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
+          <Button 
+            variant="outline" 
+            onClick={() => onOpenChange(false)}
+            className="border-[#03624C]/50 text-[#00DF81] transition-colors hover:bg-[#03624C]/20 hover:border-[#2CC295]/70"
+          >
             Cancel
           </Button>
           <Button 
             onClick={() => onConfirm(displayNodes)} 
             disabled={loading || displayNodes.length === 0}
-            className="bg-gradient-primary hover:opacity-90"
+            className="text-white shadow-lg transition-colors"
+            style={{backgroundColor: loading || displayNodes.length === 0 ? '#03624C60' : '#03624C'}}
+            onMouseEnter={(e) => {
+              if (!(loading || displayNodes.length === 0)) {
+                e.currentTarget.style.backgroundColor = '#2CC295';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!(loading || displayNodes.length === 0)) {
+                e.currentTarget.style.backgroundColor = '#03624C';
+              }
+            }}
           >
             <Clock className="w-4 h-4 mr-2" />
             Schedule All ({displayNodes.length})

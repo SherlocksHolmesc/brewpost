@@ -164,8 +164,19 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
       }
       
       if (data.ok && data.imageUrl) {
-        // Apply template to generated image
-        const processedImageUrl = await applyTemplateToImage(data.imageUrl);
+        // Check if template processing is actually needed
+        const template = getTemplateSettings();
+        const needsProcessing = template && (template.logoPreview || template.companyText);
+        
+        // Only apply template processing if there's a logo or text to add
+        const processedImageUrl = needsProcessing ? await applyTemplateToImage(data.imageUrl) : data.imageUrl;
+        
+        console.log('Image processing result:', { 
+          original: data.imageUrl, 
+          processed: processedImageUrl.substring(0, 100) + '...', 
+          needsProcessing,
+          isDataUrl: processedImageUrl.startsWith('data:')
+        });
         
         // Add new image to imageUrls array
         const existingImages = node.imageUrls || [];
@@ -805,7 +816,10 @@ export const NodeDetails: React.FC<NodeDetailsProps> = ({ node, nodes = [], onSa
                       alert('Failed to schedule node: ' + error.message);
                     }
                   }}
-                  className="bg-gradient-secondary hover:opacity-90 flex-1"
+                  className="text-white shadow-lg transition-colors flex-1"
+                  style={{backgroundColor: '#03624C'}}
+                  onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2CC295'}
+                  onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#03624C'}
                 >
                   <Clock className="w-4 h-4 mr-2" />
                   Schedule Now

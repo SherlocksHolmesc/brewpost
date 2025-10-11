@@ -95,25 +95,40 @@ export const NodeAPI = {
     id?: string; projectId: string; nodeId: string; title?: string; description?: string; x?: number; y?: number; status?: string; contentId?: string;
     type?: string; day?: string; imageUrl?: string; imageUrls?: string[]; imagePrompt?: string; scheduledDate?: string;
   }) { 
-    let updateInput: any = input;
+    let updateInput: any = { ...input };
     try {
       console.log('Updating node:', input);
       // If no id provided, try to find the node first
       if (!input.id) {
         const filter = { projectId: { eq: input.projectId }, nodeId: { eq: input.nodeId } };
-  const listResponse = await (client.graphql as any)({ query: listNodes, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
+        const listResponse = await (client.graphql as any)({ query: listNodes, variables: { filter }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } });
         const items = (listResponse as any).data.listNodes.items || [];
         if (items.length > 0) {
-          updateInput = { ...input, id: items[0].id };
+          updateInput.id = items[0].id;
         } else {
           throw new Error(`Node not found: ${input.nodeId}`);
         }
       }
+
+      // Keep imageUrls in the input since it exists in the schema
+      console.log('imageUrls in updateInput:', updateInput.imageUrls);
+      
+      console.log('Final updateInput being sent to GraphQL API:', JSON.stringify(updateInput, null, 2));
+      console.log('GraphQL mutation query:', updateNode);
       const response = await (client.graphql as any)({ query: updateNode, variables: { input: updateInput }, authMode: 'apiKey', headers: { 'x-api-key': (import.meta.env.VITE_APPSYNC_API_KEY as string) } }); 
       console.log('Update node response:', response);
       return (response as any).data.updateNode as NodeDTO;
     } catch (error) {
       console.error('Error updating node via Amplify client:', error);
+      console.error('Input that caused error:', JSON.stringify(updateInput, null, 2));
+      if (error && typeof error === 'object' && 'errors' in error) {
+        console.error('GraphQL errors:', (error as any).errors);
+        (error as any).errors?.forEach((err: any, index: number) => {
+          console.error(`Error ${index + 1}:`, err.message);
+          if (err.locations) console.error('Locations:', err.locations);
+          if (err.path) console.error('Path:', err.path);
+        });
+      }
       // Always attempt direct fetch fallback to AppSync with x-api-key for robustness
       try {
         console.warn('Attempting direct fetch fallback to AppSync with x-api-key (update)');

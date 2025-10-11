@@ -96,15 +96,18 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
-      <DialogContent className="max-w-2xl max-h-[90vh] flex flex-col">
+      <DialogContent 
+        className="max-w-2xl max-h-[90vh] flex flex-col border-[#03624C]/50" 
+        style={{backgroundColor: 'rgba(3, 34, 33, 0.95)', backdropFilter: 'blur(12px)'}}
+      >
         <DialogHeader>
-          <DialogTitle>Create Template</DialogTitle>
+          <DialogTitle className="text-white">Create Template</DialogTitle>
         </DialogHeader>
         
         <div className="space-y-6 overflow-y-auto flex-1 pr-2">
           {/* Logo Upload */}
           <div className="space-y-2">
-            <Label htmlFor="logo-upload">Upload Logo</Label>
+            <Label htmlFor="logo-upload" className="text-[#00DF81]">Upload Logo</Label>
             <div className="flex items-center gap-4">
               <Input
                 id="logo-upload"
@@ -113,7 +116,12 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
                 onChange={handleFileUpload}
                 className="flex-1"
               />
-              <Button variant="outline" size="sm" onClick={() => document.getElementById('logo-upload')?.click()}>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => document.getElementById('logo-upload')?.click()}
+                className="border-[#03624C]/50 text-[#00DF81] transition-colors hover:bg-[#03624C]/20 hover:border-[#2CC295]/70"
+              >
                 <Upload className="w-4 h-4 mr-2" />
                 Upload
               </Button>
@@ -134,17 +142,28 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
 
           {/* Position Selection */}
           <div className="space-y-3">
-            <Label>Logo Position</Label>
+            <Label className="text-[#00DF81]">Logo Position</Label>
             <div className="relative w-full h-48 bg-gray-100 border-2 border-dashed border-gray-300 rounded-lg">
               {positions.map((position) => (
                 <button
                   key={position.id}
                   onClick={() => setSelectedPosition(position.id)}
-                  className={`absolute w-8 h-8 rounded-full border-2 transition-all ${position.style} ${
-                    selectedPosition === position.id
-                      ? 'bg-primary border-primary scale-110'
-                      : 'bg-white border-gray-400 hover:border-primary'
-                  }`}
+                  className={`absolute w-8 h-8 rounded-full border-2 transition-all ${position.style}`}
+                  style={{
+                    backgroundColor: selectedPosition === position.id ? '#03624C' : 'white',
+                    borderColor: selectedPosition === position.id ? '#03624C' : '#9CA3AF',
+                    transform: selectedPosition === position.id ? 'scale(1.1)' : 'scale(1)'
+                  }}
+                  onMouseEnter={(e) => {
+                    if (selectedPosition !== position.id) {
+                      e.currentTarget.style.borderColor = '#2CC295';
+                    }
+                  }}
+                  onMouseLeave={(e) => {
+                    if (selectedPosition !== position.id) {
+                      e.currentTarget.style.borderColor = '#9CA3AF';
+                    }
+                  }}
                   title={position.label}
                 />
               ))}
@@ -165,7 +184,7 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
 
           {/* Company Text */}
           <div className="space-y-3">
-            <Label>Company Text</Label>
+            <Label className="text-[#00DF81]">Company Text</Label>
             <Input
               value={companyText}
               onChange={(e) => setCompanyText(e.target.value)}
@@ -174,7 +193,7 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
             {companyText && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <Label htmlFor="text-color" className="text-sm">Text Color</Label>
+                  <Label htmlFor="text-color" className="text-sm text-[#00DF81]">Text Color</Label>
                   <input
                     id="text-color"
                     type="color"
@@ -184,7 +203,7 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
                   />
                 </div>
                 <div>
-                  <Label htmlFor="text-size" className="text-sm">Size</Label>
+                  <Label htmlFor="text-size" className="text-sm text-[#00DF81]">Size</Label>
                   <Input
                     id="text-size"
                     type="number"
@@ -196,7 +215,7 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
                   />
                 </div>
                 <div>
-                  <Label className="text-sm">Position</Label>
+                  <Label className="text-sm text-[#00DF81]">Position</Label>
                   <Select value={textPosition} onValueChange={setTextPosition}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
@@ -210,7 +229,7 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
                   </Select>
                 </div>
                 <div>
-                  <Label className="text-sm">Alignment</Label>
+                  <Label className="text-sm text-[#00DF81]">Alignment</Label>
                   <Select value={textAlignment} onValueChange={setTextAlignment}>
                     <SelectTrigger className="mt-1">
                       <SelectValue />
@@ -228,18 +247,18 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
 
           {/* Template Color */}
           <div className="space-y-3">
-            <Label>Template Color</Label>
+            <Label className="text-[#00DF81]">Template Color</Label>
             <div className="flex items-center space-x-2 mb-3">
               <Checkbox
                 id="use-color"
                 checked={useColorTemplate}
                 onCheckedChange={setUseColorTemplate}
               />
-              <Label htmlFor="use-color" className="text-sm">Use color template</Label>
+              <Label htmlFor="use-color" className="text-sm text-[#00DF81]">Use color template</Label>
             </div>
             {useColorTemplate && (
               <div className="flex items-center gap-3">
-                <Label htmlFor="custom-color" className="text-sm">Color:</Label>
+                <Label htmlFor="custom-color" className="text-sm text-[#00DF81]">Color:</Label>
                 <input
                   id="custom-color"
                   type="color"
@@ -253,10 +272,20 @@ export const TemplatePopup: React.FC<TemplatePopupProps> = ({ isOpen, onClose })
 
           {/* Actions */}
           <div className="flex justify-end gap-2 pt-4">
-            <Button variant="outline" onClick={onClose}>
+            <Button 
+              variant="outline" 
+              onClick={onClose}
+              className="border-[#03624C]/50 text-[#00DF81] transition-colors hover:bg-[#03624C]/20 hover:border-[#2CC295]/70"
+            >
               Cancel
             </Button>
-            <Button onClick={handleSave} className="bg-gradient-primary">
+            <Button 
+              onClick={handleSave} 
+              className="text-white shadow-lg transition-colors"
+              style={{backgroundColor: '#03624C'}}
+              onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2CC295'}
+              onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#03624C'}
+            >
               Save Template
             </Button>
           </div>

@@ -508,7 +508,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   const getStatusColor = (status: ContentNode['status']) => {
     switch (status) {
       case 'published': return 'bg-success text-success-foreground';
-      case 'scheduled': return 'bg-gradient-primary text-white';
+      case 'scheduled': return 'text-white';
       case 'draft': return 'bg-muted text-muted-foreground';
       default: return 'bg-muted text-muted-foreground';
     }
@@ -521,10 +521,13 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
   return (
     <>
       <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-4xl max-h-[90vh]">
+      <DialogContent 
+        className="max-w-4xl max-h-[90vh] border-[#03624C]/50" 
+        style={{backgroundColor: 'rgba(0, 0, 0, 0.95)', backdropFilter: 'blur(12px)'}}
+      >
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
-            <div className="w-8 h-8 bg-gradient-primary rounded-lg flex items-center justify-center">
+            <div className="w-8 h-8 rounded-lg flex items-center justify-center" style={{backgroundColor: '#03624C'}}>
               <TypeIcon className="w-4 h-4 text-white" />
             </div>
             Edit Scheduled Event
@@ -547,7 +550,14 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               <span className="text-sm">
                 {event.scheduledDate?.toLocaleDateString()} at {event.scheduledDate?.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
               </span>
-              <Badge className={`ml-auto ${getStatusColor(event.status)}`}>
+              <Badge 
+                className={`ml-auto text-white`}
+                style={{
+                  backgroundColor: event.status === 'scheduled' ? '#03624C' : 
+                                   event.status === 'published' ? '#2CC295' : 
+                                   '#6B7280'
+                }}
+              >
                 {event.status}
               </Badge>
             </div>
@@ -666,7 +676,13 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
         </Tabs>
 
         <div className="flex gap-2 pt-4 border-t">
-          <Button onClick={handleSave} className="bg-gradient-primary">
+          <Button 
+            onClick={handleSave} 
+            className="text-white shadow-lg transition-colors"
+            style={{backgroundColor: '#03624C'}}
+            onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2CC295'}
+            onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#03624C'}
+          >
             Save Changes
           </Button>
           
@@ -680,11 +696,16 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               xAuthorized === null || 
               (xAuthorized && (!event?.content || event.content.length > 280))
             }
-            className={`transition-all duration-200 ${
-              xAuthorized === false 
-                ? 'border-orange-300 hover:border-orange-500 hover:bg-orange-100 hover:text-orange-700 dark:border-orange-600 dark:hover:border-orange-400 dark:hover:bg-orange-900/30 dark:hover:text-orange-300' 
-                : 'border-slate-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
-            }`}
+            className="transition-all duration-200 border-[#03624C]/50 text-[#00DF81]"
+            style={{backgroundColor: 'rgba(0, 15, 49, 0.5)'}}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(3, 98, 76, 0.3)';
+              e.currentTarget.style.borderColor = 'rgba(44, 194, 149, 0.7)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 15, 49, 0.5)';
+              e.currentTarget.style.borderColor = 'rgba(3, 98, 76, 0.5)';
+            }}
           >
             {getXButtonIcon()}
             {isPostingToX ? 'Processing...' : getXButtonText()}
@@ -720,11 +741,16 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
               (linkedInAuthorized && (!event?.content && !event?.imageUrl)) ||
               (linkedInAuthorized && event?.content && event.content.length > 3000)
             }
-            className={`transition-all duration-200 ${
-              linkedInAuthorized === false 
-                ? 'border-blue-300 hover:border-blue-500 hover:bg-blue-100 hover:text-blue-700 dark:border-blue-600 dark:hover:border-blue-400 dark:hover:bg-blue-900/30 dark:hover:text-blue-300' 
-                : 'border-slate-300 hover:border-blue-600 hover:bg-blue-100 hover:text-blue-700 dark:border-slate-600 dark:hover:border-blue-500 dark:hover:bg-blue-900/30 dark:hover:text-blue-300'
-            }`}
+            className="transition-all duration-200 border-[#03624C]/50 text-[#00DF81]"
+            style={{backgroundColor: 'rgba(0, 15, 49, 0.5)'}}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(3, 98, 76, 0.3)';
+              e.currentTarget.style.borderColor = 'rgba(44, 194, 149, 0.7)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.backgroundColor = 'rgba(0, 15, 49, 0.5)';
+              e.currentTarget.style.borderColor = 'rgba(3, 98, 76, 0.5)';
+            }}
           >
             {getLinkedInButtonIcon()}
             {isPostingToLinkedIn ? 'Processing...' : getLinkedInButtonText()}

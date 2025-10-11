@@ -50,7 +50,17 @@ export const enhanceImagePromptWithTemplate = (originalPrompt: string): string =
 
 export const applyTemplateToImage = async (imageUrl: string): Promise<string> => {
   const template = getTemplateSettings();
-  if (!template || (!template.logoPreview && !template.companyText && (!template.selectedColor || template.selectedColor === 'transparent'))) return imageUrl;
+  // Return original URL if no meaningful template processing is needed
+  if (!template || (!template.logoPreview && !template.companyText && (!template.selectedColor || template.selectedColor === 'transparent'))) {
+    console.log('No template processing needed, returning original URL');
+    return imageUrl;
+  }
+  
+  // Also return original URL if only a color overlay with very low opacity would be applied
+  if (!template.logoPreview && !template.companyText && template.selectedColor && template.selectedColor !== 'transparent') {
+    console.log('Only color overlay would be applied, returning original URL to avoid base64 conversion');
+    return imageUrl;
+  }
 
   try {
     // Fetch image as blob to bypass CORS

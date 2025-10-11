@@ -614,9 +614,10 @@ Return only the refined prompt, nothing else.`
             className={`flex ${message.type === 'user' ? 'justify-end' : 'justify-start'}`}
           >
             <Card
-              className={`max-w-[80%] p-3 ${
-                message.type === 'user' ? 'bg-gradient-primary text-white' : 'bg-[#77958E] text-white'
-              }`}
+              className={`max-w-[80%] p-3 text-white`}
+              style={{
+                backgroundColor: message.type === 'user' ? '#03624C' : '#2CC295'
+              }}
             >
               {message.contentType === 'image' && message.imageUrl ? (
                 <div>
@@ -658,7 +659,10 @@ Return only the refined prompt, nothing else.`
                   {message.type === 'ai' && message.contentType === 'text' && isPlannerMessage(message.rawText ?? message.content) && (
                     <Button
                       size="sm"
-                      className="mt-4 bg-[#77958E] border border-primary glow-hover"
+                      className="mt-4 text-white shadow-lg transition-colors border border-[#03624C]/50"
+                      style={{backgroundColor: '#03624C'}}
+                      onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#2CC295'}
+                      onMouseLeave={(e) => e.currentTarget.style.backgroundColor = '#03624C'}
                       onClick={() => {
                         console.info('AIChat: Use This Planner clicked. message length:', message.content.length);
                         console.debug('AIChat: message content preview:', message.content.slice(0, 1200));
@@ -864,7 +868,18 @@ Return only the refined prompt, nothing else.`
           <Button 
             onClick={handleSend} 
             disabled={!input.trim() || isGenerating} 
-            className="bg-gradient-primary hover:opacity-90 glow-hover px-6"
+            className="text-white shadow-lg transition-colors px-6"
+            style={{backgroundColor: !input.trim() || isGenerating ? '#03624C60' : '#03624C'}}
+            onMouseEnter={(e) => {
+              if (!(!input.trim() || isGenerating)) {
+                e.currentTarget.style.backgroundColor = '#2CC295';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (!(!input.trim() || isGenerating)) {
+                e.currentTarget.style.backgroundColor = '#03624C';
+              }
+            }}
           >
             <Send className="w-4 h-4" />
           </Button>
