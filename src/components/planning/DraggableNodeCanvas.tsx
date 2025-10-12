@@ -48,6 +48,8 @@ interface NodeCanvasProps {
   onEditNode?: (node: ContentNode) => void;
   createOrDeleteEdge?: (from: string, to: string) => Promise<void>;
   onCanvasClick?: () => void;
+  selectedNodeIds?: string[];
+  onSelectionChange?: (selectedIds: string[]) => void;
 }
 
 export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({ 
@@ -58,6 +60,8 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   onAddNode,
   onDeleteNode,
   onEditNode,
+  selectedNodeIds = [],
+  onSelectionChange,
   createOrDeleteEdge,
   onCanvasClick 
 }) => {
@@ -82,6 +86,11 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [expandedImageFolders, setExpandedImageFolders] = useState<Set<string>>(new Set());
   const [draggedImage, setDraggedImage] = useState<{ url: string; nodeId: string } | null>(null);
+  
+  // Selection box states
+  const [isSelecting, setIsSelecting] = useState(false);
+  const [selectionStart, setSelectionStart] = useState<{ x: number; y: number } | null>(null);
+  const [selectionEnd, setSelectionEnd] = useState<{ x: number; y: number } | null>(null);
 
   const helpRef = useRef<HTMLDivElement>(null);
   const dragThreshold = 5;
@@ -160,6 +169,31 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     const node = nodes.find(n => n.id === nodeId);
     if (!node) return;
 
+    // Handle selection logic
+    const isNodeSelected = selectedNodeIds.includes(nodeId);
+    const isCtrlPressed = e.ctrlKey || e.metaKey;
+    
+    if (isCtrlPressed) {
+      // Ctrl+click: toggle selection
+      if (isNodeSelected) {
+        // Remove from selection
+        if (onSelectionChange) {
+          onSelectionChange(selectedNodeIds.filter(id => id !== nodeId));
+        }
+      } else {
+        // Add to selection
+        if (onSelectionChange) {
+          onSelectionChange([...selectedNodeIds, nodeId]);
+        }
+      }
+    } else if (!isNodeSelected) {
+      // Regular click on unselected node: make it the only selection
+      if (onSelectionChange) {
+        onSelectionChange([nodeId]);
+      }
+    }
+    // If the node is already selected and no Ctrl, keep the current selection for group dragging
+
     const canvasRect = canvasRef.current?.getBoundingClientRect();
     if (canvasRect) {
       // Store the zoom and canvas offset at drag start
@@ -205,7 +239,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       document.addEventListener('mousemove', handleInitialMove, { passive: true });
       document.addEventListener('mouseup', handleInitialUp, { passive: true });
     }
-  }, [nodes, dragThreshold]);
+  }, [nodes, dragThreshold, selectedNodeIds, onSelectionChange, canvasOffset, zoomLevel]);
 
   const handleMouseMove = useCallback((e: MouseEvent) => {
     if (!draggedNode || !canvasRef.current || !isDragging) return;
@@ -223,7 +257,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       const mouseCanvasX = (e.clientX - canvasRect.left - dragStartCanvasOffset.x) / dragStartZoom;
       const mouseCanvasY = (e.clientY - canvasRect.top - dragStartCanvasOffset.y) / dragStartZoom;
       
-      // Calculate new node position by subtracting the drag offset
+      // Calculate new position for the dragged node
       const newX = mouseCanvasX - dragOffset.x;
       const newY = mouseCanvasY - dragOffset.y;
 
@@ -231,17 +265,46 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
 
       const now = performance.now();
       if (now - lastUpdateTime.current > 16) {
-        const updatedNodes = nodes.map(node => 
-          node.id === draggedNode 
-            ? { ...node, position: { x: newX, y: newY } }
-            : node
-        );
-
-        onNodeUpdate(updatedNodes);
+        // Check if the dragged node is part of a selection
+        const isDraggedNodeSelected = selectedNodeIds.includes(draggedNode);
+        
+        if (isDraggedNodeSelected && selectedNodeIds.length > 1) {
+          // Group movement: move all selected nodes together
+          const draggedNodeOriginal = nodes.find(n => n.id === draggedNode);
+          if (draggedNodeOriginal) {
+            const deltaX = newX - draggedNodeOriginal.position.x;
+            const deltaY = newY - draggedNodeOriginal.position.y;
+            
+            const updatedNodes = nodes.map(node => {
+              if (selectedNodeIds.includes(node.id)) {
+                return {
+                  ...node,
+                  position: {
+                    x: node.position.x + deltaX,
+                    y: node.position.y + deltaY
+                  }
+                };
+              }
+              return node;
+            });
+            
+            onNodeUpdate(updatedNodes);
+          }
+        } else {
+          // Single node movement
+          const updatedNodes = nodes.map(node => 
+            node.id === draggedNode 
+              ? { ...node, position: { x: newX, y: newY } }
+              : node
+          );
+          
+          onNodeUpdate(updatedNodes);
+        }
+        
         lastUpdateTime.current = now;
       }
     });
-  }, [draggedNode, dragOffset, nodes, onNodeUpdate, isDragging, dragStartCanvasOffset, dragStartZoom]);
+  }, [draggedNode, dragOffset, nodes, onNodeUpdate, isDragging, dragStartCanvasOffset, dragStartZoom, selectedNodeIds]);
 
   const handleMouseUp = useCallback(() => {
     if (animationFrameRef.current) {
@@ -250,12 +313,39 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     }
     
     if (draggedNode && isDragging) {
-      const updatedNodes = nodes.map(node => 
-        node.id === draggedNode 
-          ? { ...node, position: draggedPosition }
-          : node
-      );
-      onNodeUpdate(updatedNodes);
+      const isDraggedNodeSelected = selectedNodeIds.includes(draggedNode);
+      
+      if (isDraggedNodeSelected && selectedNodeIds.length > 1) {
+        // Group movement: finalize positions for all selected nodes
+        const draggedNodeOriginal = nodes.find(n => n.id === draggedNode);
+        if (draggedNodeOriginal) {
+          const deltaX = draggedPosition.x - draggedNodeOriginal.position.x;
+          const deltaY = draggedPosition.y - draggedNodeOriginal.position.y;
+          
+          const updatedNodes = nodes.map(node => {
+            if (selectedNodeIds.includes(node.id)) {
+              return {
+                ...node,
+                position: {
+                  x: node.position.x + deltaX,
+                  y: node.position.y + deltaY
+                }
+              };
+            }
+            return node;
+          });
+          
+          onNodeUpdate(updatedNodes);
+        }
+      } else {
+        // Single node movement
+        const updatedNodes = nodes.map(node => 
+          node.id === draggedNode 
+            ? { ...node, position: draggedPosition }
+            : node
+        );
+        onNodeUpdate(updatedNodes);
+      }
     }
     
     setDraggedNode(null);
@@ -268,7 +358,7 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     document.body.classList.remove('dragging');
     document.body.style.userSelect = '';
     document.body.style.cursor = '';
-  }, [draggedNode, isDragging, draggedPosition, nodes, onNodeUpdate]);
+  }, [draggedNode, isDragging, draggedPosition, nodes, onNodeUpdate, selectedNodeIds]);
 
   React.useEffect(() => {
     if (isDragging && draggedNode) {
@@ -433,10 +523,28 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       setCanvasPanning(true);
       setPanStart({ x: e.clientX - canvasOffset.x, y: e.clientY - canvasOffset.y });
       document.body.style.cursor = 'grabbing';
-    } else if (e.target === e.currentTarget && connectingMode) {
-      setConnectingMode(null);
+    } else if (e.button === 0 && e.target === e.currentTarget) { // Left click on empty area
+      if (connectingMode) {
+        setConnectingMode(null);
+      } else {
+        // Start selection
+        const rect = e.currentTarget.getBoundingClientRect();
+        const startPoint = {
+          x: (e.clientX - rect.left - canvasOffset.x) / zoomLevel,
+          y: (e.clientY - rect.top - canvasOffset.y) / zoomLevel
+        };
+        
+        setIsSelecting(true);
+        setSelectionStart(startPoint);
+        setSelectionEnd(startPoint);
+        
+        // Clear existing selection
+        if (onSelectionChange) {
+          onSelectionChange([]);
+        }
+      }
     }
-  }, [connectingMode, canvasOffset]);
+  }, [connectingMode, canvasOffset, zoomLevel, onSelectionChange]);
 
   const handleCanvasPan = useCallback((e: MouseEvent) => {
     if (!canvasPanning) return;
@@ -462,6 +570,56 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
     setZoomLevel(newZoom);
   }, [zoomLevel]);
 
+  // Selection handlers
+  const handleSelectionMouseMove = useCallback((e: MouseEvent) => {
+    if (!isSelecting || !selectionStart || !canvasRef.current) return;
+    
+    const rect = canvasRef.current.getBoundingClientRect();
+    const currentPoint = {
+      x: (e.clientX - rect.left - canvasOffset.x) / zoomLevel,
+      y: (e.clientY - rect.top - canvasOffset.y) / zoomLevel
+    };
+    
+    setSelectionEnd(currentPoint);
+    
+    // Calculate selection rectangle
+    const selectionRect = {
+      left: Math.min(selectionStart.x, currentPoint.x),
+      top: Math.min(selectionStart.y, currentPoint.y),
+      right: Math.max(selectionStart.x, currentPoint.x),
+      bottom: Math.max(selectionStart.y, currentPoint.y)
+    };
+    
+    // Find nodes within selection
+    const selectedIds = nodes
+      .filter(node => {
+        const nodeRect = {
+          left: node.position.x,
+          top: node.position.y,
+          right: node.position.x + 240, // Node width
+          bottom: node.position.y + 120 // Node height
+        };
+        
+        return (
+          nodeRect.left < selectionRect.right &&
+          nodeRect.right > selectionRect.left &&
+          nodeRect.top < selectionRect.bottom &&
+          nodeRect.bottom > selectionRect.top
+        );
+      })
+      .map(node => node.id);
+    
+    if (onSelectionChange) {
+      onSelectionChange(selectedIds);
+    }
+  }, [isSelecting, selectionStart, canvasOffset, zoomLevel, nodes, onSelectionChange]);
+
+  const handleSelectionMouseUp = useCallback(() => {
+    setIsSelecting(false);
+    setSelectionStart(null);
+    setSelectionEnd(null);
+  }, []);
+
   React.useEffect(() => {
     if (canvasPanning) {
       document.addEventListener('mousemove', handleCanvasPan);
@@ -475,6 +633,19 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
       };
     }
   }, [canvasPanning, handleCanvasPan, handleCanvasPanEnd]);
+
+  // Selection event listeners
+  React.useEffect(() => {
+    if (isSelecting) {
+      document.addEventListener('mousemove', handleSelectionMouseMove);
+      document.addEventListener('mouseup', handleSelectionMouseUp);
+      
+      return () => {
+        document.removeEventListener('mousemove', handleSelectionMouseMove);
+        document.removeEventListener('mouseup', handleSelectionMouseUp);
+      };
+    }
+  }, [isSelecting, handleSelectionMouseMove, handleSelectionMouseUp]);
 
   React.useEffect(() => {
     const canvas = canvasRef.current;
@@ -600,6 +771,10 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
                 : (node.postedAt && node.postedTo && node.postedTo.length > 0)
                 ? 'border-green-600/70 hover:border-green-600 cursor-grab hover:scale-[1.02] hover:shadow-xl hover:shadow-green-600/25 transition-all duration-200 ease-out transform-gpu'
                 : `${getPostTypeBorder(node.postType)} cursor-grab hover:scale-[1.02] hover:shadow-xl transition-all duration-200 ease-out transform-gpu`
+            } ${
+              selectedNodeIds.includes(node.id)
+                ? 'ring-4 ring-[#2CC295]/70 border-[#2CC295] shadow-lg shadow-[#2CC295]/25'
+                : ''
             } ${
               isConnecting 
                 ? 'ring-2 ring-primary/70 border-primary' 
@@ -854,6 +1029,22 @@ export const DraggableNodeCanvas: React.FC<NodeCanvasProps> = ({
             </span>
           </p>
         </div>
+      )}
+
+      {/* Selection Box */}
+      {isSelecting && selectionStart && selectionEnd && (
+        <div
+          className="absolute pointer-events-none z-30"
+          style={{
+            left: Math.min(selectionStart.x, selectionEnd.x),
+            top: Math.min(selectionStart.y, selectionEnd.y),
+            width: Math.abs(selectionEnd.x - selectionStart.x),
+            height: Math.abs(selectionEnd.y - selectionStart.y),
+            border: '2px dashed #2CC295',
+            backgroundColor: 'rgba(44, 194, 149, 0.1)',
+            borderRadius: '4px'
+          }}
+        />
       )}
 
       </div>

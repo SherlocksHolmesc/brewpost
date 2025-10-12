@@ -165,5 +165,109 @@ export const scheduleService = {
         error: error instanceof Error ? error.message : 'Unknown error' 
       };
     }
+  },
+
+  async updateSchedule(node: any) {
+    try {
+      // First find the schedule to get its database ID
+      const existingScheduleResult = await client.graphql({
+        query: `query ListSchedules {
+          listSchedules(filter: { scheduleId: { eq: "${node.id}" } }) {
+            items {
+              id
+              scheduleId
+            }
+          }
+        }`
+      });
+      
+      const existingSchedules = (existingScheduleResult as any).data.listSchedules.items;
+      if (existingSchedules.length === 0) {
+        return { ok: false, error: 'Schedule not found' };
+      }
+      
+      const schedule = existingSchedules[0];
+      
+      // Update the schedule
+      await client.graphql({
+        query: `mutation UpdateSchedule($input: UpdateScheduleInput!) {
+          updateSchedule(input: $input) {
+            id
+            scheduleId
+            title
+            content
+            imageUrl
+            scheduledDate
+            status
+          }
+        }`,
+        variables: { 
+          input: {
+            id: schedule.id,
+            title: node.title,
+            content: node.content,
+            imageUrl: node.imageUrl,
+            scheduledDate: node.scheduledDate ? node.scheduledDate.toISOString() : null,
+            status: node.status
+          }
+        }
+      });
+      
+      console.log(`✅ Updated schedule: ${node.id}`);
+      return { ok: true };
+    } catch (error) {
+      console.error(`Failed to update schedule ${node.id}:`, error);
+      return { 
+        ok: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
+  },
+
+  async deleteSchedule(scheduleId: string) {
+    try {
+      // First find the schedule to get its database ID
+      const existingScheduleResult = await client.graphql({
+        query: `query ListSchedules {
+          listSchedules(filter: { scheduleId: { eq: "${scheduleId}" } }) {
+            items {
+              id
+              scheduleId
+            }
+          }
+        }`
+      });
+      
+      const existingSchedules = (existingScheduleResult as any).data.listSchedules.items;
+      if (existingSchedules.length === 0) {
+        return { ok: false, error: 'Schedule not found' };
+      }
+      
+      const schedule = existingSchedules[0];
+      
+      // Delete the schedule using its database ID
+      await client.graphql({
+        query: `mutation DeleteSchedule($input: DeleteScheduleInput!) {
+          deleteSchedule(input: $input) {
+            id
+            scheduleId
+          }
+        }`,
+        variables: { 
+          input: {
+            id: schedule.id
+          }
+        }
+      });
+      
+      console.log(`✅ Deleted schedule: ${scheduleId}`);
+      return { ok: true };
+    } catch (error) {
+      console.error(`Failed to delete schedule ${scheduleId}:`, error);
+      return { 
+        ok: false, 
+        error: error instanceof Error ? error.message : 'Unknown error' 
+      };
+    }
   }
 };

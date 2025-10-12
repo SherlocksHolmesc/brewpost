@@ -80,12 +80,31 @@ export const CalendarPage: React.FC = () => {
     setNodes(prev => prev.filter(n => n.id !== nodeId));
 
     try {
-      await fetch(
-        `${import.meta.env.VITE_BACKEND_URL}/api/schedules/delete/${nodeId}`,
-        {
-          method: "DELETE",
-        }
-      );
+      const { scheduleService } = await import('@/services/scheduleService');
+      const result = await scheduleService.deleteSchedule(nodeId);
+      
+      if (!result.ok) {
+        console.error("Failed to delete schedule:", result.error);
+        // Revert the UI change if delete failed
+        const fetchSchedules = async () => {
+          const data = await scheduleService.listSchedules();
+          if (data.ok && Array.isArray(data.schedules)) {
+            const parsed = data.schedules.map((s: any) => ({
+              id: s.scheduleId || s.id,
+              title: s.title || 'Untitled',
+              type: (s.type || 'post') as 'post' | 'image' | 'story',
+              status: (s.status || 'scheduled') as 'draft' | 'scheduled' | 'published',
+              scheduledDate: s.scheduledDate ? new Date(s.scheduledDate) : undefined,
+              content: s.content || '',
+              imageUrl: s.imageUrl,
+              connections: [],
+              position: { x: 0, y: 0 }
+            }));
+            setNodes(parsed);
+          }
+        };
+        fetchSchedules();
+      }
     } catch (err) {
       console.error("Failed to delete schedule:", err);
     }

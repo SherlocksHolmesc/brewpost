@@ -72,6 +72,9 @@ export const RedesignedMainLayout: React.FC<RedesignedMainLayoutProps> = ({ chil
   const [aiLoading, setAiLoading] = useState(false);
   const [isGenerating, setIsGenerating] = useState<boolean | string>(false);
   
+  // Selection state
+  const [selectedNodeIds, setSelectedNodeIds] = useState<string[]>([]);
+  
   const prevNodeIdRef = useRef<string | null>(null);
 
   // Demo fallback components
@@ -314,6 +317,8 @@ export const RedesignedMainLayout: React.FC<RedesignedMainLayoutProps> = ({ chil
     }
   };
 
+
+
   // Fetch AI components for selected node
   useEffect(() => {
     let canceled = false;
@@ -459,12 +464,23 @@ export const RedesignedMainLayout: React.FC<RedesignedMainLayoutProps> = ({ chil
         )}
 
         {/* Main Canvas Area */}
-        <div className="flex-1 h-full bg-gradient-subtle relative transition-all duration-300 ease-in-out">
+        <div 
+          className="flex-1 h-full relative transition-all duration-300 ease-in-out"
+          style={{
+            background: `
+              radial-gradient(circle, rgba(3, 98, 76, 1) 1px, transparent 1px)
+            `,
+            backgroundSize: '20px 20px',
+            backgroundColor: 'rgba(0, 15, 49, 0.05)'
+          }}
+        >
           <DraggableNodeCanvas
             nodes={nodes}
             onNodeUpdate={setNodes}
             onNodeClick={handleNodeDoubleClick}
             onNodeDoubleClick={handleNodeDoubleClick}
+            selectedNodeIds={selectedNodeIds}
+            onSelectionChange={setSelectedNodeIds}
             onAddNode={() => {
               const newNode = {
                 id: Date.now().toString(),
@@ -733,6 +749,10 @@ export const RedesignedMainLayout: React.FC<RedesignedMainLayoutProps> = ({ chil
         scheduledNodes={nodes.filter(node => node.status === 'scheduled')}
         editable={true}
         onEditNode={handleSaveNode}
+        onDeleteNode={(nodeId) => {
+          // Remove from nodes state immediately for instant UI update
+          setNodes(prev => prev.filter(node => node.id !== nodeId));
+        }}
       />
 
       <TemplatePopup 

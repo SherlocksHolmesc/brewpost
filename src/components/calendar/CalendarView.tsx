@@ -397,8 +397,24 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         onOpenChange={setShowEventModal}
         event={selectedEvent}
         onSave={(updatedEvent) => {
+          console.log('CalendarView onSave called with:', updatedEvent);
+          
+          // Update local state immediately for UI responsiveness
+          console.log('Updating fetchedNodes state...');
+          setFetchedNodes(prev => {
+            const updated = prev.map(node => 
+              node.id === updatedEvent.id ? updatedEvent : node
+            );
+            console.log('Updated fetchedNodes:', updated);
+            return updated;
+          });
+          
+          // Call parent's update handler
           if (onUpdateNode) {
+            console.log('Calling parent onUpdateNode...');
             onUpdateNode(updatedEvent);
+          } else {
+            console.log('No onUpdateNode handler provided!');
           }
         }}
         onDelete={(eventId) => {

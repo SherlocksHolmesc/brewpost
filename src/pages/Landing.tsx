@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Card } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -20,6 +20,7 @@ import {
   Play
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import AnimatedDonutChart from '@/components/AnimatedDonutChart';
 
 export const Landing: React.FC = () => {
   const navigate = useNavigate();
@@ -75,6 +76,133 @@ export const Landing: React.FC = () => {
     cx: positions[idx].x + NODE_W / 2,
     cy: positions[idx].y + NODE_H / 2
   });
+
+  // animate the count every time the element scrolls into view (but avoid overlapping runs)
+  const animatingRef = useRef(false);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const el = document.getElementById('countup') as HTMLSpanElement | null;
+    if (!el) return;
+
+    const formatNumber = (n: number) => n.toLocaleString('en-US').replace(/,/g, '.');
+    const target = 1080000;
+    const duration = 1500; // ms
+
+    const runAnimation = () => {
+      if (animatingRef.current) return; // avoid overlapping
+      animatingRef.current = true;
+      const start = performance.now();
+
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3); // easeOutCubic
+        const current = Math.round(target * eased);
+        el.textContent = formatNumber(current);
+        if (t < 1) requestAnimationFrame(step);
+        else {
+          el.textContent = formatNumber(target);
+          // small timeout to allow re-triggering when scrolling away and back
+          setTimeout(() => { animatingRef.current = false; }, 200);
+        }
+      };
+
+      requestAnimationFrame(step);
+    };
+
+    if ('IntersectionObserver' in window) {
+      const obs = new IntersectionObserver((entries) => {
+        entries.forEach((entry) => {
+          if (entry.isIntersecting) runAnimation();
+        });
+      }, { threshold: 0.5 });
+
+      obs.observe(el);
+      return () => obs.disconnect();
+    }
+
+    // fallback
+    runAnimation();
+  }, []);
+
+  // animate the SME snapshot rings on scroll into view and reset when out
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const rings = Array.from(document.querySelectorAll<SVGPathElement>('.snapshot-ring'));
+    if (!rings.length) return;
+
+    const circumference = 2 * Math.PI * 15.9155; // svg circle approx used in path
+
+    rings.forEach((r) => {
+      // set initial dash so they appear empty
+      r.style.strokeDasharray = `${circumference}`;
+      r.style.strokeDashoffset = `${circumference}`;
+      r.style.transition = 'stroke-dashoffset 1s cubic-bezier(.22,.9,.22,1)';
+    });
+
+    const animateRing = (r: SVGPathElement) => {
+      const pct = Number(r.getAttribute('data-pct') || 0) / 100;
+      const offset = circumference * (1 - pct);
+      // trigger animation
+      requestAnimationFrame(() => { r.style.strokeDashoffset = String(offset); });
+    };
+
+    const resetRing = (r: SVGPathElement) => {
+      r.style.strokeDashoffset = String(circumference);
+    };
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const target = entry.target as SVGPathElement;
+        if (entry.isIntersecting) animateRing(target);
+        else resetRing(target);
+      });
+    }, { threshold: 0.6 });
+
+    rings.forEach(r => obs.observe(r));
+
+    return () => obs.disconnect();
+  }, []);
+
+  // animate pricing amounts when the Pricing section scrolls into view
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const elems = Array.from(document.querySelectorAll<HTMLElement>('.pricing-amount'));
+    if (!elems.length) return;
+
+    const format = (n:number) => n.toString();
+
+    const animateTo = (el: HTMLElement, target: number, duration = 900) => {
+      const start = performance.now();
+      const from = Number(el.textContent) || 0;
+      const step = (now: number) => {
+        const t = Math.min(1, (now - start) / duration);
+        const eased = 1 - Math.pow(1 - t, 3);
+        const cur = Math.round(from + (target - from) * eased);
+        el.textContent = format(cur);
+        if (t < 1) requestAnimationFrame(step);
+        else el.textContent = format(target);
+      };
+      requestAnimationFrame(step);
+    };
+
+    const reset = (el: HTMLElement) => { el.textContent = '0'; };
+
+    const obs = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        const el = entry.target as HTMLElement;
+        const target = Number(el.getAttribute('data-target') || 0);
+        if (entry.isIntersecting) animateTo(el, target);
+        else reset(el);
+      });
+    }, { threshold: 0.6 });
+
+    elems.forEach(e => obs.observe(e));
+    return () => obs.disconnect();
+  }, []);
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-background via-primary/5 to-accent/10 relative overflow-hidden">
@@ -215,6 +343,79 @@ export const Landing: React.FC = () => {
               </div>
             </div>
           </section>
+
+          {/* SME MARKETING SNAPSHOT — placed under hero */}
+          <section className="mb-32">
+            <div className="max-w-7xl mx-auto">
+              <h3 className="text-3xl font-bold mb-8">SME Struggling Because of...</h3>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                {[
+                  { pct: 67, title: "didn't realize the importance of digital marketing strategy", source: 'Mayple' },
+                  { pct: 60, title: 'of marketing budgets are inefficiently wasted', source: 'Proxima' },
+                  { pct: 90, title: 'of SMEs are struggling with social media presence', source: 'Blueiris' }
+                ].map((s, i) => (
+                  <div key={i} className="p-6 bg-card/20 backdrop-blur-sm rounded-2xl border border-primary/10 flex flex-col items-center text-center">
+                    <div className="w-36 h-36 mb-4 relative">
+                      <svg viewBox="0 0 36 36" className="w-full h-full">
+                        <path className="text-muted-foreground" d="M18 2.0845
+                          a 15.9155 15.9155 0 0 1 0 31.831
+                          a 15.9155 15.9155 0 0 1 0 -31.831" fill="none" strokeOpacity="0.12" strokeWidth="3.5" stroke="currentColor" />
+                        <path
+                          className="snapshot-ring"
+                          data-pct={s.pct}
+                          d="M18 2.0845 a 15.9155 15.9155 0 0 1 0 31.831 a 15.9155 15.9155 0 0 1 0 -31.831"
+                          fill="none"
+                          strokeWidth="3.5"
+                          stroke={i === 0 ? '#7FFFD4' : i === 1 ? '#33C6FF' : '#2D9CDB'}
+                          strokeLinecap="round"
+                        />
+                      </svg>
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-2xl font-bold">{s.pct}%</div>
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground mb-4">{s.title}</div>
+                    <div className="text-xs text-muted-foreground">Source: {s.source}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </section>
+
+          {/* WHY BREWPOST SECTION */}
+          <section className="mb-32">
+          <div className="max-w-7xl mx-auto grid md:grid-cols-2 gap-12 items-center">
+              <div>
+                <h2 className="text-3xl font-bold mb-4">Why BrewPost matters</h2>
+
+                {/* Large animated number + caption */}
+                <div className="flex items-center gap-8 mb-6">
+                  <div className="flex flex-col items-start">
+                    <div className="flex items-baseline gap-4">
+                      <div className="text-6xl md:text-7xl lg:text-8xl font-extrabold text-foreground leading-tight">
+                        {/* number will be rendered here by span with id 'countup' */}
+                        <span id="countup" className="bg-gradient-primary bg-clip-text text-transparent">0</span>
+                      </div>
+                    </div>
+                    <div className="text-sm text-muted-foreground mt-2">96.1% of businesses in Malaysia are SMEs (2024)</div>
+                  </div>
+                </div>
+
+                {/* Count-up script */}
+                {/* We'll render the animated count using a small effect below */}
+              </div>
+
+            <div>
+              <AnimatedDonutChart slices={[
+                { label: 'Food & Beverage', value: 25, color: '#7FFFD4' },
+                { label: 'Fashion & Retail', value: 20, color: '#33C6FF' },
+                { label: 'Beauty & Wellness', value: 15, color: '#2D9CDB' },
+                { label: 'Education', value: 10, color: '#4B7BD3' },
+                { label: 'Others', value: 30, color: '#9AA0A6' },
+              ]} />
+            </div>
+          </div>
+        </section>
 
           {/* FEATURES (unchanged visuals) */}
           <section className="mb-32">
@@ -362,6 +563,43 @@ export const Landing: React.FC = () => {
                 </div>
               </div>
             </Card>
+          </section>
+          {/* PRICING (moved below Content Network) */}
+          <section className="mb-32">
+            <div className="max-w-7xl mx-auto text-center">
+              <h2 className="text-4xl md:text-5xl font-extrabold mb-8">Pricing Plan</h2>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
+                <div className="p-8 bg-card/10 rounded-2xl border border-gray-300/20 dark:border-gray-700/30">
+                  <div className="text-sm font-semibold mb-4">Free-tier</div>
+                  <div className="text-5xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="0">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>2 monthly plans</li>
+                    <li>4-6 images per month</li>
+                    <li>Basic copywriting and visual generating features</li>
+                  </ul>
+                </div>
+
+                <div className="p-8 bg-gradient-primary rounded-2xl border border-primary/10 transform scale-105 shadow-2xl">
+                  <div className="text-sm font-semibold mb-4">SME-tier</div>
+                  <div className="text-6xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="60">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>Unlimited plan</li>
+                    <li>8-10 images per month</li>
+                    <li>Advanced copywriting & visual generating features</li>
+                  </ul>
+                </div>
+
+                <div className="p-8 bg-card/10 rounded-2xl border border-gray-300/20 dark:border-gray-700/30">
+                  <div className="text-sm font-semibold mb-4">Pro-tier</div>
+                  <div className="text-5xl font-extrabold mb-4">RM <span className="pricing-amount" data-target="150">0</span></div>
+                  <ul className="text-left text-sm list-disc pl-6">
+                    <li>Unlimited plan & image</li>
+                    <li>Advanced copywriting & visual generating features</li>
+                    <li>Access to one-click posting</li>
+                  </ul>
+                </div>
+              </div>
+            </div>
           </section>
         </div>
       </div>

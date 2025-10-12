@@ -1,139 +1,229 @@
-# Welcome to your Lovable project
-<!-- Rebuild trigger 2025-01-20 -->
+<div align="center">
+  <img src="./public/logo.svg" alt="Brewpost Logo" width="200"/>
+  
+  # Brewpost
+  
+  **Visual Content Planning & Scheduling Platform**
+  
+  <p>
+    <em>Your creative workspace where ideas transform into polished social media posts with the help of AI</em>
+  </p>
+  
+  ![Powered by AWS](https://img.shields.io/badge/Powered%20by-AWS-FF9900?style=for-the-badge&logo=amazon-aws&logoColor=white)
+  ![React](https://img.shields.io/badge/React-18-61DAFB?style=for-the-badge&logo=react&logoColor=black)
+  ![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?style=for-the-badge&logo=typescript&logoColor=white)
+  
+  ### 🌐 [Try Brewpost Live](https://brewpost.duckdns.org/)
+  
+</div>
 
-## Project info
+---
 
-**URL**: https://lovable.dev/projects/dfe7e6e0-086f-42db-bbe8-d8c47267c0ed
+**Brewpost** is a visual content planning and scheduling platform that helps you craft, organize, and publish social media posts to X (Twitter) and LinkedIn. Think of it as your creative workspace where ideas transform into polished posts with the help of AI.
 
-## How can I edit this code?
+**🚀 Live Demo:** [https://brewpost.duckdns.org/](https://brewpost.duckdns.org/)
 
-There are several ways of editing your application.
+---
 
-**Use Lovable**
+## 💡 What Makes Brewpost Special?
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/dfe7e6e0-086f-42db-bbe8-d8c47267c0ed) and start prompting.
+### 🎨 The Canvas Experience
+At the heart of Brewpost is an **interactive visual canvas** where you can:
+- Drag and drop content ideas like puzzle pieces
+- See your entire content strategy at a glance
+- Connect related posts and campaigns visually
+- Transform abstract ideas into structured content plans
 
-Changes made via Lovable will be committed automatically to this repo.
+### 🤖 AI-Powered Content Creation
+Brewpost isn't just a planner—it's your creative assistant:
+- **Generate post copy** tailored to your brand voice
+- **Create images** from text descriptions using AWS Bedrock
+- **Enhance prompts** to get better AI-generated visuals
+- **Get suggestions** based on trending topics and campaign types
 
-**Use your preferred IDE**
+### 📅 Smart Scheduling
+- Calendar view to visualize your posting schedule
+- Direct posting to X and LinkedIn with OAuth authentication
+- Store and manage scheduled posts in DynamoDB
+- Never miss a posting opportunity with EventBridge scheduling
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+### 🔒 Secure & Connected
+- OAuth 2.0 integration with X and LinkedIn
+- AWS Cognito for user authentication
+- Encrypted token storage
+- Safe handling of your social media credentials
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+---
 
-Follow these steps:
+## 🚀 Getting Started
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+### Try It Now
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+**Live Application:** [https://brewpost.duckdns.org/](https://brewpost.duckdns.org/)
 
-# Step 3: Install the necessary dependencies.
-npm i
+Start planning and scheduling your social media content right away! No installation required.
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+---
 
-**Edit a file directly in GitHub**
+### For Developers: Local Setup
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+Want to run Brewpost locally or contribute to the project? Follow these steps:
 
-**Use GitHub Codespaces**
+#### Prerequisites
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+- **Node.js** (v18 or higher)
+- **AWS Account** with access to the following services:
+  - Amazon Cognito (Authentication)
+  - AWS Bedrock (AI Generation)
+  - AWS AppSync (GraphQL API)
+  - Amazon DynamoDB (Database)
+  - Amazon EC2 (Hosting)
+  - Amazon S3 (Storage)
+  - AWS Lambda (Serverless Functions)
+  - Amazon EventBridge (Scheduling)
+  - AWS Secrets Manager (Credential Management)
+- **Social Media API Credentials**:
+  - X (Twitter) Developer Account
+  - LinkedIn Developer Account
 
-## What technologies are used for this project?
+#### Installation
 
-This project is built with:
+1. **Clone the repository**
+   ```bash
+   git clone https://github.com/SherlocksHolmesc/brewpost-canvas-plan.git
+   cd brewpost-canvas-plan
+   ```
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+2. **Install dependencies**
+   ```bash
+   npm install
+   ```
 
-## How can I deploy this project?
+3. **Configure environment variables**
+   
+   Create a `.env` file in the root directory with the following:
+   ```env
+   # AWS Configuration
+   ACCESS_KEY_ID=your_aws_access_key
+   SECRET_ACCESS_KEY=your_aws_secret_key
+   REGION=us-east-1
+   
+   # AWS Services
+   S3_BUCKET=your-s3-bucket
+   SCHEDULES_TABLE=Schedules
+   TEXT_MODEL=your-bedrock-text-model
+   IMAGE_MODEL=your-bedrock-image-model
+   
+   # Cognito
+   COGNITO_CLIENT_ID=your_cognito_client_id
+   COGNITO_CLIENT_SECRET=your_cognito_client_secret
+   COGNITO_DOMAIN=your_cognito_domain
+   
+   # X (Twitter) API
+   VITE_X_CLIENT_ID=your_x_client_id
+   VITE_X_CLIENT_SECRET=your_x_client_secret
+   VITE_X_REDIRECT_URI=http://localhost:8080/x-callback
+   
+   # LinkedIn API
+   LINKEDIN_CLIENT_ID=your_linkedin_client_id
+   LINKEDIN_CLIENT_SECRET=your_linkedin_client_secret
+   LINKEDIN_REDIRECT_URI=http://localhost:8080/Callback
+   
+   # Server Configuration
+   PORT=8081
+   FRONTEND_URL=http://localhost:8080
+   SESSION_SECRET=your_session_secret
+   ```
 
-Simply open [Lovable](https://lovable.dev/projects/dfe7e6e0-086f-42db-bbe8-d8c47267c0ed) and click on Share -> Publish.
+4. **Set up AWS resources**
+   
+   Create a DynamoDB table named `Schedules` with the following schema:
+   - Primary Key: `id` (String)
+   - Add any additional indexes as needed
 
-## Can I connect a custom domain to my Lovable project?
+5. **Run the application**
+   ```bash
+   npm run dev:full
+   ```
+   
+   This starts both the frontend (port 8080) and backend server (port 8081).
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## 📖 How to Use Brewpost
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+### 1. **Plan Your Content**
+   - Open the canvas and start adding content nodes
+   - Each node represents a post idea with title, content, and optional image
+   - Drag nodes around to organize your campaigns visually
 
-## Troubleshooting: DynamoDB authorization error
+### 2. **Generate AI Content**
+   - Click on any node to open the details panel
+   - Use "Generate Enhanced Prompt" to improve your image descriptions
+   - Click "Generate Image" to create visuals using AWS Bedrock
+   - Edit the AI-generated copy to match your voice
 
-If you see an error like:
+### 3. **Schedule & Post**
+   - Open the calendar view to see your content timeline
+   - Pick a date and time for each post
+   - Connect your X and LinkedIn accounts
+   - Post immediately or schedule for later
 
-```
-User: arn:aws:iam::ACCOUNT_ID:user/uploader is not authorized to perform: dynamodb:PutItem on resource: arn:aws:dynamodb:REGION:ACCOUNT_ID:table/Schedules
-```
+### 4. **Manage Your Social Accounts**
+   - Navigate to test pages to authenticate with X and LinkedIn
+   - Your tokens are securely stored and refreshed automatically
+   - Post to multiple platforms from one interface
 
-It means the AWS identity running your server (IAM user or role) is missing permissions to write to the DynamoDB table. To fix:
+---
 
-1. Add a minimal IAM policy that grants PutItem (and common read/write actions) to the Schedules table.
-2. Attach the policy to the IAM user/role used by your server (for local dev this may be the IAM user whose AWS keys are in your .env; for deployed servers attach to the EC2/Task/Lambda role).
+## 🛠️ Tech Stack
 
-Example (policy file is included at `aws/schedules-putitem-policy.json`):
+### Frontend
+- **React 18** with TypeScript
+- **Vite** for blazing-fast development
+- **TailwindCSS** + **shadcn/ui** for beautiful, accessible components
+- **React Router** for navigation
+- **TanStack Query** for state management and data fetching
 
-- Attach to an IAM user (example):
+### Backend
+- **Node.js** + **Express** server
+- **AWS SDK** for cloud integrations
+- **OAuth 2.0** for social media authentication
+- Session management with `express-session`
 
-  ```sh
-  aws iam put-user-policy --user-name uploader --policy-name AllowSchedulesPutItem --policy-document file://aws/schedules-putitem-policy.json
-  ```
+### AWS Services (Cloud Infrastructure)
 
-- Attach to a role (example):
+Brewpost is built on **Amazon Web Services (AWS)** for scalable, secure, and reliable cloud infrastructure:
 
-  ```sh
-  aws iam put-role-policy --role-name MyServerRole --policy-name AllowSchedulesPutItem --policy-document file://aws/schedules-putitem-policy.json
-  ```
+- **Amazon Cognito**: User authentication, authorization, and user management
+- **AWS Bedrock**: AI-powered text generation and image creation for content
+- **AWS AppSync**: GraphQL API for real-time data synchronization
+- **Amazon DynamoDB**: NoSQL database for posts, schedules, and user data
+- **Amazon EC2**: Application hosting and server infrastructure
+- **Amazon S3**: Secure image storage and static asset hosting
+- **AWS Lambda**: Serverless functions for background processing and automated tasks
+- **Amazon EventBridge**: Intelligent scheduling for automated post publishing
+- **AWS Secrets Manager**: Secure storage and management of API keys and credentials
 
-Alternatively use the AWS Console:
+<img width="1890" height="1064" alt="image" src="https://github.com/user-attachments/assets/f11f9d80-dc10-47fb-aff7-8711d7b710bc" />
 
-- Go to IAM → Users (or Roles) → choose the identity → "Add inline policy" → JSON → paste the file contents and Review/Save.
+---
 
-After attaching, restart your server and retry the scheduling operation.
+## 🎯 Key Features Breakdown
 
-Security note: in production prefer a least-privilege role attached to the compute environment (EC2 / ECS task role / Lambda role) instead of embedding long-lived IAM user keys in .env.
+| Feature | Description | AWS Service |
+|---------|-------------|-------------|
+| **Visual Canvas** | Drag-and-drop interface for planning content campaigns | AppSync + DynamoDB |
+| **AI Generation** | Create post copy and images using AI | AWS Bedrock |
+| **Multi-Platform** | Post to X and LinkedIn from one dashboard | Lambda + EventBridge |
+| **Smart Scheduling** | Calendar-based scheduling with automation | EventBridge + DynamoDB |
+| **Secure Authentication** | OAuth and user management | Amazon Cognito |
+| **Real-time Sync** | Instant data synchronization across devices | AWS AppSync |
+| **Cloud Storage** | Secure image and asset storage | Amazon S3 |
+| **Secrets Management** | Secure API key and credential storage | AWS Secrets Manager |
+| **Scalable Hosting** | Reliable application hosting | Amazon EC2 |
 
-## Troubleshooting: Lambda responded "success" but nothing was written to DynamoDB
+---
 
-If your server falls back to the Lambda Function URL and you see a response like:
 
-```
-{ "success": true }
-```
-
-but no items appear in the Schedules table, this usually means the Lambda executed but did not persist items (or returned a different response shape than the server expects).
-
-What to check in the Lambda:
-
-- Logs: open CloudWatch Logs for the function (ScheduleDispatcherFn) and inspect the invocation for validation errors, missing environment variables, or unhandled exceptions.
-- Environment variables: ensure the Lambda has the correct SCHEDULES_TABLE
-- IAM role: Lambda's execution role must have dynamodb:PutItem on the table and sns:Publish on the topic.
-- Return shape: The server expects the Lambda to return JSON like:
-
-  ```
-  { "ok": true, "scheduled": [ { "scheduleId": "...", "status": "scheduled", "scheduledDate": "..." }, ... ] }
-  ```
-
-  If the Lambda returns only { "success": true } the server treats that as suspicious and will return an error to the client (see server logs).
-
-How to proceed:
-
-1. Check CloudWatch logs for the specific invocation (search by timestamp).
-2. Confirm the Lambda wrote to DynamoDB (CloudWatch or DynamoDB metrics) or why it skipped writes.
-3. Update the Lambda to return the structured object above when scheduling succeeds.
-4. Restart your calls from the frontend; the server will log and return the full Lambda response to help debugging.
+**Built with ❤️ for content creators who think visually.**

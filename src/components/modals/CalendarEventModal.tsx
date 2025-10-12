@@ -193,6 +193,7 @@ export const CalendarEventModal: React.FC<CalendarEventModalProps> = ({
       imageUrl: formData.imageUrl
     };
 
+    console.log('CalendarEventModal handleSave - updatedEvent:', updatedEvent);
     onSave(updatedEvent);
     onOpenChange(false);
   };
